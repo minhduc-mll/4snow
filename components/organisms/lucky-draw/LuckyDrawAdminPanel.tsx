@@ -409,6 +409,16 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
               );
             })}
           </div>
+
+          <Button
+            variant="outline"
+            size="lg"
+            leftIcon={<Plus className="size-4" aria-hidden />}
+            onClick={handleAddPrize}
+            className="w-full"
+          >
+            {t("luckyDraw.addPrize")}
+          </Button>
         </div>
 
         {(formError || validationErrors.length > 0) ? (

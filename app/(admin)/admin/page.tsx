@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/atoms/Input";
 import { LuckyDrawAdminPanel } from "@/components/organisms/lucky-draw/LuckyDrawAdminPanel";
 import { QuizImportPanel } from "@/components/organisms/quiz/QuizImportPanel";
+import { ADMIN_AUTH_TOKEN_KEY, clearAdminAuthToken, setAdminAuthToken } from "@/hooks/useAdminAuth";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { PATH } from "@/lib/paths";
 import type {
@@ -25,19 +26,11 @@ import type {
   AdminVerifyResponse,
 } from "@/types/admin-auth";
 
-const ADMIN_AUTH_TOKEN_KEY = "admin-auth-token";
-
 type AdminAuthState =
   | { status: "checking" }
   | { status: "unauthenticated" }
   | { status: "authenticated"; expiresAt: number }
   | { status: "error"; message: string };
-
-function clearAdminToken(): void {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(ADMIN_AUTH_TOKEN_KEY);
-  }
-}
 
 export default function AdminPage(): React.ReactElement {
   const { t } = useAppI18n();
@@ -77,7 +70,7 @@ export default function AdminPage(): React.ReactElement {
       // no-op
     }
 
-    clearAdminToken();
+    clearAdminAuthToken();
     setAuthState({ status: "unauthenticated" });
   }, []);
 
@@ -117,23 +110,23 @@ export default function AdminPage(): React.ReactElement {
               ? data.message
               : t("adminAuth.loginFailed"),
         });
-        clearAdminToken();
+        clearAdminAuthToken();
         return;
       }
 
-      window.localStorage.setItem(ADMIN_AUTH_TOKEN_KEY, data.token);
+      setAdminAuthToken(data.token);
       setPassword("");
       setAuthState({ status: "authenticated", expiresAt: data.expiresAt });
     } catch {
       setAuthState({ status: "error", message: t("adminAuth.loginFailed") });
-      clearAdminToken();
+      clearAdminAuthToken();
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleLogout = (): void => {
-    clearAdminToken();
+    clearAdminAuthToken();
     setAuthState({ status: "unauthenticated" });
   };
 

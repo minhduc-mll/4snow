@@ -12,11 +12,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/atoms/Card";
+import { useAdminAuthenticated } from "@/hooks/useAdminAuth";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { PATH } from "@/lib/paths";
 
 export default function Home(): React.ReactElement {
   const { t } = useAppI18n();
+  const isAdminAuthenticated = useAdminAuthenticated();
 
   const routeItems = [
     {
@@ -60,7 +62,7 @@ export default function Home(): React.ReactElement {
         <div className="grid gap-4 md:grid-cols-3">
           {routeItems.map((route) => {
             const Icon = route.icon;
-            if (route.private) {
+            if (route.private && !isAdminAuthenticated) {
               return null;
             }
             return (
