@@ -24,6 +24,7 @@ export default function Home(): React.ReactElement {
       title: t("home.adminControlTitle"),
       description: t("home.adminControlDescription"),
       icon: ShieldCheck,
+      private: true,
     },
     {
       href: PATH.luckyDraw,
@@ -32,16 +33,18 @@ export default function Home(): React.ReactElement {
       icon: Sparkles,
     },
     {
-      href: PATH.quiz,
-      title: t("home.quizPlayerTitle"),
-      description: t("home.quizPlayerDescription"),
-      icon: Gamepad,
-    },
-    {
       href: PATH.leaderboard,
       title: t("home.leaderboardTitle"),
       description: t("home.leaderboardDescription"),
       icon: Trophy,
+      comingSoon: true,
+    },
+    {
+      href: PATH.quiz,
+      title: t("home.quizPlayerTitle"),
+      description: t("home.quizPlayerDescription"),
+      icon: Gamepad,
+      comingSoon: true,
     },
   ];
 
@@ -57,8 +60,11 @@ export default function Home(): React.ReactElement {
         <div className="grid gap-4 md:grid-cols-3">
           {routeItems.map((route) => {
             const Icon = route.icon;
+            if (route.private) {
+              return null;
+            }
             return (
-              <Card key={route.href} className="overflow-hidden shadow-soft">
+              <Card key={route.href} className="relative overflow-hidden shadow-soft">
                 <CardHeader>
                   <div className="flex items-center gap-3">
                     <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-muted text-foreground">
@@ -69,12 +75,30 @@ export default function Home(): React.ReactElement {
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   <CardDescription>{route.description}</CardDescription>
-                  <Link href={route.href} className="w-full">
-                    <Button variant="secondary" size="lg" className="w-full justify-center">
+                  {route.comingSoon ? (
+                    <Button
+                      variant="secondary"
+                      size="lg"
+                      className="w-full justify-center"
+                      disabled
+                    >
                       {t("home.openPage")}
                     </Button>
-                  </Link>
+                  ) : (
+                    <Link href={route.href} className="w-full">
+                      <Button variant="secondary" size="lg" className="w-full justify-center">
+                        {t("home.openPage")}
+                      </Button>
+                    </Link>
+                  )}
                 </CardContent>
+                {route.comingSoon ? (
+                  <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-background/55 backdrop-blur-[2px]">
+                    <span className="rounded-md bg-background/90 px-3 py-1 text-sm font-medium text-foreground shadow-md">
+                      {t("home.comingSoon")}
+                    </span>
+                  </div>
+                ) : null}
               </Card>
             );
           })}

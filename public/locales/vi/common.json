@@ -2,6 +2,7 @@
   "home": {
     "title": "Trang điều khiển",
     "openPage": "Mở trang",
+    "comingSoon": "Sắp ra mắt",
     "adminControlTitle": "Quản trị",
     "adminControlDescription": "Quản lý Lucky Draw và Quiz.",
     "luckyDrawTitle": "Màn hình Lucky Draw",
@@ -21,6 +22,17 @@
   "adminPage": {
     "section": "Quản trị",
     "title": "Điều khiển"
+  },
+  "adminAuth": {
+    "checking": "Đang kiểm tra xác thực...",
+    "loginTitle": "Đăng nhập Quản trị",
+    "loginDescription": "Đăng nhập để truy cập trang quản trị.",
+    "homeAction": "Trang chủ",
+    "username": "Tài khoản",
+    "password": "Mật khẩu",
+    "loginAction": "Đăng nhập",
+    "logoutAction": "Đăng xuất",
+    "loginFailed": "Đăng nhập thất bại. Vui lòng thử lại."
   },
   "quiz": {
     "quiz": "Quiz",

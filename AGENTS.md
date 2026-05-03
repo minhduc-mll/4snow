@@ -218,3 +218,20 @@ NEVER break:
 - security rules
 - type safety
 - feature boundaries
+
+### Admin Authentication Exception
+
+Next.js Route Handlers are allowed only for admin authentication endpoints:
+
+- `POST /api/admin/login`
+- `POST /api/admin/verify`
+
+These endpoints may read server-only environment variables:
+
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD`
+- `ADMIN_JWT_SECRET`
+
+They must not expose secrets to the browser.
+
+This exception exists because browser code cannot safely read private `.env` values or sign/verify JWTs with a private secret.

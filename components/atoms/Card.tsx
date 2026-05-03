@@ -43,6 +43,7 @@ export function Card({
       initial={initial ?? { opacity: 0, y: 8 }}
       animate={animate ?? { opacity: 1, y: 0 }}
       transition={transition ?? { duration: 0.22, ease: "easeOut" }}
+      className="flex flex-col min-w-0 w-full"
     >
       <ShadcnCard {...props} />
     </motion.div>

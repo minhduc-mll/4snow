@@ -2,6 +2,7 @@
   "home": {
     "title": "Control Panel",
     "openPage": "Open page",
+    "comingSoon": "Coming soon",
     "adminControlTitle": "Admin Control",
     "adminControlDescription": "Manage Lucky Draw and Quiz event controls.",
     "luckyDrawTitle": "Lucky Draw Overlay",
@@ -21,6 +22,17 @@
   "adminPage": {
     "section": "Admin",
     "title": "Control"
+  },
+  "adminAuth": {
+    "checking": "Checking authentication...",
+    "loginTitle": "Admin Login",
+    "loginDescription": "Sign in to access admin controls.",
+    "homeAction": "Home",
+    "username": "Username",
+    "password": "Password",
+    "loginAction": "Login",
+    "logoutAction": "Logout",
+    "loginFailed": "Login failed. Please try again."
   },
   "quiz": {
     "quiz": "Quiz",
