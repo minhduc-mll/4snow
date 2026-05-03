@@ -16,14 +16,16 @@ import {
   CardTitle,
 } from "@/components/atoms/Card";
 import { Input } from "@/components/atoms/Input";
+import { ExceptTagsInput } from "@/components/molecules/lucky-draw/ExceptTagsInput";
 import {
   formatTicket,
   getDisplayDigits,
   normalizeExceptValues,
   normalizePrizeId,
-  parseExceptInput,
   validateDrawConfigInput,
 } from "@/hooks/useLuckyDraw";
+import { DrawHistoryItem } from "@/components/molecules/lucky-draw/DrawHistoryItem";
+import { useAppI18n } from "@/hooks/useAppI18n";
 import { useLuckyDrawStore } from "@/stores/useLuckyDrawStore";
 import { PATH } from "@/lib/paths";
 import { cn } from "@/lib/utils";
@@ -36,7 +38,7 @@ interface ConfigDraft {
   name: string;
   from: number;
   to: number;
-  exceptText: string;
+  except: string[];
   prizes: PrizeDraft[];
 }
 
@@ -45,7 +47,7 @@ const defaultDraft: ConfigDraft = {
   name: "Lucky Draw",
   from: 0,
   to: 999,
-  exceptText: "",
+  except: [],
   prizes: [
     {
       id: "first_prize",
@@ -62,7 +64,7 @@ function toDraft(config: LuckyDrawConfig): ConfigDraft {
     name: config.name,
     from: config.ticketRange.from,
     to: config.ticketRange.to,
-    exceptText: config.ticketRange.except.join(", "),
+    except: [...config.ticketRange.except],
     prizes: [...config.prizes].sort((left, right) => left.order - right.order),
   };
 }
@@ -81,7 +83,7 @@ function toConfig(draft: ConfigDraft): LuckyDrawConfig {
     ticketRange: {
       from: Math.trunc(draft.from),
       to: Math.trunc(draft.to),
-      except: parseExceptInput(draft.exceptText),
+      except: draft.except,
     },
     prizes,
   };
@@ -98,7 +100,7 @@ function getDraftAvailableTicketCount(draft: ConfigDraft): number {
 
   try {
     const normalizedExcept = normalizeExceptValues(
-      parseExceptInput(draft.exceptText),
+      draft.except,
       draft.from,
       draft.to,
     );
@@ -109,47 +111,13 @@ function getDraftAvailableTicketCount(draft: ConfigDraft): number {
   }
 }
 
-function ResultGrid({
-  winners,
-}: {
-  winners: string[];
-}): React.ReactElement {
-  return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-      {winners.map((winner) => (
-        <div
-          key={winner}
-          className="rounded-lg border bg-background px-3 py-2 text-center font-mono text-lg font-semibold tabular-nums shadow-inner"
-        >
-          {winner}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function HistoryItem({ result }: { result: { prizeName: string; winners: string[]; createdAt: string } }): React.ReactElement {
-  return (
-    <div className="grid gap-2 rounded-lg border bg-background p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="font-medium text-foreground">{result.prizeName}</p>
-          <p className="text-xs text-muted-foreground">
-            {new Date(result.createdAt).toLocaleString()}
-          </p>
-        </div>
-        <Badge variant="success">{result.winners.length} winners</Badge>
-      </div>
-      <ResultGrid winners={result.winners} />
-    </div>
-  );
-}
-
 export function LuckyDrawAdminPanel(): React.ReactElement {
   const hydrate = useLuckyDrawStore((state) => state.hydrate);
   const config = useLuckyDrawStore((state) => state.config);
   const results = useLuckyDrawStore((state) => state.results);
   const saveConfig = useLuckyDrawStore((state) => state.saveConfig);
+  const clearAllResults = useLuckyDrawStore((state) => state.clearAllResults);
+  const { t } = useAppI18n();
   const hydrated = useLuckyDrawStore((state) => state.hydrated);
 
   const [draftState, setDraftState] = React.useState<ConfigDraft>(defaultDraft);
@@ -158,10 +126,25 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
   );
   const [isDirty, setIsDirty] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
+  const [showSaveSuccess, setShowSaveSuccess] = React.useState(false);
 
   React.useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  React.useEffect(() => {
+    if (!showSaveSuccess) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowSaveSuccess(false);
+    }, 2500);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [showSaveSuccess]);
 
   const draft = React.useMemo<ConfigDraft>(() => {
     if (!hydrated || isDirty) {
@@ -173,6 +156,13 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
 
   const selectedPrizeId = React.useMemo<string | null>(() => {
     if (!hydrated || isDirty) {
+      return selectedPrizeIdState;
+    }
+
+    if (
+      selectedPrizeIdState &&
+      draft.prizes.some((prize) => prize.id === selectedPrizeIdState)
+    ) {
       return selectedPrizeIdState;
     }
 
@@ -188,15 +178,16 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
   const validationErrors = validateDrawConfigInput(toConfig(draft));
 
   const handleConfigChange = (patch: Partial<ConfigDraft>): void => {
-    setDraftState((current) => ({ ...current, ...patch }));
+    setDraftState((current) => ({ ...(isDirty ? current : draft), ...patch }));
     setIsDirty(true);
     setFormError(null);
   };
 
   const handlePrizeChange = (index: number, patch: Partial<PrizeDraft>): void => {
+    const baseDraft = draft;
     setDraftState((current) => ({
-      ...current,
-      prizes: current.prizes.map((prize, prizeIndex) =>
+      ...(isDirty ? current : baseDraft),
+      prizes: (isDirty ? current : baseDraft).prizes.map((prize, prizeIndex) =>
         prizeIndex === index ? { ...prize, ...patch } : prize,
       ),
     }));
@@ -205,18 +196,20 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
   };
 
   const handleAddPrize = (): void => {
+    const baseDraft = draft;
     setDraftState((current) => {
-      const nextOrder = current.prizes.length + 1;
+      const workingDraft = isDirty ? current : baseDraft;
+      const nextOrder = workingDraft.prizes.length + 1;
       const prize: PrizeDraft = {
         id: `prize-${nextOrder}`,
-        name: `Prize ${nextOrder}`,
+        name: `${t("luckyDraw.prize")} ${nextOrder}`,
         winners_count: 1,
         order: nextOrder,
       };
 
       return {
-        ...current,
-        prizes: [...current.prizes, prize],
+        ...workingDraft,
+        prizes: [...workingDraft.prizes, prize],
       };
     });
     setIsDirty(true);
@@ -224,9 +217,10 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
   };
 
   const handleRemovePrize = (index: number): void => {
+    const baseDraft = draft;
     setDraftState((current) => ({
-      ...current,
-      prizes: current.prizes
+      ...(isDirty ? current : baseDraft),
+      prizes: (isDirty ? current : baseDraft).prizes
         .filter((_, prizeIndex) => prizeIndex !== index)
         .map((prize, prizeIndex) => ({ ...prize, order: prizeIndex + 1 })),
     }));
@@ -240,8 +234,17 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
     try {
       const nextConfig = toConfig(draft);
       saveConfig(nextConfig);
+      const nextDraft = toDraft(nextConfig);
+      setDraftState(nextDraft);
+      setSelectedPrizeIdState((current) =>
+        current && nextDraft.prizes.some((prize) => prize.id === current)
+          ? current
+          : (nextDraft.prizes[0]?.id ?? null),
+      );
       setIsDirty(false);
+      setShowSaveSuccess(true);
     } catch (error) {
+      setShowSaveSuccess(false);
       setFormError(
         error instanceof Error
           ? error.message
@@ -252,14 +255,17 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
 
   return (
     <Card className="w-full shadow-soft">
+      {showSaveSuccess ? (
+        <div className="pointer-events-none fixed right-4 top-4 z-40 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-800 shadow-lg dark:text-emerald-200">
+          {t("luckyDraw.configSavedSuccess")}
+        </div>
+      ) : null}
       <CardHeader>
-        <CardTitle>Lucky Draw Configuration</CardTitle>
-        <CardDescription>
-          Configure ticket ranges and prize tiers before opening the draw page.
-        </CardDescription>
+        <CardTitle>{t("luckyDraw.luckyDraw")}</CardTitle>
+        <CardDescription>{t("luckyDraw.openDrawPage")}</CardDescription>
         <CardAction>
           <Badge variant={isDirty ? "warning" : "success"}>
-            {isDirty ? "Unsaved changes" : "Saved config"}
+            {isDirty ? t("luckyDraw.unsavedChanges") : t("luckyDraw.savedConfig")}
           </Badge>
         </CardAction>
       </CardHeader>
@@ -268,14 +274,14 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
         <div className="grid gap-3 rounded-lg border bg-muted/20 p-4">
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="grid gap-1.5 text-sm sm:col-span-3">
-              <span className="font-medium text-foreground">Event name</span>
+              <span className="font-medium text-foreground">{t("luckyDraw.eventName")}</span>
               <Input
                 value={draft.name}
                 onChange={(event) => handleConfigChange({ name: event.target.value })}
               />
             </label>
             <label className="grid gap-1.5 text-sm">
-              <span className="font-medium text-foreground">From</span>
+              <span className="font-medium text-foreground">{t("luckyDraw.from")}</span>
               <Input
                 type="number"
                 min={0}
@@ -286,7 +292,7 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
               />
             </label>
             <label className="grid gap-1.5 text-sm">
-              <span className="font-medium text-foreground">To</span>
+              <span className="font-medium text-foreground">{t("luckyDraw.to")}</span>
               <Input
                 type="number"
                 min={0}
@@ -295,7 +301,7 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
               />
             </label>
             <div className="grid gap-1.5 text-sm">
-              <span className="font-medium text-foreground">Derived digits</span>
+              <span className="font-medium text-foreground">{t("luckyDraw.derivedDigits")}</span>
               <div className="flex h-8 items-center rounded-lg border bg-background px-2.5 text-sm">
                 {displayDigits}
               </div>
@@ -303,30 +309,30 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
           </div>
 
           <label className="grid gap-1.5 text-sm">
-            <span className="font-medium text-foreground">Except</span>
-            <Input
-              value={draft.exceptText}
-              placeholder="Example: 013, 088, 999"
-              onChange={(event) => handleConfigChange({ exceptText: event.target.value })}
+            <span className="font-medium text-foreground">{t("luckyDraw.except")}</span>
+            <ExceptTagsInput
+              value={draft.except}
+              placeholder={t("luckyDraw.exceptPlaceholder")}
+              onChange={(nextExcept) => handleConfigChange({ except: nextExcept })}
             />
           </label>
 
           <div className="flex flex-wrap gap-2">
-            <Badge variant="neutral">Range {rangeLabel}</Badge>
-            <Badge variant="neutral">{availableTicketCount} available before history</Badge>
+            <Badge variant="neutral">{t("luckyDraw.from")} {rangeLabel}</Badge>
+            <Badge variant="neutral">{availableTicketCount}</Badge>
           </div>
         </div>
 
         <div className="grid gap-3 rounded-lg border bg-muted/20 p-4">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-foreground">Prizes</h2>
+            <h2 className="text-base font-semibold text-foreground">{t("luckyDraw.prizes")}</h2>
             <Button
               variant="outline"
               size="sm"
               leftIcon={<Plus className="size-4" aria-hidden />}
               onClick={handleAddPrize}
             >
-              Add prize
+              {t("luckyDraw.addPrize")}
             </Button>
           </div>
 
@@ -349,14 +355,14 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
                       className="justify-start px-0 text-left font-medium text-foreground"
                       onClick={() => setSelectedPrizeIdState(prize.id)}
                     >
-                      {prize.name || `Prize ${index + 1}`}
+                      {prize.name || `${t("luckyDraw.prize")} ${index + 1}`}
                     </Button>
                     <div className="flex items-center gap-2">
-                      {savedResult ? <Badge variant="success">Drawn</Badge> : null}
+                      {savedResult ? <Badge variant="success">{t("luckyDraw.drawn")}</Badge> : null}
                       <Button
                         variant="ghost"
                         size="icon"
-                        aria-label="Remove prize"
+                        aria-label={t("luckyDraw.removePrize")}
                         disabled={draft.prizes.length <= 1}
                         onClick={() => handleRemovePrize(index)}
                       >
@@ -366,7 +372,7 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-[1fr_1fr_140px]">
                     <label className="grid gap-1.5 text-sm">
-                      <span className="font-medium text-foreground">Prize ID</span>
+                      <span className="font-medium text-foreground">{t("luckyDraw.prizeId")}</span>
                       <Input
                         value={prize.id}
                         onChange={(event) =>
@@ -377,7 +383,7 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
                       />
                     </label>
                     <label className="grid gap-1.5 text-sm">
-                      <span className="font-medium text-foreground">Prize name</span>
+                      <span className="font-medium text-foreground">{t("luckyDraw.prizeName")}</span>
                       <Input
                         value={prize.name}
                         onChange={(event) =>
@@ -386,7 +392,7 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
                       />
                     </label>
                     <label className="grid gap-1.5 text-sm">
-                      <span className="font-medium text-foreground">Winners</span>
+                      <span className="font-medium text-foreground">{t("luckyDraw.winnersCount")}</span>
                       <Input
                         type="number"
                         min={1}
@@ -423,39 +429,48 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
         <div className="grid gap-3 rounded-lg border bg-muted/20 p-4">
           <div className="flex items-center gap-2">
             <History className="size-4" aria-hidden />
-            <h2 className="text-base font-semibold text-foreground">Previous Results</h2>
+            <h2 className="text-base font-semibold text-foreground">{t("luckyDraw.previousResults")}</h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("luckyDraw.clearAllResults")}
+              disabled={results.length === 0}
+              onClick={clearAllResults}
+            >
+              <Trash2 className="size-4" aria-hidden />
+            </Button>
           </div>
           {results.length > 0 ? (
             <div className="grid gap-3">
               {results.map((result) => (
-                <HistoryItem key={result.id} result={result} />
+                <DrawHistoryItem key={result.id} result={result} compact={false} />
               ))}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No saved draw results for this configuration yet.
+              {t("luckyDraw.noSavedResults")}
             </p>
           )}
         </div>
       </CardContent>
 
-      <CardFooter className="justify-between gap-3">
+      <CardFooter className="justify-end gap-3">
+        <Link href={PATH.luckyDraw}>
+          <Button
+            variant="outline"
+            disabled={isDirty || validationErrors.length > 0}
+          >
+            {t("luckyDraw.openDrawPage")}
+          </Button>
+        </Link>
         <Button
-          variant="outline"
+          variant="primary"
           leftIcon={<Save className="size-4" aria-hidden />}
           onClick={handleSave}
           disabled={validationErrors.length > 0}
         >
-          Save config
+          {t("luckyDraw.saveConfig")}
         </Button>
-        <Link href={PATH.luckyDraw}>
-          <Button
-            variant="secondary"
-            disabled={isDirty || validationErrors.length > 0}
-          >
-            Open draw page
-          </Button>
-        </Link>
       </CardFooter>
     </Card>
   );

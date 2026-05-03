@@ -15,6 +15,11 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/atoms/Card";
+import { DrawResultDialog } from "@/components/molecules/lucky-draw/DrawResultDialog";
+import { DrawHistoryItem } from "@/components/molecules/lucky-draw/DrawHistoryItem";
+import { ResultGrid } from "@/components/molecules/lucky-draw/ResultGrid";
+import { SpinRevealBox } from "@/components/molecules/lucky-draw/SpinRevealBox";
+import { useAppI18n } from "@/hooks/useAppI18n";
 import {
     collectPreviousWinners,
     formatTicket,
@@ -30,117 +35,27 @@ import type {
     LuckyDrawStatus,
 } from "@/types/lucky-draw";
 
-const digitItemHeight = 80;
+type RevealMode = "first_only" | "every";
+
+const DIGIT_ITEM_HEIGHT = 144;
+const DIGIT_DURATION_BASE = 2.2;
+const DIGIT_DURATION_POSITION_STEP = 0.56;
+const REVEAL_DELAY_BUFFER_SECONDS = 0.7;
 
 function getDigitSequence(targetDigit: string, position: number): string[] {
-    const target = Number(targetDigit);
-    const sequenceLength = 8 * 10 + position * 10 + target + 1;
-
-    return Array.from({ length: sequenceLength }, (_, index) => String(index % 10));
+  const target = Number(targetDigit);
+  const sequenceLength = 8 * 10 + position * 10 + target + 1;
+  return Array.from({ length: sequenceLength }, (_, index) => String(index % 10));
 }
 
 function getDigitDuration(position: number): number {
-    return 1.1 + position * 0.28;
+  return DIGIT_DURATION_BASE + position * DIGIT_DURATION_POSITION_STEP;
 }
 
-function getRevealDelayMs(displayDigits: number): number {
-    return Math.round((getDigitDuration(displayDigits - 1) + 0.35) * 1_000);
-}
-
-function DigitBox({
-    digit,
-    position,
-    requestId,
-    isAnimated,
-}: {
-    digit: string;
-    position: number;
-    requestId: string;
-    isAnimated: boolean;
-}): React.ReactElement {
-    const sequence = React.useMemo(
-        () => getDigitSequence(digit, position),
-        [digit, position],
-    );
-    const targetY = -(sequence.length - 1) * digitItemHeight; // digitItemHeight = 80
-
-    if (!isAnimated) {
-        return (
-            <div className={`flex size-20 items-center justify-center rounded-lg border bg-background font-mono text-3xl font-semibold tabular-nums shadow-inner`}>
-                {digit}
-            </div>
-        );
-    }
-
-    return (
-        <div className={`size-20 overflow-hidden rounded-lg border bg-background shadow-inner`}>
-            <motion.div
-                key={`${requestId}-${position}-${digit}`}
-                initial={{ y: 0 }}
-                animate={{ y: targetY }}
-                transition={{
-                    duration: getDigitDuration(position),
-                    ease: luckyDrawDecelerationEase,
-                }}
-                className="will-change-transform"
-            >
-                {sequence.map((item, index) => (
-                    <div
-                        key={`${requestId}-${position}-${index}`}
-                        className="flex h-20 items-center justify-center font-mono text-3xl font-semibold tabular-nums"
-                    >
-                        {item}
-                    </div>
-                ))}
-            </motion.div>
-        </div>
-    );
-}
-
-function ResultGrid({
-    isShow = true,
-    winners,
-    compact = false,
-}: {
-    isShow?: boolean;
-    winners: string[];
-    compact?: boolean;
-}): React.ReactElement {
-    if (!isShow) {
-        return <div className="size-14" />;
-    }
-
-    return (
-        <div
-            className={`flex flex-wrap items-center justify-start gap-2 ${compact ? "max-h-60" : "max-h-96"} overflow-auto`}
-        >
-            {winners.map((winner) => (
-                <div
-                    key={winner}
-                    className={`aspect-square w-full rounded-lg border bg-background grid place-items-center font-mono text-lg font-semibold tabular-nums shadow-inner ${compact ? "max-w-15" : "max-w-22.5"}`}
-                >
-                    {winner}
-                </div>
-            ))}
-        </div>
-    );
-}
-
-function HistoryItem({ result }: { result: LuckyDrawDrawResult }): React.ReactElement {
-    return (
-        <div className="grid gap-2 rounded-lg border bg-background p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                    <p className="font-medium text-foreground">{result.prizeName}</p>
-                    <p className="text-xs text-muted-foreground">
-                        {new Date(result.createdAt).toLocaleString()}
-                    </p>
-                </div>
-                <Badge variant="success">{result.winners.length} winners</Badge>
-            </div>
-            <ResultGrid winners={result.winners} compact />
-        </div>
-    );
+function getRevealDelayMs(lastPosition: number): number {
+  return Math.round(
+    (getDigitDuration(lastPosition) + REVEAL_DELAY_BUFFER_SECONDS) * 1_000,
+  );
 }
 
 interface LuckyDrawDrawContentProps {
@@ -168,12 +83,16 @@ export const LuckyDrawDrawContent = ({
     clearAllResults,
     setSelectedPrizeId,
 }: LuckyDrawDrawContentProps): React.ReactElement => {
+    const { t } = useAppI18n();
     const [activeDraw, setActiveDraw] = React.useState<LuckyDrawDrawResult | null>(null);
     const [revealWinnerIndex, setRevealWinnerIndex] = React.useState(0);
     const [isRevealing, setIsRevealing] = React.useState(false);
+    const [revealedWinners, setRevealedWinners] = React.useState<string[]>([]);
+    const [revealMode, setRevealMode] = React.useState<RevealMode>("every");
     const [localError, setLocalError] = React.useState<string | null>(null);
-
-    const revealTimes = 1
+    const [isResultDialogOpen, setIsResultDialogOpen] = React.useState(false);
+    const shownResultDialogForDrawRef = React.useRef<string | null>(null);
+    const resultDialogTimeoutRef = React.useRef<number | null>(null);
 
     const sortedPrizes = React.useMemo(
         () => [...config.prizes].sort((left, right) => left.order - right.order),
@@ -218,26 +137,76 @@ export const LuckyDrawDrawContent = ({
         }
 
         const timeoutId = window.setTimeout(() => {
-            setRevealWinnerIndex((currentIndex) => {
-                const nextIndex = currentIndex + 1;
+            if (revealMode === "first_only") {
+                setRevealedWinners(activeDraw.winners);
+                setIsRevealing(false);
+                return;
+            }
 
-                if (nextIndex >= revealTimes || nextIndex >= activeDraw.winners.length) {
-                    setIsRevealing(false);
-                    return currentIndex;
-                }
+            const current = activeDraw.winners[revealWinnerIndex];
+            if (current) {
+                setRevealedWinners((list) => [...list, current]);
+            }
 
-                return nextIndex;
-            });
-        }, getRevealDelayMs(displayDigits));
+            const nextIndex = revealWinnerIndex + 1;
+            if (nextIndex >= activeDraw.winners.length) {
+                setIsRevealing(false);
+                return;
+            }
+
+            setRevealWinnerIndex(nextIndex);
+        }, getRevealDelayMs(displayDigits - 1));
 
         return () => {
             window.clearTimeout(timeoutId);
         };
-    }, [activeDraw, displayDigits, isRevealing, revealWinnerIndex]);
+    }, [activeDraw, displayDigits, isRevealing, revealMode, revealWinnerIndex]);
+
+    React.useEffect(() => {
+        if (!activeDraw || isRevealing) {
+            return;
+        }
+
+        const visibleWinners =
+            revealedWinners.length > 0 ? revealedWinners : activeDraw.winners;
+        const isCompleted = visibleWinners.length === activeDraw.winners.length;
+        const isAlreadyShown = shownResultDialogForDrawRef.current === activeDraw.id;
+
+        if (!isCompleted || isAlreadyShown) {
+            return;
+        }
+
+        shownResultDialogForDrawRef.current = activeDraw.id;
+        resultDialogTimeoutRef.current = window.setTimeout(() => {
+            setIsResultDialogOpen(true);
+            resultDialogTimeoutRef.current = null;
+        }, 0);
+
+        return () => {
+            if (resultDialogTimeoutRef.current !== null) {
+                window.clearTimeout(resultDialogTimeoutRef.current);
+                resultDialogTimeoutRef.current = null;
+            }
+        };
+    }, [activeDraw, isRevealing, revealedWinners]);
 
     const handlePrizeSelect = (prizeId: string): void => {
         clearError();
         setSelectedPrizeId(prizeId);
+    };
+
+    const resetRevealState = (): void => {
+        setActiveDraw(null);
+        setRevealWinnerIndex(0);
+        setIsRevealing(false);
+        setRevealedWinners([]);
+        setIsResultDialogOpen(false);
+        shownResultDialogForDrawRef.current = null;
+
+        if (resultDialogTimeoutRef.current !== null) {
+            window.clearTimeout(resultDialogTimeoutRef.current);
+            resultDialogTimeoutRef.current = null;
+        }
     };
 
     const handleExecuteDraw = async (): Promise<void> => {
@@ -247,17 +216,20 @@ export const LuckyDrawDrawContent = ({
         }
 
         setLocalError(null);
-        setActiveDraw(null);
-        setRevealWinnerIndex(0);
-        setIsRevealing(false);
+        resetRevealState();
 
         try {
             const result = await executeDraw(selectedPrize.id);
             setActiveDraw(result);
+            setRevealedWinners([]);
             setIsRevealing(
                 result.winners.length > 0 &&
                 result.winners.length <= largeWinnerAnimationThreshold,
             );
+
+            if (result.winners.length > largeWinnerAnimationThreshold) {
+                setRevealedWinners(result.winners);
+            }
         } catch (error) {
             setLocalError(
                 error instanceof Error
@@ -274,60 +246,73 @@ export const LuckyDrawDrawContent = ({
 
         clearError();
         setLocalError(null);
-        setActiveDraw(null);
-        setRevealWinnerIndex(0);
-        setIsRevealing(false);
+        resetRevealState();
         clearPrizeResult(selectedPrize.id);
     };
 
     const handleClearAllResults = (): void => {
         clearError();
         setLocalError(null);
-        setActiveDraw(null);
-        setRevealWinnerIndex(0);
-        setIsRevealing(false);
+        resetRevealState();
         clearAllResults();
     };
 
+    const handleResultDialogOpenChange = (open: boolean): void => {
+        setIsResultDialogOpen(open);
+    };
+
     return (
-        <Card noAnimate className="w-full shadow-soft">
+        <Card noAnimate className="w-full border-white/20 bg-white/60 shadow-soft backdrop-blur-md dark:bg-slate-950/30">
             <CardHeader>
-                <CardTitle>Lucky Draw</CardTitle>
+                <CardTitle></CardTitle>
                 <CardDescription hidden>
                     Run the draw using the saved local configuration.
                 </CardDescription>
                 <CardAction>
                     <Badge variant={selectedPrizeResult ? "success" : "outline"}>
-                        {selectedPrizeResult ? "Drawn" : "Ready"}
+                        {selectedPrizeResult ? t("luckyDraw.drawn") : t("luckyDraw.ready")}
                     </Badge>
                 </CardAction>
             </CardHeader>
 
             <CardContent className="grid gap-6 lg:grid-cols-[1.9fr_1fr]">
                 <div className="grid gap-4">
-                    <div className="grid gap-4 rounded-lg border bg-muted/20 p-6 min-h-136">
+                    <div className="grid gap-4 rounded-lg border bg-white/10 p-6 min-h-136 dark:bg-slate-950/20">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <h2 className="text-base font-semibold text-foreground">
-                                    Now Drawing: {selectedPrize?.name ?? "No prize selected"}
+                                    {selectedPrize?.name ?? "-"}
                                 </h2>
                                 <p className="text-sm text-muted-foreground hidden">
                                     Winners: {selectedPrize?.winners_count ?? 0} · Range: {rangeLabel}
                                 </p>
                             </div>
                             {selectedPrizeResult ? (
-                                <Badge variant="success">This prize has already been drawn</Badge>
+                                <Badge variant="success">{t("luckyDraw.drawn")}</Badge>
                             ) : null}
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-center gap-4 rounded-xl border border-muted/50 bg-background p-6 shadow-sm sm:gap-6 sm:p-8">
+                        <div className="flex flex-wrap items-center justify-center gap-4 rounded-xl border border-muted/50 bg-white/10 p-6 shadow-sm sm:gap-6 sm:p-8 dark:bg-slate-950/20">
                             {currentWinner.split("").map((digit, index) => (
-                                <DigitBox
+                                <SpinRevealBox<string>
                                     key={`${activeDraw?.id ?? "idle"}-${revealWinnerIndex}-${index}`}
-                                    digit={digit}
+                                    item={digit}
                                     position={index}
                                     requestId={`${activeDraw?.id ?? "idle"}-${revealWinnerIndex}`}
                                     isAnimated={shouldAnimateCurrent}
+                                    itemHeight={DIGIT_ITEM_HEIGHT}
+                                    ease={luckyDrawDecelerationEase}
+                                    buildSequence={getDigitSequence}
+                                    getDuration={getDigitDuration}
+                                    getRevealDelayMs={getRevealDelayMs}
+                                    animatedClassName="size-36 overflow-hidden rounded-lg border bg-white/10 shadow-inner dark:bg-slate-950/20"
+                                    staticClassName="flex size-36 items-center justify-center rounded-lg border bg-white/10 font-mono text-8xl font-semibold tabular-nums shadow-inner dark:bg-slate-950/20"
+                                    className="will-change-transform"
+                                    renderItem={(item) => (
+                                        <div className="flex h-36 items-center justify-center font-mono text-8xl font-semibold tabular-nums">
+                                            {item}
+                                        </div>
+                                    )}
                                 />
                             ))}
                         </div>
@@ -340,25 +325,28 @@ export const LuckyDrawDrawContent = ({
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -4 }}
                                     transition={{ duration: 0.2, ease: "easeOut" }}
-                                    className="grid gap-3 h-44"
+                                    className="grid gap-3 h-55"
                                 >
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                                             <Trophy className="size-4" aria-hidden />
-                                            Winners
+                                            {t("luckyDraw.winners")}
                                         </div>
                                         <Badge variant={isRevealing ? "warning" : "success"}>
                                             {isRevealing
-                                                ? `Revealing ${revealWinnerIndex + 1}/${Math.min(revealTimes, activeDraw.winners.length)}`
-                                                : "Complete"}
+                                                ? `Revealing ${Math.min(revealedWinners.length + 1, activeDraw.winners.length)}/${activeDraw.winners.length}`
+                                                : t("luckyDraw.complete")}
                                         </Badge>
                                     </div>
-                                    {isRevealing ? (
+                                    {isRevealing && revealedWinners.length === 0 ? (
                                         <div className="rounded-lg border border-dashed border-muted/40 bg-muted/40 p-8.5 text-center text-sm text-muted-foreground">
-                                            Results will appear when the reveal is complete.
+                                            {t("luckyDraw.resultAppearAfterReveal")}
                                         </div>
                                     ) : (
-                                        <ResultGrid winners={activeDraw.winners} />
+                                        <ResultGrid
+                                            isShow={revealedWinners.length > 0}
+                                            winners={revealedWinners}
+                                        />
                                     )}
                                 </motion.div>
                             ) : selectedPrizeResult ? (
@@ -368,33 +356,31 @@ export const LuckyDrawDrawContent = ({
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -4 }}
                                     transition={{ duration: 0.2, ease: "easeOut" }}
-                                    className="grid gap-3 h-44"
+                                    className="grid gap-3 h-55"
                                 >
                                     <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                                         <Trophy className="size-4" aria-hidden />
-                                        Saved result
+                                        {t("luckyDraw.savedResult")}
                                     </div>
                                     <ResultGrid winners={selectedPrizeResult.winners} />
                                 </motion.div>
                             ) : (
-                                <div className="grid gap-3 h-44">
+                                <div className="grid gap-3 h-55">
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                                             <Trophy className="size-4" aria-hidden />
-                                            Winners
+                                            {t("luckyDraw.winners")}
                                         </div>
-                                        <Badge variant={"info"}>
-                                            Wait for it...
-                                        </Badge>
+                                        <Badge variant="info">{t("luckyDraw.waitForResult")}</Badge>
                                     </div>
                                     <div className="rounded-lg border border-dashed border-muted/40 bg-muted/40 p-8.5 text-center text-sm text-muted-foreground">
-                                        Results will appear after the draw is complete.
+                                        {t("luckyDraw.resultAppearAfterDraw")}
                                     </div>
                                 </div>
                             )}
                         </AnimatePresence>
 
-                        <div className="grow"></div>
+                        <div className="grow" />
                     </div>
 
                     {!!localError ? (
@@ -405,18 +391,18 @@ export const LuckyDrawDrawContent = ({
                 </div>
 
                 <aside className="grid gap-4">
-                    <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-4">
-                        <h2 className="text-base font-semibold text-foreground">Selected Prize</h2>
+                    <div className="flex flex-col gap-3 rounded-lg border bg-white/10 p-4 dark:bg-slate-950/20">
+                        <h2 className="text-base font-semibold text-foreground">{t("luckyDraw.selectedPrize")}</h2>
                         <label className="flex flex-col gap-1.5 text-sm">
-                            <span className="font-medium text-foreground">Prize</span>
+                            <span className="font-medium text-foreground">{t("luckyDraw.prize")}</span>
                             <select
-                                className="h-10 rounded-lg border border-input bg-background px-3 text-sm cursor-pointer"
+                                className="h-10 rounded-lg border border-input bg-white/10 px-3 text-sm cursor-pointer dark:bg-slate-950/20"
                                 value={selectedPrize?.id ?? ""}
                                 onChange={(event) => handlePrizeSelect(event.target.value)}
                             >
                                 {sortedPrizes.map((prize) => {
                                     const hasResult = results.some((result) => result.prizeId === prize.id);
-                                    const prefix = hasResult ? "✓\u00A0" : "\u00A0\u00A0\u00A0\u00A0";
+                                    const prefix = hasResult ? "✓ " : "  ";
 
                                     return (
                                         <option
@@ -435,6 +421,26 @@ export const LuckyDrawDrawContent = ({
                             </select>
                         </label>
 
+                        <div className="grid gap-2 pt-2">
+                            <span className="text-sm font-medium text-foreground">{t("luckyDraw.revealMode")}</span>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button
+                                    variant={revealMode === "first_only" ? "primary" : "outline"}
+                                    disabled={isRevealing || status === "drawing"}
+                                    onClick={() => setRevealMode("first_only")}
+                                >
+                                    {t("luckyDraw.firstOnly")}
+                                </Button>
+                                <Button
+                                    variant={revealMode === "every" ? "primary" : "outline"}
+                                    disabled={isRevealing || status === "drawing"}
+                                    onClick={() => setRevealMode("every")}
+                                >
+                                    {t("luckyDraw.everyResult")}
+                                </Button>
+                            </div>
+                        </div>
+
                         <div className="hidden pt-2 text-sm text-muted-foreground">
                             <div>Range: {rangeLabel}</div>
                             <div>{displayDigits} digits</div>
@@ -443,8 +449,8 @@ export const LuckyDrawDrawContent = ({
                         </div>
                     </div>
 
-                    <div className="grid gap-3 rounded-lg border bg-muted/20 p-4">
-                        <h2 className="text-base font-semibold text-foreground">Previous Results</h2>
+                    <div className="grid gap-3 rounded-lg border bg-white/10 p-4 dark:bg-slate-950/20">
+                        <h2 className="text-base font-semibold text-foreground">{t("luckyDraw.previousResults")}</h2>
                         {historyResults.length > 0 ? (
                             <motion.div
                                 key={`${selectedPrize?.id ?? "none"}-${historyResults.length}`}
@@ -461,13 +467,13 @@ export const LuckyDrawDrawContent = ({
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ duration: 0.2, ease: "easeOut" }}
                                     >
-                                        <HistoryItem result={result} />
+                                        <DrawHistoryItem result={result} />
                                     </motion.div>
                                 ))}
                             </motion.div>
                         ) : (
                             <p className="text-sm text-muted-foreground">
-                                No saved draw results yet.
+                                {t("luckyDraw.noSavedResults")}
                             </p>
                         )}
                     </div>
@@ -481,14 +487,14 @@ export const LuckyDrawDrawContent = ({
                         disabled={!selectedPrizeResult}
                         onClick={handleClearSelectedPrizeResult}
                     >
-                        Clear current result
+                        {t("luckyDraw.clearCurrentResult")}
                     </Button>
                     <Button
                         variant="danger"
                         disabled={results.length === 0}
                         onClick={handleClearAllResults}
                     >
-                        Clear all results
+                        {t("luckyDraw.clearAllResults")}
                     </Button>
                 </div>
                 <Button
@@ -503,10 +509,25 @@ export const LuckyDrawDrawContent = ({
                         )
                     }
                     onClick={handleExecuteDraw}
+                    className="px-8"
                 >
-                    Draw
+                    {t("luckyDraw.draw")}
                 </Button>
             </CardFooter>
+
+            <DrawResultDialog
+                open={isResultDialogOpen}
+                onOpenChange={handleResultDialogOpenChange}
+                prizeName={selectedPrize?.name ?? "Selected prize"}
+                title={t("luckyDraw.drawComplete")}
+                closeLabel={t("luckyDraw.close")}
+                winnersLabel={t("luckyDraw.winners")}
+                winners={
+                    activeDraw?.winners ??
+                    selectedPrizeResult?.winners ??
+                    revealedWinners
+                }
+            />
         </Card>
     );
-}
+};

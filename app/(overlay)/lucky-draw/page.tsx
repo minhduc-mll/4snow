@@ -1,5 +1,9 @@
 import { LuckyDrawDrawPanel } from "@/components/organisms/lucky-draw/LuckyDrawDrawPanel";
 
 export default function LuckyDrawPage() {
-  return <LuckyDrawDrawPanel />;
+  return (
+    <section>
+      <LuckyDrawDrawPanel />
+    </section>
+  );
 }

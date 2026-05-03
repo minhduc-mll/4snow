@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/atoms/Card";
+import { useAppI18n } from "@/hooks/useAppI18n";
 import { useQuizLeaderboard } from "@/hooks/useQuizLogic";
 import { cn } from "@/lib/utils";
 
@@ -27,17 +28,18 @@ export function QuizLeaderboard({
   limit = 10,
   className,
 }: QuizLeaderboardProps): React.ReactElement {
+  const { t } = useAppI18n();
   const leaderboardQuery = useQuizLeaderboard(sessionId, limit);
   const participants = leaderboardQuery.data ?? [];
 
   return (
     <Card className={cn("w-full max-w-2xl shadow-soft", className)}>
       <CardHeader>
-        <CardTitle>Leaderboard</CardTitle>
-        <CardDescription>Live score snapshot</CardDescription>
+        <CardTitle>{t("quiz.leaderboard")}</CardTitle>
+        <CardDescription>{t("quiz.liveScoreSnapshot")}</CardDescription>
         <CardAction>
           <Badge variant={leaderboardQuery.isFetching ? "outline" : "success"}>
-            {leaderboardQuery.isFetching ? "Syncing" : "Live"}
+            {leaderboardQuery.isFetching ? t("quiz.syncing") : t("quiz.live")}
           </Badge>
         </CardAction>
       </CardHeader>
@@ -71,7 +73,7 @@ export function QuizLeaderboard({
           ))
         ) : (
           <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-            Waiting for scores
+            {t("quiz.waitingScores")}
           </div>
         )}
       </CardContent>

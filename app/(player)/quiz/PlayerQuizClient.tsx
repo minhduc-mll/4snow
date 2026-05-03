@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import * as React from "react";
 
 import {
   Card,
@@ -9,9 +10,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/atoms/Card";
+import { useAppI18n } from "@/hooks/useAppI18n";
 import { QuizCard } from "@/components/organisms/quiz/QuizCard";
 
-export function PlayerQuizClient() {
+export function PlayerQuizClient(): React.ReactElement {
+  const { t } = useAppI18n();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("sessionId");
   const participantId = searchParams.get("participantId");
@@ -21,11 +24,11 @@ export function PlayerQuizClient() {
     return (
       <Card className="shadow-soft">
         <CardHeader>
-          <CardTitle>Quiz</CardTitle>
-          <CardDescription>Missing session id</CardDescription>
+          <CardTitle>{t("quiz.quiz")}</CardTitle>
+          <CardDescription>{t("quiz.missingSessionId")}</CardDescription>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Open this page with a `sessionId` query parameter.
+          {t("quiz.missingSessionHint")}
         </CardContent>
       </Card>
     );

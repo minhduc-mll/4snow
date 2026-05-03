@@ -1,7 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { Volume2, VolumeX } from "lucide-react";
 
+import { Button } from "@/components/atoms/Button";
+import { useAppI18n } from "@/hooks/useAppI18n";
 import { LuckyDrawDrawContent } from "@/components/molecules/lucky-draw/LuckyDrawDrawContent";
 import { useLuckyDrawStore } from "@/stores/useLuckyDrawStore";
 
@@ -15,23 +18,44 @@ export function LuckyDrawDrawPanel(): React.ReactElement {
   const storeErrorMessage = useLuckyDrawStore((state) => state.errorMessage);
   const clearError = useLuckyDrawStore((state) => state.clearError);
   const status = useLuckyDrawStore((state) => state.status);
+  const clearPrizeResult = useLuckyDrawStore((state) => state.clearPrizeResult);
+  const clearAllResults = useLuckyDrawStore((state) => state.clearAllResults);
+
+  const { t } = useAppI18n();
+
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [isMuted, setIsMuted] = React.useState(false);
 
   React.useEffect(() => {
     hydrate();
   }, [hydrate]);
 
-  const sortedPrizes = React.useMemo(
-    () => [...config.prizes].sort((left, right) => left.order - right.order),
-    [config.prizes],
-  );
+  React.useEffect(() => {
+    const audio = new Audio("/sounds/nhac-xo-so.mp3");
+    audio.loop = true;
+    audio.volume = 1;
+    audioRef.current = audio;
 
-  const selectedPrize = sortedPrizes.find((prize) => prize.id === selectedPrizeId) ?? null;
-  const selectedPrizeResult = selectedPrize
-    ? results.find((result) => result.prizeId === selectedPrize.id) ?? null
-    : null;
+    void audio.play().catch(() => undefined);
 
-  const clearPrizeResult = useLuckyDrawStore((state) => state.clearPrizeResult);
-  const clearAllResults = useLuckyDrawStore((state) => state.clearAllResults);
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+      audioRef.current = null;
+    };
+  }, []);
+
+  React.useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    audio.muted = isMuted;
+    if (!isMuted) {
+      void audio.play().catch(() => undefined);
+    }
+  }, [isMuted]);
 
   React.useEffect(() => {
     if (!storeErrorMessage) {
@@ -47,10 +71,18 @@ export function LuckyDrawDrawPanel(): React.ReactElement {
     };
   }, [storeErrorMessage, clearError]);
 
+  const sortedPrizes = React.useMemo(
+    () => [...config.prizes].sort((left, right) => left.order - right.order),
+    [config.prizes],
+  );
+  const selectedPrize = sortedPrizes.find((prize) => prize.id === selectedPrizeId) ?? null;
+  const selectedPrizeResult = selectedPrize
+    ? results.find((result) => result.prizeId === selectedPrize.id) ?? null
+    : null;
+
   return (
     <>
       <LuckyDrawDrawContent
-        key={`${selectedPrizeId ?? "none"}-${config.id}`}
         config={config}
         results={results}
         selectedPrize={selectedPrize}
@@ -68,6 +100,22 @@ export function LuckyDrawDrawPanel(): React.ReactElement {
           {storeErrorMessage}
         </div>
       ) : null}
+
+      <div className="fixed bottom-6 right-6 z-30 flex items-center gap-2">
+        <Button
+          variant={isMuted ? "outline" : "secondary"}
+          leftIcon={
+            isMuted ? (
+              <VolumeX className="size-4" aria-hidden />
+            ) : (
+              <Volume2 className="size-4" aria-hidden />
+            )
+          }
+          onClick={() => setIsMuted((current) => !current)}
+        >
+          {isMuted ? t("luckyDraw.unmute") : t("luckyDraw.mute")}
+        </Button>
+      </div>
     </>
   );
 }

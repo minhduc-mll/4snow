@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/atoms/Card";
+import { useAppI18n } from "@/hooks/useAppI18n";
 import { useQuizLogic } from "@/hooks/useQuizLogic";
 import { cn } from "@/lib/utils";
 import type { QuizSession } from "@/types/database";
@@ -25,13 +26,17 @@ export interface QuizCardProps {
   className?: string;
 }
 
-function getSessionLabel(session: QuizSession | undefined): string {
+function getSessionLabel(
+  session: QuizSession | undefined,
+  loadingLabel: string,
+  liveLabel: string,
+): string {
   if (!session) {
-    return "Loading";
+    return loadingLabel;
   }
 
   if (session.status === "active") {
-    return "Live";
+    return liveLabel;
   }
 
   return session.status.charAt(0).toUpperCase() + session.status.slice(1);
@@ -43,6 +48,7 @@ export function QuizCard({
   participantName,
   className,
 }: QuizCardProps): React.ReactElement {
+  const { t } = useAppI18n();
   const quiz = useQuizLogic({
     sessionId,
     participantId,
@@ -51,13 +57,15 @@ export function QuizCard({
   return (
     <Card className={cn("w-full max-w-2xl shadow-soft", className)}>
       <CardHeader>
-        <CardTitle>{quiz.session?.title ?? "Quiz"}</CardTitle>
+        <CardTitle>{quiz.session?.title ?? t("quiz.quiz")}</CardTitle>
         <CardDescription>
-          {participantName ? `Playing as ${participantName}` : "Live quiz round"}
+          {participantName
+            ? `${t("quiz.playingAs")} ${participantName}`
+            : t("quiz.liveRound")}
         </CardDescription>
         <CardAction>
           <Badge variant={quiz.isLive ? "success" : "outline"}>
-            {getSessionLabel(quiz.session)}
+            {getSessionLabel(quiz.session, t("quiz.loading"), t("quiz.live"))}
           </Badge>
         </CardAction>
       </CardHeader>
@@ -66,9 +74,9 @@ export function QuizCard({
         <div className="grid gap-2">
           <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
             <span>
-              Question {(quiz.session?.question_index ?? 0) + 1}
+              {t("quiz.question")} {(quiz.session?.question_index ?? 0) + 1}
               {quiz.session?.total_questions
-                ? ` of ${quiz.session.total_questions}`
+                ? ` ${t("quiz.of")} ${quiz.session.total_questions}`
                 : ""}
             </span>
             <motion.span
@@ -92,8 +100,8 @@ export function QuizCard({
         <div className="grid gap-3">
           <h2 className="text-xl font-semibold tracking-normal text-foreground">
             {quiz.isLoading
-              ? "Loading question..."
-              : (quiz.activeQuestion?.prompt ?? "Waiting for the host to start.")}
+              ? t("quiz.loadingQuestion")
+              : (quiz.activeQuestion?.prompt ?? t("quiz.waitingHost"))}
           </h2>
 
           <div className="grid gap-2">
@@ -134,14 +142,14 @@ export function QuizCard({
                 : "neutral"
           }
         >
-          {quiz.answerStatus === "idle" ? "Choose an answer" : quiz.answerStatus}
+          {quiz.answerStatus === "idle" ? t("quiz.chooseAnswer") : quiz.answerStatus}
         </Badge>
         <Button
           isLoading={quiz.isSubmitting}
           disabled={!quiz.canSubmit}
           onClick={quiz.submitSelectedAnswer}
         >
-          Submit answer
+          {t("quiz.submitAnswer")}
         </Button>
       </CardFooter>
     </Card>

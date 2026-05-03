@@ -14,12 +14,14 @@ import {
   CardTitle,
 } from "@/components/atoms/Card";
 import { Input } from "@/components/atoms/Input";
+import { useAppI18n } from "@/hooks/useAppI18n";
 import {
   parseQuizExcelFile,
   type ParsedQuizQuestion,
 } from "@/lib/excel-parser";
 
 export function QuizImportPanel(): React.ReactElement {
+  const { t } = useAppI18n();
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
   const [questions, setQuestions] = React.useState<ParsedQuizQuestion[]>([]);
   const [warnings, setWarnings] = React.useState<string[]>([]);
@@ -42,7 +44,7 @@ export function QuizImportPanel(): React.ReactElement {
       setQuestions([]);
       setWarnings([]);
       setErrorMessage(
-        error instanceof Error ? error.message : "Unable to import quiz file.",
+        error instanceof Error ? error.message : t("quiz.parseFile"),
       );
     } finally {
       setIsParsing(false);
@@ -52,10 +54,8 @@ export function QuizImportPanel(): React.ReactElement {
   return (
     <Card className="w-full shadow-soft">
       <CardHeader>
-        <CardTitle>Quiz Excel Import</CardTitle>
-        <CardDescription>
-          Parse question rows in the browser before saving through Supabase RLS.
-        </CardDescription>
+        <CardTitle>{t("quiz.excelImportTitle")}</CardTitle>
+        <CardDescription>{t("quiz.excelImportDescription")}</CardDescription>
       </CardHeader>
 
       <CardContent className="grid gap-4">
@@ -67,9 +67,9 @@ export function QuizImportPanel(): React.ReactElement {
         />
 
         <div className="flex flex-wrap gap-2">
-          <Badge variant="neutral">{questions.length} valid questions</Badge>
+          <Badge variant="neutral">{questions.length} {t("quiz.validQuestions")}</Badge>
           <Badge variant={warnings.length > 0 ? "warning" : "neutral"}>
-            {warnings.length} warnings
+            {warnings.length} {t("quiz.warnings")}
           </Badge>
         </div>
 
@@ -95,7 +95,7 @@ export function QuizImportPanel(): React.ReactElement {
           leftIcon={<Upload className="size-4" aria-hidden />}
           onClick={handleParse}
         >
-          Parse file
+          {t("quiz.parseFile")}
         </Button>
       </CardFooter>
     </Card>

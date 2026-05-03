@@ -9,7 +9,9 @@ import type {
   LuckyDrawStatus,
 } from "@/types/lucky-draw";
 import {
-  LUCKY_DRAW_STORAGE_KEY,
+  LUCKY_DRAW_CONFIG_STORAGE_KEY,
+  LUCKY_DRAW_LEGACY_STORAGE_KEY,
+  LUCKY_DRAW_RESULTS_STORAGE_KEY,
   collectPreviousWinners,
   createDefaultLuckyDrawConfig,
   getCandidateTickets,
@@ -177,9 +179,11 @@ function loadStoredLuckyDrawState(): {
     };
   }
 
-  const raw = window.localStorage.getItem(LUCKY_DRAW_STORAGE_KEY);
+  const configRaw = window.localStorage.getItem(LUCKY_DRAW_CONFIG_STORAGE_KEY);
+  const resultsRaw = window.localStorage.getItem(LUCKY_DRAW_RESULTS_STORAGE_KEY);
+  const legacyRaw = window.localStorage.getItem(LUCKY_DRAW_LEGACY_STORAGE_KEY);
 
-  if (!raw) {
+  if (!configRaw && !resultsRaw && !legacyRaw) {
     saveLuckyDrawState(defaultConfig, []);
     return {
       config: defaultConfig,
@@ -189,32 +193,23 @@ function loadStoredLuckyDrawState(): {
   }
 
   try {
-    const parsed = JSON.parse(raw);
-
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      parsed.version !== 1 ||
-      typeof parsed.updatedAt !== "string" ||
-      typeof parsed.config !== "object" ||
-      parsed.config === null
-    ) {
-      throw new Error("Invalid storage shape");
-    }
-
-    const rawConfig = parsed.config as unknown;
+    const parsedConfig = configRaw ? JSON.parse(configRaw) : null;
+    const parsedResults = resultsRaw ? JSON.parse(resultsRaw) : null;
+    const parsedLegacy = legacyRaw ? JSON.parse(legacyRaw) : null;
+    const rawConfig = parsedConfig?.config ?? parsedLegacy?.config;
     const config = normalizeStoredConfig(rawConfig);
 
     if (!config) {
       throw new Error("Invalid saved configuration");
     }
 
-    const normalizedResults = normalizeStoredResults(parsed.results, config);
+    const rawResults = parsedResults?.results ?? parsedLegacy?.results;
+    const normalizedResults = normalizeStoredResults(rawResults, config);
     return {
       config,
       results: normalizedResults,
       errorMessage:
-        normalizedResults.length === 0 && parsed.results
+        normalizedResults.length === 0 && rawResults
           ? "The default configuration has been set."
           : null,
     };
@@ -338,14 +333,45 @@ function saveLuckyDrawState(
     return;
   }
 
-  const payload = {
+  const configPayload = {
     version: 1,
     config,
+    updatedAt: new Date().toISOString(),
+  };
+  const resultsPayload = {
+    version: 1,
     results,
     updatedAt: new Date().toISOString(),
   };
 
-  window.localStorage.setItem(LUCKY_DRAW_STORAGE_KEY, JSON.stringify(payload));
+  window.localStorage.setItem(
+    LUCKY_DRAW_CONFIG_STORAGE_KEY,
+    JSON.stringify(configPayload),
+  );
+  window.localStorage.setItem(
+    LUCKY_DRAW_RESULTS_STORAGE_KEY,
+    JSON.stringify(resultsPayload),
+  );
+  window.localStorage.removeItem(LUCKY_DRAW_LEGACY_STORAGE_KEY);
+}
+
+function saveLuckyDrawConfigOnly(config: LuckyDrawConfig): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const configPayload = {
+    version: 1,
+    config,
+    updatedAt: new Date().toISOString(),
+  };
+
+  window.localStorage.setItem(
+    LUCKY_DRAW_CONFIG_STORAGE_KEY,
+    JSON.stringify(configPayload),
+  );
+  window.localStorage.removeItem(LUCKY_DRAW_RESULTS_STORAGE_KEY);
+  window.localStorage.removeItem(LUCKY_DRAW_LEGACY_STORAGE_KEY);
 }
 
 function persistState(
@@ -527,7 +553,13 @@ export const useLuckyDrawStore = create<LuckyDrawStore>()(
         errorMessage: null,
       });
 
-      persistState(get().config, []);
+      try {
+        saveLuckyDrawConfigOnly(get().config);
+      } catch {
+        throw new Error(
+          "Unable to save Lucky Draw data to this browser. Please check local storage permissions or available space.",
+        );
+      }
     },
     clearError: () => {
       set({ errorMessage: null });

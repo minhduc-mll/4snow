@@ -12,11 +12,6 @@ Defines non-negotiable rules for AI agents.
 
 ## 2. Architecture Constraints
 
-<!-- ### Client-Only System
-
-- ALL logic runs in browser
-- NO server-side logic -->
-
 ### Forbidden
 
 - Next.js API routes
@@ -31,20 +26,26 @@ Defines non-negotiable rules for AI agents.
 - localStorage / sessionStorage / IndexedDB
 - Supabase (browser-safe):
   - Auth, Realtime, Storage, PostgREST
-  - Edge Functions (restricted use)
+  - Edge Functions when required by feature requirements
 
 ### Edge Functions
 
-Use ONLY for:
+Use ONLY when required for trusted operations, such as:
 
 - fairness validation
 - rate limiting
 - audit integrity
+- room creation
+- answer validation
+- score calculation
+- leaderboard aggregation
+- duplicate submission prevention
 
 Must be:
 
-- stateless
-- no secrets exposed
+- input-validated
+- typed
+- no secrets exposed to the browser
 
 ---
 
@@ -214,6 +215,6 @@ Allowed ONLY if:
 
 NEVER break:
 
-- client-only architecture
 - security rules
 - type safety
+- feature boundaries

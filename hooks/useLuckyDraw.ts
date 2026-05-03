@@ -6,7 +6,9 @@ export const luckyDrawDecelerationEase: [number, number, number, number] = [
 
 export const luckyDrawSpinDurationMs = 2_800;
 export const largeWinnerAnimationThreshold = 20;
-export const LUCKY_DRAW_STORAGE_KEY = "lucky-draw:v1";
+export const LUCKY_DRAW_CONFIG_STORAGE_KEY = "lucky-draw:config:v1";
+export const LUCKY_DRAW_RESULTS_STORAGE_KEY = "lucky-draw:results:v1";
+export const LUCKY_DRAW_LEGACY_STORAGE_KEY = "lucky-draw:v1";
 
 export function getDisplayDigits(to: number): number {
   return String(Math.trunc(to)).length;
