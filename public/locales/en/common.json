@@ -83,6 +83,7 @@
     "draw": "Draw",
     "drawComplete": "Draw Complete",
     "close": "Close",
+    "winnersWithPrize": "{{prizeName}} winners",
     "eventName": "Event name",
     "from": "From",
     "to": "To",
@@ -101,6 +102,7 @@
     "removePrize": "Remove prize",
     "configSavedSuccess": "Configuration saved successfully.",
     "languageEnglish": "English",
-    "languageVietnamese": "Vietnamese"
+    "languageVietnamese": "Vietnamese",
+    "expand": "Expand"
   }
 }

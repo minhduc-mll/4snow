@@ -6,15 +6,7 @@ import { Home, LogOut } from "lucide-react";
 
 import { Badge } from "@/components/atoms/Badge";
 import { Button } from "@/components/atoms/Button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/atoms/Card";
-import { Input } from "@/components/atoms/Input";
+import { AdminLoginPanel } from "@/components/organisms/admin/AdminLoginPanel";
 import { LuckyDrawAdminPanel } from "@/components/organisms/lucky-draw/LuckyDrawAdminPanel";
 import { QuizImportPanel } from "@/components/organisms/quiz/QuizImportPanel";
 import { ADMIN_AUTH_TOKEN_KEY, clearAdminAuthToken, setAdminAuthToken } from "@/hooks/useAdminAuth";
@@ -141,57 +133,18 @@ export default function AdminPage(): React.ReactElement {
   }
 
   if (authState.status !== "authenticated") {
-    return (
-      <main className="min-h-screen bg-app-subtle px-4 py-8 text-ink sm:px-6 lg:px-8">
-        <div className="mx-auto grid w-full max-w-lg gap-4">
-          <div className="flex flex-col min-h-[70vh] items-end justify-center gap-4">
-          <Link href={PATH.home} className="w-fit">
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label={t("adminAuth.homeAction")}
-            >
-              <Home className="size-4" aria-hidden />
-            </Button>
-          </Link>
+    const errorMessage = authState.status === "error" ? authState.message : null;
 
-            <Card className="w-full shadow-soft">
-              <CardHeader>
-                <CardTitle>{t("adminAuth.loginTitle")}</CardTitle>
-                <CardDescription>{t("adminAuth.loginDescription")}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form className="grid gap-4" onSubmit={handleLogin}>
-                  <label className="grid gap-1.5 text-sm">
-                    <span className="font-medium text-foreground">{t("adminAuth.username")}</span>
-                    <Input
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value)}
-                      autoComplete="username"
-                    />
-                  </label>
-                  <label className="grid gap-1.5 text-sm">
-                    <span className="font-medium text-foreground">{t("adminAuth.password")}</span>
-                    <Input
-                      type="password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      autoComplete="current-password"
-                    />
-                  </label>
-                  {authState.status === "error" ? (
-                    <Badge variant="danger">{authState.message}</Badge>
-                  ) : null}
-                  <Button type="submit" isLoading={isSubmitting}>
-                    {t("adminAuth.loginAction")}
-                  </Button>
-                </form>
-              </CardContent>
-              <CardFooter />
-            </Card>
-          </div>
-        </div>
-      </main>
+    return (
+      <AdminLoginPanel
+        username={username}
+        password={password}
+        isSubmitting={isSubmitting}
+        errorMessage={errorMessage}
+        onUsernameChange={setUsername}
+        onPasswordChange={setPassword}
+        onSubmit={handleLogin}
+      />
     );
   }
 

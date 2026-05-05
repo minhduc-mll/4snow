@@ -124,20 +124,18 @@ function ConfettiCannons({ burstKey }: { burstKey: number }): React.ReactElement
 interface DrawResultDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  prizeName: string;
+  winnersDescription: string;
   title: string;
   closeLabel: string;
-  winnersLabel: string;
   winners: string[];
 }
 
 export function DrawResultDialog({
   open,
   onOpenChange,
-  prizeName,
+  winnersDescription,
   title,
   closeLabel,
-  winnersLabel,
   winners,
 }: DrawResultDialogProps): React.ReactElement {
   const [confettiBurstKey, setConfettiBurstKey] = React.useState(0);
@@ -163,7 +161,7 @@ export function DrawResultDialog({
         <DialogHeader className="relative z-30">
           <DialogTitle className="text-2xl">{title}</DialogTitle>
           <DialogDescription className="text-base">
-            {prizeName} {winnersLabel}
+            {winnersDescription}
           </DialogDescription>
         </DialogHeader>
         <div className="relative z-30 mx-auto py-8">

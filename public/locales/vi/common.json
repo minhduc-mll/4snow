@@ -1,4 +1,4 @@
-{
+﻿{
   "home": {
     "title": "Trang điều khiển",
     "openPage": "Mở trang",
@@ -83,6 +83,7 @@
     "draw": "Quay số",
     "drawComplete": "Hoàn tất quay",
     "close": "Đóng",
+    "winnersWithPrize":  "Người trúng {{prizeName}}",
     "eventName": "Tên sự kiện",
     "from": "Từ",
     "to": "Đến",
@@ -101,6 +102,7 @@
     "removePrize": "Xóa giải",
     "configSavedSuccess": "Lưu cấu hình thành công.",
     "languageEnglish": "Tiếng Anh",
-    "languageVietnamese": "Tiếng Việt"
+    "languageVietnamese": "Tiếng Việt",
+    "expand": "Mở rộng"
   }
 }

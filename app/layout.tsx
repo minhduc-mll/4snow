@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { GlobalLanguageControl } from "@/components/organisms/global/GlobalLanguageControl";
+import { I18nReadyGate } from "@/components/shared/I18nReadyGate";
 import { Providers } from "@/components/shared/Providers";
 import "./globals.css";
 
@@ -31,8 +32,10 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Providers>
-          {children}
-          <GlobalLanguageControl />
+          <I18nReadyGate>
+            {children}
+            <GlobalLanguageControl />
+          </I18nReadyGate>
         </Providers>
       </body>
     </html>

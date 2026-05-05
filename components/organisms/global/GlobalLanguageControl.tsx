@@ -5,7 +5,11 @@ import * as React from "react";
 import { useAppI18n } from "@/hooks/useAppI18n";
 
 export function GlobalLanguageControl(): React.ReactElement {
-  const { t, language, setLanguage } = useAppI18n();
+  const { t, language, setLanguage, isReady } = useAppI18n();
+
+  if (!isReady) {
+    return <div className="fixed bottom-6 left-6 z-40 h-10 w-40" aria-hidden />;
+  }
 
   return (
     <div className="fixed bottom-6 left-6 z-40 flex items-center gap-2 rounded-lg border bg-background/90 px-2 py-1 shadow-lg backdrop-blur">
@@ -23,4 +27,3 @@ export function GlobalLanguageControl(): React.ReactElement {
     </div>
   );
 }
-

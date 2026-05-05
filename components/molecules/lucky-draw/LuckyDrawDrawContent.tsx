@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Play, RotateCw, Trophy } from "lucide-react";
+import { Maximize2, Play, RotateCw, Trophy } from "lucide-react";
 import * as React from "react";
 
 import { Badge } from "@/components/atoms/Badge";
@@ -17,6 +17,7 @@ import {
 } from "@/components/atoms/Card";
 import { DrawResultDialog } from "@/components/molecules/lucky-draw/DrawResultDialog";
 import { DrawHistoryItem } from "@/components/molecules/lucky-draw/DrawHistoryItem";
+import { LuckyDrawExpandedDrawDialog } from "@/components/molecules/lucky-draw/LuckyDrawExpandedDrawDialog";
 import { ResultGrid } from "@/components/molecules/lucky-draw/ResultGrid";
 import { SpinRevealBox } from "@/components/molecules/lucky-draw/SpinRevealBox";
 import { useAppI18n } from "@/hooks/useAppI18n";
@@ -43,19 +44,19 @@ const DIGIT_DURATION_POSITION_STEP = 0.56;
 const REVEAL_DELAY_BUFFER_SECONDS = 0.7;
 
 function getDigitSequence(targetDigit: string, position: number): string[] {
-  const target = Number(targetDigit);
-  const sequenceLength = 8 * 10 + position * 10 + target + 1;
-  return Array.from({ length: sequenceLength }, (_, index) => String(index % 10));
+    const target = Number(targetDigit);
+    const sequenceLength = 8 * 10 + position * 10 + target + 1;
+    return Array.from({ length: sequenceLength }, (_, index) => String(index % 10));
 }
 
 function getDigitDuration(position: number): number {
-  return DIGIT_DURATION_BASE + position * DIGIT_DURATION_POSITION_STEP;
+    return DIGIT_DURATION_BASE + position * DIGIT_DURATION_POSITION_STEP;
 }
 
 function getRevealDelayMs(lastPosition: number): number {
-  return Math.round(
-    (getDigitDuration(lastPosition) + REVEAL_DELAY_BUFFER_SECONDS) * 1_000,
-  );
+    return Math.round(
+        (getDigitDuration(lastPosition) + REVEAL_DELAY_BUFFER_SECONDS) * 1_000,
+    );
 }
 
 interface LuckyDrawDrawContentProps {
@@ -91,6 +92,7 @@ export const LuckyDrawDrawContent = ({
     const [revealMode, setRevealMode] = React.useState<RevealMode>("every");
     const [localError, setLocalError] = React.useState<string | null>(null);
     const [isResultDialogOpen, setIsResultDialogOpen] = React.useState(false);
+    const [isExpandedDrawOpen, setIsExpandedDrawOpen] = React.useState(false);
     const shownResultDialogForDrawRef = React.useRef<string | null>(null);
     const resultDialogTimeoutRef = React.useRef<number | null>(null);
 
@@ -178,6 +180,7 @@ export const LuckyDrawDrawContent = ({
 
         shownResultDialogForDrawRef.current = activeDraw.id;
         resultDialogTimeoutRef.current = window.setTimeout(() => {
+            setIsExpandedDrawOpen(false);
             setIsResultDialogOpen(true);
             resultDialogTimeoutRef.current = null;
         }, 0);
@@ -287,9 +290,22 @@ export const LuckyDrawDrawContent = ({
                                     Winners: {selectedPrize?.winners_count ?? 0} · Range: {rangeLabel}
                                 </p>
                             </div>
-                            {selectedPrizeResult ? (
-                                <Badge variant="success">{t("luckyDraw.drawn")}</Badge>
-                            ) : null}
+                            <div className="flex grow items-center justify-between gap-4">
+                                {selectedPrizeResult ? (
+                                    <Badge variant="success">{t("luckyDraw.drawn")}</Badge>
+                                ) : null}
+
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    aria-label={t("luckyDraw.expand")}
+                                    onClick={() => setIsExpandedDrawOpen(true)}
+                                    disabled={!selectedPrize || status === "drawing" || isRevealing}
+                                    className="ml-auto"
+                                >
+                                    <Maximize2 className="size-4" aria-hidden />
+                                </Button>
+                            </div>
                         </div>
 
                         <div className="flex flex-wrap items-center justify-center gap-4 rounded-xl border border-muted/50 bg-white/10 p-6 shadow-sm sm:gap-6 sm:p-8 dark:bg-slate-950/20">
@@ -515,13 +531,33 @@ export const LuckyDrawDrawContent = ({
                 </Button>
             </CardFooter>
 
+            <LuckyDrawExpandedDrawDialog
+                open={isExpandedDrawOpen}
+                onOpenChange={setIsExpandedDrawOpen}
+                prizeName={selectedPrize?.name ?? "-"}
+                digits={currentWinner}
+                requestId={`${activeDraw?.id ?? "idle"}-${revealWinnerIndex}`}
+                isAnimated={shouldAnimateCurrent}
+                isLoading={status === "drawing" || isRevealing}
+                canDraw={canDraw}
+                drawLabel={t("luckyDraw.draw")}
+                onDraw={() => {
+                    void handleExecuteDraw();
+                }}
+                getDigitSequence={getDigitSequence}
+                getDigitDuration={getDigitDuration}
+                getRevealDelayMs={getRevealDelayMs}
+                ease={luckyDrawDecelerationEase}
+            />
+
             <DrawResultDialog
                 open={isResultDialogOpen}
                 onOpenChange={handleResultDialogOpenChange}
-                prizeName={selectedPrize?.name ?? "Selected prize"}
+                winnersDescription={t("luckyDraw.winnersWithPrize", {
+                    prizeName: selectedPrize?.name ?? "-",
+                })}
                 title={t("luckyDraw.drawComplete")}
                 closeLabel={t("luckyDraw.close")}
-                winnersLabel={t("luckyDraw.winners")}
                 winners={
                     activeDraw?.winners ??
                     selectedPrizeResult?.winners ??
