@@ -6,7 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test tests/vua-tieng-viet/*.test.mjs && vitest run",
+    "test:browser": "playwright test",
+    "supabase:local:cors": "node scripts/vua-tieng-viet/local-gateway-cors.mjs",
+    "test:vtv:local:http": "node tests/vua-tieng-viet/local-supabase.integration.mjs",
+    "test:vtv:local:runtime": "node tests/vua-tieng-viet/local-runtime.integration.mjs",
+    "test:vtv:local:import-sql": "node tests/vua-tieng-viet/local-sql.integration.mjs import",
+    "test:vtv:local:editorial-sql": "node tests/vua-tieng-viet/local-sql.integration.mjs editorial",
+    "test:vtv:local:browser": "playwright test --config playwright.local.config.ts",
+    "test:deno": "deno test --allow-read --allow-net=127.0.0.1 tests/vua-tieng-viet/preview.deno.mts tests/vua-tieng-viet/http.deno.mts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
@@ -27,13 +36,16 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "deno": "^2.9.6",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
   }
 }

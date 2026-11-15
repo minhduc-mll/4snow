@@ -3,5 +3,6 @@ export const PATH = {
   admin: "/admin",
   luckyDraw: "/lucky-draw",
   quiz: "/quiz",
+  vuaTiengViet: "/vua-tieng-viet",
   leaderboard: "/leaderboard",
 } as const;

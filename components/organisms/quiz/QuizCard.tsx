@@ -17,17 +17,17 @@ import {
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { useQuizLogic } from "@/hooks/useQuizLogic";
 import { cn } from "@/lib/utils";
-import type { QuizSession } from "@/types/database";
+import type { PlayerSession, QuizIdentity } from "@/lib/quiz/client";
 
 export interface QuizCardProps {
   sessionId: string;
-  participantId?: string | null;
+  identity: QuizIdentity;
   participantName?: string;
   className?: string;
 }
 
 function getSessionLabel(
-  session: QuizSession | undefined,
+  session: PlayerSession | undefined,
   loadingLabel: string,
   liveLabel: string,
 ): string {
@@ -44,14 +44,14 @@ function getSessionLabel(
 
 export function QuizCard({
   sessionId,
-  participantId = null,
+  identity,
   participantName,
   className,
 }: QuizCardProps): React.ReactElement {
   const { t } = useAppI18n();
   const quiz = useQuizLogic({
     sessionId,
-    participantId,
+    identity,
   });
 
   return (
@@ -116,7 +116,7 @@ export function QuizCard({
                   disabled={
                     !quiz.isLive ||
                     quiz.countdown.isExpired ||
-                    quiz.answerStatus === "confirmed"
+                    quiz.answered || quiz.pending || quiz.isSubmitting || quiz.readError
                   }
                   aria-pressed={isSelected}
                   onClick={() => quiz.selectOption(option.id)}
@@ -132,18 +132,15 @@ export function QuizCard({
         </div>
       </CardContent>
 
-      <CardFooter className="justify-between gap-3">
-        <Badge
-          variant={
-            quiz.answerStatus === "confirmed"
-              ? "success"
-              : quiz.answerStatus === "rejected"
-                ? "danger"
-                : "neutral"
-          }
-        >
-          {quiz.answerStatus === "idle" ? t("quiz.chooseAnswer") : quiz.answerStatus}
-        </Badge>
+      <CardFooter className="flex-wrap justify-between gap-3">
+        <div className="grid gap-2" role="status" aria-live="polite">
+          {quiz.receipt ? <p>{quiz.receipt.question_id !== quiz.activeQuestion?.id ? `${t("quiz.previousQuestionReceipt")} — ` : ""}{t("quiz.receipt", { score: quiz.receipt.score })} — {t(quiz.receipt.is_correct ? "quiz.correct" : "quiz.incorrect")}</p> : <p>{t(quiz.pending ? "quiz.pendingReceipt" : "quiz.chooseAnswer")}</p>}
+          {quiz.error ? <p role="alert">{t(`quiz.errors.${quiz.error}`)}</p> : null}
+          {quiz.readError ? <p role="alert">{t("quiz.readError")}</p> : null}
+        </div>
+        {quiz.readError ? <Button variant="outline" onClick={quiz.refresh}>{t("quiz.refresh")}</Button> : null}
+        {quiz.canRetry ? <Button onClick={quiz.retry}>{t("quiz.retryReceipt")}</Button> : null}
+        {quiz.canContinue ? <Button variant="outline" onClick={quiz.continueToQuestion}>{t("quiz.continue")}</Button> : null}
         <Button
           isLoading={quiz.isSubmitting}
           disabled={!quiz.canSubmit}

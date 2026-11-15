@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useChangeLanguage, useT } from "next-i18next/client";
+import { storedLanguage } from "@/lib/stored-language";
 
 export type AppLanguage = "vi" | "en";
 
@@ -30,8 +31,7 @@ export function useAppI18n() {
       return normalizeLanguage(i18n.resolvedLanguage ?? i18n.language) ?? "vi";
     }
 
-    const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    return savedLanguage === "en" ? "en" : "vi";
+    return storedLanguage();
   });
 
   React.useEffect(() => {
@@ -39,15 +39,15 @@ export function useAppI18n() {
       return;
     }
 
-    const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    const preferredLanguage: AppLanguage = savedLanguage === "en" ? "en" : "vi";
+    const preferredLanguage = storedLanguage();
     const currentI18nLanguage =
       normalizeLanguage(i18n.resolvedLanguage ?? i18n.language);
 
-    if (currentI18nLanguage !== preferredLanguage) {
-      void changeLanguage(preferredLanguage);
+    if (currentI18nLanguage !== null && currentI18nLanguage !== preferredLanguage) {
+      // Restoring a browser preference needs no server refresh, especially offline.
+      void i18n.changeLanguage(preferredLanguage);
     }
-  }, [changeLanguage, i18n.language, i18n.resolvedLanguage]);
+  }, [i18n, i18n.language, i18n.resolvedLanguage]);
 
   const language =
     normalizeLanguage(i18n.resolvedLanguage ?? i18n.language) ?? fallbackLanguage;
@@ -63,9 +63,10 @@ export function useAppI18n() {
         window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLanguage);
       }
       setFallbackLanguage(nextLanguage);
-      await changeLanguage(nextLanguage);
+      if (typeof navigator !== "undefined" && !navigator.onLine) await i18n.changeLanguage(nextLanguage);
+      else await changeLanguage(nextLanguage);
     },
-    [changeLanguage],
+    [changeLanguage, i18n],
   );
 
   return { t, language, setLanguage, isReady };

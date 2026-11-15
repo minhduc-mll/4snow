@@ -9,117 +9,23 @@ import { Button } from "@/components/atoms/Button";
 import { AdminLoginPanel } from "@/components/organisms/admin/AdminLoginPanel";
 import { LuckyDrawAdminPanel } from "@/components/organisms/lucky-draw/LuckyDrawAdminPanel";
 import { QuizImportPanel } from "@/components/organisms/quiz/QuizImportPanel";
-import { ADMIN_AUTH_TOKEN_KEY, clearAdminAuthToken, setAdminAuthToken } from "@/hooks/useAdminAuth";
+import { DictionaryPreviewPanel } from "@/components/organisms/vua-tieng-viet/DictionaryPreviewPanel";
+import { CandidateEditorialPanel } from "@/components/organisms/vua-tieng-viet/CandidateEditorialPanel";
+import { DictionaryPublicationPanel } from "@/components/organisms/vua-tieng-viet/DictionaryPublicationPanel";
+import { useAdminSession } from "@/hooks/useAdminAuth";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { PATH } from "@/lib/paths";
-import type {
-  AdminLoginErrorResponse,
-  AdminLoginSuccessResponse,
-  AdminVerifyResponse,
-} from "@/types/admin-auth";
-
-type AdminAuthState =
-  | { status: "checking" }
-  | { status: "unauthenticated" }
-  | { status: "authenticated"; expiresAt: number }
-  | { status: "error"; message: string };
-
 export default function AdminPage(): React.ReactElement {
   const { t } = useAppI18n();
-  const [initialToken] = React.useState<string | null>(() => {
-    if (typeof window === "undefined") {
-      return null;
-    }
-    return window.localStorage.getItem(ADMIN_AUTH_TOKEN_KEY);
-  });
-  const [authState, setAuthState] = React.useState<AdminAuthState>(() => {
-    if (initialToken) {
-      return { status: "checking" };
-    }
-    return { status: "unauthenticated" };
-  });
+  const { state: authState, login, logout: handleLogout } = useAdminSession();
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-
-  const verifyToken = React.useCallback(async (token: string): Promise<void> => {
-    try {
-      const response = await fetch("/api/admin/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token }),
-      });
-      const data = (await response.json()) as AdminVerifyResponse;
-
-      if (data.valid) {
-        setAuthState({
-          status: "authenticated",
-          expiresAt: data.expiresAt ?? Date.now(),
-        });
-        return;
-      }
-    } catch {
-      // no-op
-    }
-
-    clearAdminAuthToken();
-    setAuthState({ status: "unauthenticated" });
-  }, []);
-
-  React.useEffect(() => {
-    if (!initialToken) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      void verifyToken(initialToken);
-    }, 0);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [initialToken, verifyToken]);
-
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
-
-    try {
-      const response = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = (await response.json()) as
-        | AdminLoginSuccessResponse
-        | AdminLoginErrorResponse;
-
-      if (!response.ok || !("token" in data)) {
-        setAuthState({
-          status: "error",
-          message:
-            "message" in data
-              ? data.message
-              : t("adminAuth.loginFailed"),
-        });
-        clearAdminAuthToken();
-        return;
-      }
-
-      setAdminAuthToken(data.token);
-      setPassword("");
-      setAuthState({ status: "authenticated", expiresAt: data.expiresAt });
-    } catch {
-      setAuthState({ status: "error", message: t("adminAuth.loginFailed") });
-      clearAdminAuthToken();
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleLogout = (): void => {
-    clearAdminAuthToken();
-    setAuthState({ status: "unauthenticated" });
+    if (await login(username, password, t("adminAuth.loginFailed"))) setPassword("");
+    setIsSubmitting(false);
   };
 
   if (authState.status === "checking") {
@@ -179,6 +85,9 @@ export default function AdminPage(): React.ReactElement {
 
         <LuckyDrawAdminPanel />
         <QuizImportPanel />
+        <DictionaryPreviewPanel onUnauthorized={handleLogout} />
+        <CandidateEditorialPanel onUnauthorized={handleLogout} />
+        <DictionaryPublicationPanel onUnauthorized={handleLogout} />
       </div>
     </main>
   );

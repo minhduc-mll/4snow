@@ -22,6 +22,12 @@ export default function Home(): React.ReactElement {
 
   const routeItems = [
     {
+      href: PATH.vuaTiengViet,
+      title: "Vua tiếng Việt",
+      description: t("wordGame.homeDescription"),
+      icon: Gamepad,
+    },
+    {
       href: PATH.admin,
       title: t("home.adminControlTitle"),
       description: t("home.adminControlDescription"),

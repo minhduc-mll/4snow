@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored agent tooling is not part of the application source/lint target.
+    ".agents/**",
   ]),
 ]);
 

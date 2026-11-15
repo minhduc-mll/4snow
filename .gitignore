@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+/test-results
+/playwright-report
+/output/
+/debug.log
+/.scratch/
 
 # next.js
 /.next/
@@ -43,3 +48,7 @@ next-env.d.ts
 
 # repomix output
 repomix-output.xml
+
+# Supabase CLI state and generated runtime credentials
+/supabase/.temp/
+/supabase/.branches/

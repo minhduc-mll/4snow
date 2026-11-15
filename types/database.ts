@@ -44,33 +44,6 @@ export interface QuizSession extends SupabaseRecord {
   updated_at: IsoDateTime;
 }
 
-export interface QuizQuestion extends SupabaseRecord {
-  id: UUID;
-  session_id: UUID;
-  prompt: string;
-  type: QuestionType;
-  options: QuizOption[];
-  correct_option_ids: string[];
-  time_limit_seconds: number;
-  base_points: number;
-  order_index: number;
-  created_at: IsoDateTime;
-  updated_at: IsoDateTime;
-}
-
-export interface QuizSubmission extends SupabaseRecord {
-  id: UUID;
-  session_id: UUID;
-  question_id: UUID;
-  participant_id: UUID | null;
-  selected_option_ids: string[];
-  is_correct: boolean;
-  time_remaining_ms: number;
-  score: number;
-  submitted_at: IsoDateTime;
-  created_at: IsoDateTime;
-}
-
 export interface Donation extends SupabaseRecord {
   id: UUID;
   display_name: string;
@@ -79,18 +52,6 @@ export interface Donation extends SupabaseRecord {
   ticket_number: number | null;
   is_eligible: boolean;
   metadata: Json;
-  created_at: IsoDateTime;
-  updated_at: IsoDateTime;
-}
-
-export interface Participant extends SupabaseRecord {
-  id: UUID;
-  session_id: UUID;
-  display_name: string;
-  avatar_url: string | null;
-  score: number;
-  is_connected: boolean;
-  last_seen_at: IsoDateTime;
   created_at: IsoDateTime;
   updated_at: IsoDateTime;
 }
@@ -136,34 +97,10 @@ export type QuizSessionInsert = Omit<
 
 export type QuizSessionUpdate = Partial<QuizSessionInsert>;
 
-export type QuizQuestionInsert = Omit<
-  QuizQuestion,
-  "id" | "created_at" | "updated_at"
-> &
-  Partial<Pick<QuizQuestion, "id" | "created_at" | "updated_at">>;
-
-export type QuizQuestionUpdate = Partial<QuizQuestionInsert>;
-
-export type QuizSubmissionInsert = Omit<
-  QuizSubmission,
-  "id" | "created_at"
-> &
-  Partial<Pick<QuizSubmission, "id" | "created_at">>;
-
-export type QuizSubmissionUpdate = Partial<QuizSubmissionInsert>;
-
 export type DonationInsert = Omit<Donation, "id" | "created_at" | "updated_at"> &
   Partial<Pick<Donation, "id" | "created_at" | "updated_at">>;
 
 export type DonationUpdate = Partial<DonationInsert>;
-
-export type ParticipantInsert = Omit<
-  Participant,
-  "id" | "created_at" | "updated_at"
-> &
-  Partial<Pick<Participant, "id" | "created_at" | "updated_at">>;
-
-export type ParticipantUpdate = Partial<ParticipantInsert>;
 
 export type WinnerInsert = Omit<Winner, "id" | "created_at"> &
   Partial<Pick<Winner, "id" | "created_at">>;
@@ -207,22 +144,7 @@ export interface Database {
         QuizSessionInsert,
         QuizSessionUpdate
       >;
-      quiz_questions: TableDefinition<
-        QuizQuestion,
-        QuizQuestionInsert,
-        QuizQuestionUpdate
-      >;
-      quiz_submissions: TableDefinition<
-        QuizSubmission,
-        QuizSubmissionInsert,
-        QuizSubmissionUpdate
-      >;
       donations: TableDefinition<Donation, DonationInsert, DonationUpdate>;
-      participants: TableDefinition<
-        Participant,
-        ParticipantInsert,
-        ParticipantUpdate
-      >;
       winners: TableDefinition<Winner, WinnerInsert, WinnerUpdate>;
       draw_configs: TableDefinition<DrawConfig, DrawConfigInsert, DrawConfigUpdate>;
       draw_results: TableDefinition<DrawResult, DrawResultInsert, DrawResultUpdate>;

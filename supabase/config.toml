@@ -1,0 +1,5 @@
+﻿[functions.vtv-dictionary]
+verify_jwt = false
+
+[functions.quiz-submit]
+verify_jwt = false

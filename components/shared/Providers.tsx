@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { I18nProvider } from "next-i18next/client";
 
 import { createQueryClient } from "@/lib/query-client";
+import { storedLanguage } from "@/lib/stored-language";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/database";
 
@@ -26,8 +27,7 @@ export function Providers({ children }: ProvidersProps): React.ReactElement {
     if (typeof window === "undefined") {
       return "vi";
     }
-    const savedLanguage = window.localStorage.getItem("app:language:v1");
-    return savedLanguage === "en" ? "en" : "vi";
+    return storedLanguage();
   });
 
   return (

@@ -10,7 +10,7 @@ After successful login, the app creates a JWT token and stores it in `localStora
 
 When the user refreshes `/admin`, the app validates the saved token. If the token is valid, the user can access `/admin`. If the token is invalid or expired, the app clears the token and shows the login page.
 
-This feature must not use Supabase.
+Login, token issuance, and the existing token-verification endpoint must not use Supabase. Vua tiếng Việt dictionary Edge Functions may independently verify the issued admin token to authorize private dictionary operations; this does not introduce Supabase Auth or change the login flow.
 
 ---
 
@@ -22,8 +22,11 @@ The `/admin` page may contain multiple admin sections, such as:
 
 - Lucky Draw admin configuration.
 - Quiz admin configuration.
+- Vua tiếng Việt dictionary review, editing, publication, and configuration.
 
 All `/admin` content must be protected behind the login state.
+
+Vua tiếng Việt additionally requires trusted authorization for private dictionary reads and mutations. See [its dictionary authorization requirements](./vua-tieng-viet-dictionary.md#6-trusted-admin-authorization). The existing UI login gate alone does not authorize database access.
 
 ---
 
@@ -32,7 +35,7 @@ All `/admin` content must be protected behind the login state.
 The following are not required:
 
 - Supabase Auth.
-- Supabase Edge Functions.
+- Supabase Edge Functions for login or token issuance (dictionary authorization is specified separately).
 - Third-party auth providers.
 - User registration.
 - Password reset.
@@ -93,7 +96,7 @@ Do not implement credential verification purely in client-side code.
 
 ## 6. Required Auth Endpoints
 
-Because this feature does not use Supabase, implement small Next.js server-side endpoints for authentication.
+Because login and token issuance do not use Supabase, implement small Next.js server-side endpoints for authentication.
 
 Recommended endpoints:
 
@@ -364,4 +367,4 @@ Do not use this exception for unrelated API features.
 - Logout removes the token and shows the login page.
 - Admin credentials are read only from server-side environment variables.
 - Admin credentials and JWT secret are never exposed to browser code.
-- No Supabase implementation is used.
+- Login, token issuance, and `/api/admin/verify` remain independent of Supabase.

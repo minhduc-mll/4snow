@@ -1,0 +1,40 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { parsePublicationRequest } from "../../lib/vua-tieng-viet/publication-contract.ts";
+const id = "30000000-0000-4000-8000-000000000003";
+const preview = { operation: "publication-preview", requestId: id, idempotencyKey: id, input: { expectedDraftRevision: "0" } };
+test("publication requires exact mutation envelopes and decimal revisions", () => {
+  assert.deepEqual(parsePublicationRequest(preview), preview);
+  const publish = { ...preview, operation: "publish", input: { buildId: id, expectedDraftRevision: "1", expectedCurrentReleaseId: null } };
+  assert.deepEqual(parsePublicationRequest(publish), publish);
+  for (const input of [{ ...publish.input, expectedCurrentReleaseId: "" }, { ...publish.input, expectedDraftRevision: "01" }, { ...publish.input, expectedDraftRevision: "9223372036854775808" }, { ...publish.input, payload: {} }]) assert.throws(() => parsePublicationRequest({ ...publish, input }));
+  assert.throws(() => parsePublicationRequest({ ...preview, idempotencyKey: undefined }));
+});
+
+test("publication Edge boundary authorizes, limits, hashes retries, bounds output and maps safe failures", async () => {
+  const { handlePreview, ImportOperationError } = await import("../../lib/vua-tieng-viet/preview-handler.ts");
+  const { createHmac } = await import("node:crypto");
+  const encode = value => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const unsigned = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ role: "admin", iat: 1000, exp: 1100 })}`;
+  const token = `${unsigned}.${createHmac("sha256", "secret").update(unsigned).digest("base64url")}`;
+  const hashes = [];
+  let delay = 0, mode = "ok";
+  const config = { secret: "secret", origins: ["https://app.example"], now: () => 1001, consumeLimit: async () => delay, consumePublicationLimit: async () => delay, publication: async (_request, hash) => { hashes.push(hash); if (mode === "conflict") throw new ImportOperationError("REVISION_CONFLICT"); if (mode === "invalid") throw new ImportOperationError("RELEASE_INCOMPLETE"); return mode === "oversize" ? { text: "x".repeat(1024 * 1024) } : { buildId: id }; } };
+  const send = (body, bearer = token) => handlePreview(new Request("https://example.invalid", { method: "POST", headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" }, body: JSON.stringify(body) }), config);
+  assert.equal((await send(preview,"invalid")).status,401);
+  assert.equal(hashes.length,0);
+  assert.equal((await send(preview)).status,200);
+  assert.equal((await send({ ...preview, requestId: "40000000-0000-4000-8000-000000000004" })).status,200);
+  assert.equal(hashes[0],hashes[1]);
+  const publish = { ...preview, operation: "publish", input: { buildId: id, expectedDraftRevision: "1", expectedCurrentReleaseId: null } };
+  delay = 8;
+  const limited = await send(publish);
+  assert.equal(limited.status,429); assert.equal(limited.headers.get("Retry-After"),"8");
+  delay = 0; mode = "conflict";
+  assert.equal((await send(publish)).status,409);
+  mode = "invalid";
+  assert.equal((await send(publish)).status,422);
+  mode = "oversize";
+  assert.equal((await send(preview)).status,503);
+  assert.equal((await send({ ...preview, padding: "x".repeat(65 * 1024) })).status,413);
+});

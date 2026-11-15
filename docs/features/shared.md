@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This file contains only cross-feature product requirements that apply to both Lucky Draw and Quiz.
+This file contains cross-feature product requirements for Lucky Draw, Quiz, and Vua tiếng Việt.
 
 Do not duplicate rules already defined in `AGENTS.md`. Do not place feature-specific logic here.
 
@@ -11,9 +11,11 @@ Do not duplicate rules already defined in `AGENTS.md`. Do not place feature-spec
 - Only authenticated admins can manage feature configuration and results.
 - Persisted feature data is stored in Supabase.
 - Each feature owns its own tables, domain models, state, validation, and UI flow.
-- Shared components and utilities must stay generic and must not contain Lucky Draw or Quiz business logic.
+- Shared components and utilities must stay generic and must not contain feature-specific business logic.
 - Use the existing design system and component structure defined in `AGENTS.md`.
 - Feature-specific schemas, API contracts, error cases, persistence details, and acceptance criteria must live in the relevant feature document.
+
+Vua tiếng Việt has a confirmed exception for casual solo round progress: versioned browser localStorage holds the round and its public dictionary/configuration snapshot for refresh recovery. Player progress is not uploaded. Supabase remains the source of truth for published content/configuration and private editorial data; see its gameplay document for snapshot validation and release pinning.
 
 ## Conflict Resolution
 

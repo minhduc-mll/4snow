@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "normalizerVersion": "vi-nfc-v2",
+  "artifactId": "10000000-0000-4000-8000-000000000001",
+  "artifactRevision": "synthetic-v1",
+  "preparedAt": "2026-01-01T00:00:00Z",
+  "chunkIndex": 0,
+  "chunkCount": 1,
+  "sources": [{
+    "sourceId": "20000000-0000-4000-8000-000000000002",
+    "name": "Synthetic test data",
+    "kind": "kaikki",
+    "artifactUrl": "https://example.invalid/synthetic",
+    "artifactSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "resourceRevision": "synthetic-v1",
+    "originDump": null,
+    "retrievedAt": "2026-01-01T00:00:00Z",
+    "rights": {"licenseName":"Synthetic fixture", "licenseVersion":null, "licenseUrl":"https://example.invalid/license", "attributionText":"Synthetic test only", "historyUrl":null, "redistributionNote":"Not a real source", "modificationsNotice":"Artificial test content"}
+  }],
+  "entries": [{
+    "externalId": "synthetic-1", "sourceId": "20000000-0000-4000-8000-000000000002", "sourceEntryId": "synthetic-entry", "sourceSenseId": "synthetic-sense", "entryUrl": "https://example.invalid/entry", "original": "tiếng Việt", "definitionVi": "Định nghĩa giả lập cho kiểm thử.", "language": "vi", "sourceNotes": "Synthetic only; never publish."
+  }]
+}

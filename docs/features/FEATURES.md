@@ -32,10 +32,14 @@ docs/features/quiz.md
 | ---------- | ----------------------------- |
 | Lucky Draw | `docs/features/lucky-draw.md` |
 | Quiz       | `docs/features/quiz.md`       |
+| Vua tiếng Việt | `docs/features/vua-tieng-viet.md` |
+| Vua tiếng Việt dictionary and admin | `docs/features/vua-tieng-viet-dictionary.md` |
 
 ## Feature Boundaries
 
-Lucky Draw and Quiz are separate domains. Do not mix their models, state, UI flows, tables, or business logic unless a future cross-feature requirement explicitly says so.
+Lucky Draw, Quiz, and Vua tiếng Việt are separate domains. Do not mix their models, state, UI flows, tables, or business logic unless a future cross-feature requirement explicitly says so.
+
+For Vua tiếng Việt, read both its gameplay and dictionary documents when changing content, admin workflows, publication, or authorization. The dictionary document is part of the same feature domain.
 
 Feature-specific requirements belong in the feature document. Shared rules belong in `shared.md` only when they apply to more than one feature and are not already covered by `AGENTS.md`.
 

@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "normalizerVersion": "vi-nfc-v2",
+  "artifactId": "78b9536a-5fe6-4849-a2c1-51a922ff8de7",
+  "artifactRevision": "1f0abd21982660b5fc2eff5eb3fbacbed2d9fe8f476af794dbed0d927ffb8187",
+  "preparedAt": "2026-11-08T09:37:25.245Z",
+  "chunkIndex": 0,
+  "chunkCount": 1,
+  "sources": [
+    {
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "name": "Kaikki Vietnamese Wiktionary raw extraction",
+      "kind": "kaikki",
+      "artifactUrl": "https://kaikki.org/viwiktionary/raw-wiktextract-data.jsonl.gz",
+      "artifactSha256": "1f0abd21982660b5fc2eff5eb3fbacbed2d9fe8f476af794dbed0d927ffb8187",
+      "resourceRevision": "2026-11-03; wiktextract 19f9a30; wikitextprocessor 6f96ddf",
+      "originDump": "viwiktionary-20261002",
+      "retrievedAt": "2026-11-08T09:25:37Z",
+      "rights": {
+        "licenseName": "Creative Commons Attribution-ShareAlike",
+        "licenseVersion": "4.0",
+        "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+        "attributionText": "Wiktionary contributors; extracted by Kaikki.org using Wiktextract. See each entry and its history for contributors.",
+        "historyUrl": "https://vi.wiktionary.org/wiki/",
+        "redistributionNote": "UNRESOLVED: qualified review of applicable terms, attribution and share-alike compliance is required before publication.",
+        "modificationsNotice": "Entries and senses selected and transformed into JSON; spelling and gloss retained. See source records."
+      }
+    }
+  ],
+  "entries": [
+    {
+      "externalId": "line:10:sense:0",
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "sourceEntryId": "jsonl-line:10",
+      "sourceSenseId": "sense-index:0",
+      "entryUrl": "https://vi.wiktionary.org/wiki/m%C3%A1y_t%C3%ADnh",
+      "original": "máy tính",
+      "definitionVi": "Máy thực hiện tự động các phép tính.",
+      "language": "vi",
+      "sourceNotes": "Unreviewed source sense; not approved for publication. Contributor history: https://vi.wiktionary.org/wiki/m%C3%A1y_t%C3%ADnh?action=history"
+    },
+    {
+      "externalId": "line:39:sense:0",
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "sourceEntryId": "jsonl-line:39",
+      "sourceSenseId": "sense-index:0",
+      "entryUrl": "https://vi.wiktionary.org/wiki/ng%C3%B4n_ng%E1%BB%AF",
+      "original": "ngôn ngữ",
+      "definitionVi": "Hệ thống các âm thanh, các từ ngữ và các quy tắc kết hợp chúng, làm phương tiện giao tiếp chung cho một cộng đồng.",
+      "language": "vi",
+      "sourceNotes": "Unreviewed source sense; not approved for publication. Contributor history: https://vi.wiktionary.org/wiki/ng%C3%B4n_ng%E1%BB%AF?action=history"
+    },
+    {
+      "externalId": "line:46:sense:0",
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "sourceEntryId": "jsonl-line:46",
+      "sourceSenseId": "sense-index:0",
+      "entryUrl": "https://vi.wiktionary.org/wiki/h%E1%BB%8Fi",
+      "original": "hỏi",
+      "definitionVi": "nói hoặc viết để yêu cầu ai trả lời.",
+      "language": "vi",
+      "sourceNotes": "Unreviewed source sense; not approved for publication. Contributor history: https://vi.wiktionary.org/wiki/h%E1%BB%8Fi?action=history"
+    },
+    {
+      "externalId": "line:55:sense:0",
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "sourceEntryId": "jsonl-line:55",
+      "sourceSenseId": "sense-index:0",
+      "entryUrl": "https://vi.wiktionary.org/wiki/m%C3%A1y_vi_t%C3%ADnh",
+      "original": "máy vi tính",
+      "definitionVi": "Một thiết bị hay hệ thống điện tử có khả năng xử lý dữ liệu, dùng để tính toán hay kiểm soát các hoạt động mà có thể biểu diễn dưới dạng số hay quy luật lô-gích.",
+      "language": "vi",
+      "sourceNotes": "Unreviewed source sense; not approved for publication. Contributor history: https://vi.wiktionary.org/wiki/m%C3%A1y_vi_t%C3%ADnh?action=history"
+    },
+    {
+      "externalId": "line:59:sense:0",
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "sourceEntryId": "jsonl-line:59",
+      "sourceSenseId": "sense-index:0",
+      "entryUrl": "https://vi.wiktionary.org/wiki/h%E1%BB%AFu_c%C6%A1",
+      "original": "hữu cơ",
+      "definitionVi": "(thuộc) Các hợp chất hóa học mà phân tử có chứa cacbon, ngoại trừ các cacbua, cacbonat, cacbon ôxít (mônôxít và điôxít). Trước đây người ta lầm tưởng các hợp chất hữu cơ chỉ có trong cơ thể sống nên có tên gọi này.",
+      "language": "vi",
+      "sourceNotes": "Unreviewed source sense; not approved for publication. Contributor history: https://vi.wiktionary.org/wiki/h%E1%BB%AFu_c%C6%A1?action=history"
+    },
+    {
+      "externalId": "line:61:sense:0",
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "sourceEntryId": "jsonl-line:61",
+      "sourceSenseId": "sense-index:0",
+      "entryUrl": "https://vi.wiktionary.org/wiki/nh%C3%A0_h%C3%B3a_h%E1%BB%8Dc",
+      "original": "nhà hóa học",
+      "definitionVi": "Người nghiên cứu về hóa học.",
+      "language": "vi",
+      "sourceNotes": "Unreviewed source sense; not approved for publication. Contributor history: https://vi.wiktionary.org/wiki/nh%C3%A0_h%C3%B3a_h%E1%BB%8Dc?action=history"
+    },
+    {
+      "externalId": "line:62:sense:0",
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "sourceEntryId": "jsonl-line:62",
+      "sourceSenseId": "sense-index:0",
+      "entryUrl": "https://vi.wiktionary.org/wiki/nghi%C3%AAn_c%E1%BB%A9u",
+      "original": "nghiên cứu",
+      "definitionVi": "Xem xét, làm cho nắm vững vấn đề để nhận thức, tìm cách giải quyết.",
+      "language": "vi",
+      "sourceNotes": "Unreviewed source sense; not approved for publication. Contributor history: https://vi.wiktionary.org/wiki/nghi%C3%AAn_c%E1%BB%A9u?action=history"
+    },
+    {
+      "externalId": "line:67:sense:0",
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "sourceEntryId": "jsonl-line:67",
+      "sourceSenseId": "sense-index:0",
+      "entryUrl": "https://vi.wiktionary.org/wiki/nh%E1%BA%B9",
+      "original": "nhẹ",
+      "definitionVi": "Không nặng.",
+      "language": "vi",
+      "sourceNotes": "Unreviewed source sense; not approved for publication. Contributor history: https://vi.wiktionary.org/wiki/nh%E1%BA%B9?action=history"
+    },
+    {
+      "externalId": "line:68:sense:0",
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "sourceEntryId": "jsonl-line:68",
+      "sourceSenseId": "sense-index:0",
+      "entryUrl": "https://vi.wiktionary.org/wiki/y%C3%AAu",
+      "original": "yêu",
+      "definitionVi": "Có tình cảm thắm thiết dành riêng cho một người nào đó, muốn chung sống và cùng nhau gắn bó cuộc đời.",
+      "language": "vi",
+      "sourceNotes": "Unreviewed source sense; not approved for publication. Contributor history: https://vi.wiktionary.org/wiki/y%C3%AAu?action=history"
+    },
+    {
+      "externalId": "line:72:sense:0",
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "sourceEntryId": "jsonl-line:72",
+      "sourceSenseId": "sense-index:0",
+      "entryUrl": "https://vi.wiktionary.org/wiki/d%C4%A9nh_ng%E1%BB%99",
+      "original": "dĩnh ngộ",
+      "definitionVi": "(hiếm) Có mặt mày sáng sủa, có vẻ thông minh (thường nói về trẻ em).",
+      "language": "vi",
+      "sourceNotes": "Unreviewed source sense; not approved for publication. Contributor history: https://vi.wiktionary.org/wiki/d%C4%A9nh_ng%E1%BB%99?action=history"
+    },
+    {
+      "externalId": "line:74:sense:0",
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "sourceEntryId": "jsonl-line:74",
+      "sourceSenseId": "sense-index:0",
+      "entryUrl": "https://vi.wiktionary.org/wiki/h%C3%A0n_vi",
+      "original": "hàn vi",
+      "definitionVi": "(văn chương) Nghèo hèn, không có địa vị gì trong xã hội (thường nói về một đoạn đời đã qua, đối lập với sự thành đạt, vinh hiển hiện nay).",
+      "language": "vi",
+      "sourceNotes": "Unreviewed source sense; not approved for publication. Contributor history: https://vi.wiktionary.org/wiki/h%C3%A0n_vi?action=history"
+    },
+    {
+      "externalId": "line:170:sense:0",
+      "sourceId": "a4711100-9682-45fd-8fa8-154b7ac0967c",
+      "sourceEntryId": "jsonl-line:170",
+      "sourceSenseId": "sense-index:0",
+      "entryUrl": "https://vi.wiktionary.org/wiki/%C4%91%C6%B0%E1%BB%9Dng",
+      "original": "đường",
+      "definitionVi": "Chất hữu cơ kết tinh thành hạt có vị ngọt, thường chế từ mía, củ cải đường.",
+      "language": "vi",
+      "sourceNotes": "Unreviewed source sense; not approved for publication. Contributor history: https://vi.wiktionary.org/wiki/%C4%91%C6%B0%E1%BB%9Dng?action=history"
+    }
+  ]
+}
