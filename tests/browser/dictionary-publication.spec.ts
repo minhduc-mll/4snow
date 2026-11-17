@@ -27,7 +27,7 @@ test("administrator resolves preview errors, refreshes stale builds and retries 
     }
     throw new Error("Unexpected operation");
   });
-  await page.goto("/admin#dictionary");
+  await page.goto("/admin#dictionary/publish");
   await page.getByLabel(/Tài khoản|Username/i).fill("admin");
   await page.getByLabel(/Mật khẩu|Password/i).fill("password");
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();

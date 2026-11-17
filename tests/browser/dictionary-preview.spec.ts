@@ -87,6 +87,7 @@ test("resumable import retries a lost response with the same key and finalizes",
   await page.getByRole("button", { name: /Thử lại an toàn|Retry safely/i }).click();
   await page.getByRole("button", { name: /Hoàn tất nhập|Finalize import/i }).click();
   await expect(page.getByText(/Đã hoàn tất, chờ duyệt|Finalized, awaiting review/i)).toBeVisible();
+  await page.getByRole("link", { name: /Duyệt|Review/i }).click();
   await expect(page.getByRole("button", { name: /mèo · 3/i })).toBeVisible();
 });
 
@@ -144,6 +145,7 @@ test("an administrator reviews an answer with explicit exclusion checks", async 
   await page.getByLabel(/Tài khoản|Username/i).fill("admin");
   await page.getByLabel(/Mật khẩu|Password/i).fill("password");
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
+  await page.getByRole("link", { name: /Duyệt|Review/i }).click();
   await page.getByLabel(/Số chữ|Letter count/i).selectOption("3");
   await page.getByLabel(/Chỉ mục trùng cách viết|Only matching spellings/i).check();
   await page.getByRole("button", { name: /Áp dụng bộ lọc|Apply filters/i }).click();

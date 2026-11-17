@@ -8,9 +8,7 @@ import { Button } from "@/components/atoms/Button";
 import { AdminLoginPanel } from "@/components/organisms/admin/AdminLoginPanel";
 import { LuckyDrawAdminPanel } from "@/components/organisms/lucky-draw/LuckyDrawAdminPanel";
 import { QuizImportPanel } from "@/components/organisms/quiz/QuizImportPanel";
-import { DictionaryPreviewPanel } from "@/components/organisms/vua-tieng-viet/DictionaryPreviewPanel";
-import { CandidateEditorialPanel } from "@/components/organisms/vua-tieng-viet/CandidateEditorialPanel";
-import { DictionaryPublicationPanel } from "@/components/organisms/vua-tieng-viet/DictionaryPublicationPanel";
+import { DictionaryWorkflow } from "@/components/organisms/vua-tieng-viet/DictionaryWorkflow";
 import { useAdminSession } from "@/hooks/useAdminAuth";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { PATH } from "@/lib/paths";
@@ -77,7 +75,7 @@ export default function AdminPage(): React.ReactElement {
           {section === "overview" && <section aria-labelledby="overview-heading" className="grid gap-4"><div><h2 id="overview-heading" className="text-2xl font-semibold">{t("adminNav.overview")}</h2><p className="text-muted-foreground">{t("adminNav.intro")}</p></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{sections.filter((item) => item !== "overview").map((item) => <a key={item} href={`#${item}`} className="rounded-lg border bg-card p-5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary hover:bg-muted"><h3 className="font-semibold">{t(`adminNav.${item}`)}</h3><p className="mt-2 text-sm text-muted-foreground">{t(`adminNav.${item}Description`)}</p></a>)}</div></section>}
           <KeepSection active={section === "lucky-draw"}><LuckyDrawAdminPanel /></KeepSection>
           <KeepSection active={section === "quiz"}><QuizImportPanel /></KeepSection>
-          <KeepSection active={section === "dictionary"}><DictionaryPreviewPanel onUnauthorized={handleLogout} /><CandidateEditorialPanel onUnauthorized={handleLogout} /><DictionaryPublicationPanel onUnauthorized={handleLogout} /></KeepSection>
+          <KeepSection active={section === "dictionary"}><DictionaryWorkflow onUnauthorized={handleLogout} /></KeepSection>
         </div>
       </div>
     </div>
