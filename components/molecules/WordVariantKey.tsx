@@ -15,7 +15,7 @@ export function WordVariantKey({ base, variants, knowledge, disabled, onSelect, 
   const picker = useWordVariantPicker(onSelect,focusInput);
   const name = t("wordGame.variants",{ letter: base });
   return <Popover modal open={picker.open} onOpenChange={picker.changeOpen}>
-    <PopoverTrigger asChild><Button variant="outline" className={styles.expandKey} disabled={disabled || variants.every(letter => knowledge.get(letter) === "absent")} aria-label={name} whileTap={{ scale: 1 }}><ChevronUp size={14} aria-hidden="true" /></Button></PopoverTrigger>
+    <PopoverTrigger asChild><Button variant="outline" className={styles.expandKey} disabled={disabled || variants.every(letter => knowledge.get(letter) === "absent")} aria-label={name} whileTap={{ scale: 1 }}>{base}<ChevronUp size={14} aria-hidden="true" /></Button></PopoverTrigger>
     <PopoverContent className={styles.variantDialog} side="top" collisionPadding={12} aria-label={name} onCloseAutoFocus={picker.closeAutoFocus}>
       <p className={styles.variantTitle}>{name}</p>
       <div className={styles.variantGrid}>{variants.map(letter => {
