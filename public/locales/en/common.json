@@ -62,6 +62,25 @@
     "fallbackTitle": "Overlay",
     "backToHome": "Back to home"
   },
+  "quizImport": {
+    "selectStep": "1. Choose a file",
+    "format": "Use the first worksheet with question (or prompt), option_a and option_b (option_c and option_d are optional), and correct (or answer: a, b, c or d; separate multiple answers with commas). Optional columns: type, time_limit_seconds, base_points. For Vietnamese text, use XLSX or UTF-8 CSV with a BOM.",
+    "file": "Excel or CSV file",
+    "selected": "Selected file",
+    "noFile": "No file selected.",
+    "parseStep": "2. Analyze",
+    "parsing": "Analyzing file…",
+    "parseError": "Could not read the file. Check that it is a valid Excel or CSV file and try again.",
+    "previewStep": "3. Preview",
+    "unsupported": "This is a preview only. Saving imported questions is not currently supported.",
+    "row": "Row {{row}}",
+    "question": "Add question text in the question or prompt column.",
+    "options": "Provide at least two options.",
+    "answer": "Add a correct answer using a, b, c or d.",
+    "correct": "Correct answer",
+    "noQuestions": "No valid questions were found.",
+    "previewHint": "Analyze a file to see its questions and warnings here."
+  },
   "adminNav": {
     "label": "Admin navigation",
     "menu": "Admin sections",

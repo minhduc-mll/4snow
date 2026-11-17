@@ -62,6 +62,25 @@
     "fallbackTitle": "Overlay",
     "backToHome": "Về trang chủ"
   },
+  "quizImport": {
+    "selectStep": "1. Chọn tệp",
+    "format": "Dùng trang tính đầu tiên với cột question (hoặc prompt), option_a và option_b (option_c và option_d tùy chọn), correct (hoặc answer: a, b, c hoặc d; ngăn cách nhiều đáp án bằng dấu phẩy). Các cột tùy chọn: type, time_limit_seconds, base_points. Với tiếng Việt, dùng XLSX hoặc CSV UTF-8 có BOM.",
+    "file": "Tệp Excel hoặc CSV",
+    "selected": "Tệp đã chọn",
+    "noFile": "Chưa chọn tệp.",
+    "parseStep": "2. Phân tích",
+    "parsing": "Đang phân tích tệp…",
+    "parseError": "Không thể đọc tệp. Hãy kiểm tra tệp Excel hoặc CSV hợp lệ và thử lại.",
+    "previewStep": "3. Xem trước",
+    "unsupported": "Đây chỉ là bản xem trước. Hiện chưa hỗ trợ lưu câu hỏi đã nhập.",
+    "row": "Dòng {{row}}",
+    "question": "Thêm nội dung câu hỏi vào cột question hoặc prompt.",
+    "options": "Nhập ít nhất hai lựa chọn.",
+    "answer": "Thêm đáp án đúng bằng a, b, c hoặc d.",
+    "correct": "Đáp án đúng",
+    "noQuestions": "Không tìm thấy câu hỏi hợp lệ.",
+    "previewHint": "Phân tích tệp để xem câu hỏi và cảnh báo tại đây."
+  },
   "adminNav": {
     "label": "Điều hướng quản trị",
     "menu": "Khu vực quản trị",
