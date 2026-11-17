@@ -15,14 +15,14 @@ export function WordKeyboard({ knowledge, disabled, onKey, focusInput }: Props) 
     {["QWERTYUIOP","ASDFGHJKL","ZXCVBNM"].map(row => <div key={row} className={styles.keyRow}>
       {Array.from(row).map(letter => {
         const feedback = knowledge.get(letter);
-        const variants = variantsFor(letter);
         return <div key={letter} className={styles.keyColumn}>
           <Button variant="outline" className={styles.key} data-feedback={feedback} disabled={disabled || feedback === "absent"} aria-label={`${letter}${feedback ? `, ${t(`wordGame.${feedback}`)}` : ""}`} onClick={() => onKey(letter)} whileTap={{ scale: 1 }}>{letter}{feedback ? <span aria-hidden="true" className={styles.keySymbol}>{feedbackSymbols[feedback]}</span> : null}</Button>
-          {variants.length ? <WordVariantKey base={letter} variants={variants} knowledge={knowledge} disabled={disabled} onSelect={variant => onKey(variant,false)} focusInput={focusInput} /> : Array.from(row).some(key => variantsFor(key).length) ? <span className={styles.expansionSpacer} aria-hidden="true" /> : null}
         </div>;
       })}
     </div>)}
+    <div className={styles.variantRow}>
+      {Array.from("AEIOUYD").map(letter => <WordVariantKey key={letter} base={letter} variants={variantsFor(letter)} knowledge={knowledge} disabled={disabled} onSelect={variant => onKey(variant,false)} focusInput={focusInput} />)}
+    </div>
     <Button variant="outline" disabled={disabled} className={styles.backspace} onClick={() => onKey("Backspace")} whileTap={{ scale: 1 }}>{t("wordGame.backspace")}</Button>
-    <p className={styles.keyboardHint}>{t("wordGame.imeHint")}</p>
   </section>;
 }

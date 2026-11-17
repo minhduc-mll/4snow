@@ -11,9 +11,11 @@ test("a prepared player shell reloads fully offline with its saved round", async
   page.on("request",request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documentNavigations++; });
   await page.reload();
   await expect(input(page)).toHaveValue("mè");
+  await page.getByRole("button",{ name: "Cách chơi", exact: true }).click();
   await page.getByRole("combobox").selectOption("en");
-  await expect(page.getByText("Accents count as different letters. Spaces do not take a cell.")).toBeVisible();
+  await expect(page.getByText(/E, Ê and Ế are different/)).toBeVisible();
   await page.getByRole("combobox").selectOption("vi");
+  await page.getByRole("button",{ name: /Đóng hướng dẫn|Close help/i }).click();
   await expect(input(page)).toHaveValue("mè");
   await input(page).fill("mèo"); await submit(page).click();
   await expect(page.getByText("Chúc mừng! Bạn đã tìm ra đáp án.")).toBeVisible();
@@ -75,7 +77,7 @@ test("unreadable saves stay untouched until explicit feature-only reset", async 
   await expect(page.getByRole("button",{ name: /Bắt đầu ván/ })).toBeDisabled();
   expect(await page.evaluate(() => localStorage.getItem("vtv:round:v1"))).toContain("vi-latin-v1");
   await page.getByRole("button",{ name: "Xóa bản lưu và bắt đầu lại", exact: true }).click();
-  expect(await page.evaluate(() => localStorage.getItem("vtv:round:v1"))).toBeNull();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("vtv:round:v1"))).toBeNull();
   expect(await page.evaluate(() => localStorage.getItem("unrelated"))).toBe("keep");
   await page.getByRole("button",{ name: /Bắt đầu ván/ }).click();
   await expect(input(page)).toBeEnabled();

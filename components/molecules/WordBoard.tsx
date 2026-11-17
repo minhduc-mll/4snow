@@ -8,10 +8,10 @@ import styles from "@/components/organisms/vua-tieng-viet/word-game.module.css";
 
 export const feedbackSymbols: Record<LetterFeedback,string> = { correct: "✓", present: "↔", absent: "×" };
 type Props = { round: WordRound | null; level: WordLevel; letters: string[]; field: InputProps };
-type BoardStyle = CSSProperties & { "--vtv-columns": number };
+type BoardStyle = CSSProperties & { "--vtv-columns": number; "--vtv-rows": number };
 export function WordBoard({ round, level, letters, field }: Props) {
   const { t } = useAppI18n();
-  const boardStyle: BoardStyle = { "--vtv-columns": level };
+  const boardStyle: BoardStyle = { "--vtv-columns": level, "--vtv-rows": round?.attemptLimit ?? 6 };
   return <ol className={styles.board} style={boardStyle} aria-label={t("wordGame.board")}>
     {Array.from({ length: round?.attemptLimit ?? 6 },(_,rowIndex) => {
       const guess = round?.guesses[rowIndex];
