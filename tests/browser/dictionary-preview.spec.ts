@@ -59,11 +59,12 @@ test("resumable import retries a lost response with the same key and finalizes",
   await page.route("**/api/admin/login", async (route) => route.fulfill({ json: { token: "test-token", expiresAt: Date.now() + 60000 } }));
   let firstApplyKey: string | null = null;
   let applyCount = 0;
+  let finalized = false;
   await page.route("https://test-supabase.invalid/functions/v1/vtv-dictionary", async (route) => {
     const body: unknown = route.request().postDataJSON();
     if (typeof body !== "object" || body === null || !("operation" in body) || !("requestId" in body) || !("input" in body) || typeof body.input !== "object" || body.input === null) throw new Error("Invalid request");
     const common = { ok: true, requestId: body.requestId };
-    if (body.operation === "list") return route.fulfill({ json: { ...common, data: { items: [], nextCursor: null, draftRevision: "0" } } });
+    if (body.operation === "list") return route.fulfill({ json: { ...common, data: { items: finalized ? [{ id: "30000000-0000-4000-8000-000000000001", sourceId: "10000000-0000-4000-8000-000000000001", original: "mèo", normalized: "MÈO", level: 3, definitionVi: "Một con vật.", review: "pending", collision: false, revisionNumber: 1 }] : [], nextCursor: null, draftRevision: finalized ? "1" : "0" } } });
     if (body.operation === "import-preview") return route.fulfill({ json: { ...common, data: { valid: true, entryCount: 1, collisionCount: 0, duplicateCount: 0, conflictCount: 0, canonicalHash: createHash("sha256").update(canonicalJson(body.input)).digest("hex"), errors: [], errorsTruncated: false } } });
     if (body.operation === "import-start") return route.fulfill({ json: { ...common, data: { importId: "60000000-0000-4000-8000-000000000006", expectedChunks: 1, status: "staging", draftRevision: "0", receipts: [] } } });
     if (body.operation === "import-apply") {
@@ -73,7 +74,7 @@ test("resumable import retries a lost response with the same key and finalizes",
       expect(body.idempotencyKey).toBe(firstApplyKey);
       return route.fulfill({ json: { ...common, data: { chunkIndex: 0, canonicalHash: body.input.canonicalHash, stagedCount: 1, createdCount: 1, noOpCount: 0, countsProvisional: true } } });
     }
-    if (body.operation === "import-finalize") return route.fulfill({ json: { ...common, data: { status: "finalized", draftRevision: "1", createdCount: 1, noOpCount: 0 } } });
+    if (body.operation === "import-finalize") { finalized = true; return route.fulfill({ json: { ...common, data: { status: "finalized", draftRevision: "1", createdCount: 1, noOpCount: 0 } } }); }
     throw new Error("Unexpected operation");
   });
   await page.goto("/admin");
@@ -86,6 +87,7 @@ test("resumable import retries a lost response with the same key and finalizes",
   await page.getByRole("button", { name: /Thử lại an toàn|Retry safely/i }).click();
   await page.getByRole("button", { name: /Hoàn tất nhập|Finalize import/i }).click();
   await expect(page.getByText(/Đã hoàn tất, chờ duyệt|Finalized, awaiting review/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: /mèo · 3/i })).toBeVisible();
 });
 
 test("an administrator can resume an import with an existing receipt", async ({ page }) => {

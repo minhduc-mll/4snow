@@ -78,6 +78,7 @@ export function useDictionaryImport(onUnauthorized: () => void) {
       } else {
         const { draftRevision, createdCount, noOpCount } = finalizeResponse(data);
         queryClient.setQueryData<ImportSession>(SESSION_KEY, (previous) => previous ? { ...previous, status: "finalized", draftRevision, createdCount, noOpCount } : previous);
+        void queryClient.invalidateQueries({ queryKey: ["vtv-private", "editorial"] });
       }
       pending.current = null;
     } catch (error) {
