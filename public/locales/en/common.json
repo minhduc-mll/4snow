@@ -160,6 +160,24 @@
     "chooseAnswer": "Choose an answer",
     "submitAnswer": "Submit answer"
   },
+  "luckyDrawUX": {
+    "settings": "Event and ticket settings",
+    "startNumber": "Starting ticket number",
+    "endNumber": "Ending ticket number",
+    "digitsHelp": "The digit count comes from the ending number. Leading zeroes are added when needed.",
+    "rangeError": "Enter non-negative whole numbers; the starting number must not exceed the ending number.",
+    "exclusionsHelp": "Enter a number and press Enter or Space. Use the remove button beside a number to delete it.",
+    "exclusionsError": "Each excluded number must be a whole number within the ticket range.",
+    "removeExclusion": "Remove excluded number {{tag}}",
+    "totalTickets": "Total tickets in range",
+    "eligibleTickets": "Tickets still eligible",
+    "unavailable": "Unavailable",
+    "eligibleHelp": "Save a valid configuration to determine the remaining tickets after exclusions and previous winners.",
+    "saving": "Saving",
+    "saveFailed": "Save failed",
+    "storageError": "Could not save data. Check browser storage permissions or available space and try again.",
+    "leaveWarning": "You have unsaved Lucky Draw changes. Leave this page?"
+  },
   "luckyDraw": {
     "languageLabel": "Language",
     "mute": "Mute",

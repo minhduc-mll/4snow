@@ -68,7 +68,7 @@ export default function AdminPage(): React.ReactElement {
     <div className="mx-auto grid w-full max-w-7xl gap-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div><p className="text-sm font-medium text-muted-foreground">{t("adminPage.section")}</p><h1 className="text-3xl font-semibold text-foreground">{t("adminPage.title")}</h1></div>
-        <div className="flex flex-wrap gap-2"><Link href={PATH.home} className="inline-flex min-h-10 items-center gap-2 rounded-md border bg-background px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"><Home className="size-4" aria-hidden />{t("adminAuth.homeAction")}</Link><Button variant="outline" leftIcon={<LogOut className="size-4" aria-hidden />} onClick={handleLogout}>{t("adminAuth.logoutAction")}</Button></div>
+        <div className="flex flex-wrap gap-2"><Link href={PATH.home} className="inline-flex min-h-10 items-center gap-2 rounded-md border bg-background px-4 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"><Home className="size-4" aria-hidden />{t("adminAuth.homeAction")}</Link><Button data-admin-logout variant="outline" leftIcon={<LogOut className="size-4" aria-hidden />} onClick={handleLogout}>{t("adminAuth.logoutAction")}</Button></div>
       </header>
       <div className="grid min-w-0 gap-5 md:grid-cols-[13rem_minmax(0,1fr)]">
         <aside className="hidden md:block">{navigation("grid gap-1 rounded-lg border bg-card p-2")}</aside>

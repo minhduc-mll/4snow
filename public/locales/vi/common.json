@@ -160,6 +160,24 @@
     "chooseAnswer": "Chọn đáp án",
     "submitAnswer": "Gửi đáp án"
   },
+  "luckyDrawUX": {
+    "settings": "Thiết lập sự kiện và vé",
+    "startNumber": "Số vé bắt đầu",
+    "endNumber": "Số vé kết thúc",
+    "digitsHelp": "Số chữ số được tính từ số vé kết thúc. Số 0 được thêm vào đầu vé khi cần.",
+    "rangeError": "Nhập số nguyên không âm; số bắt đầu không được lớn hơn số kết thúc.",
+    "exclusionsHelp": "Nhập một số rồi nhấn Enter hoặc dấu cách. Dùng nút xóa cạnh số để loại bỏ.",
+    "exclusionsError": "Mỗi số loại trừ phải là số nguyên nằm trong khoảng vé.",
+    "removeExclusion": "Xóa số loại trừ {{tag}}",
+    "totalTickets": "Tổng vé trong khoảng",
+    "eligibleTickets": "Vé còn đủ điều kiện",
+    "unavailable": "Chưa xác định",
+    "eligibleHelp": "Lưu cấu hình hợp lệ để xác định số vé còn lại sau số loại trừ và người trúng trước đó.",
+    "saving": "Đang lưu",
+    "saveFailed": "Lưu thất bại",
+    "storageError": "Không thể lưu dữ liệu. Kiểm tra quyền lưu trữ hoặc dung lượng của trình duyệt rồi thử lại.",
+    "leaveWarning": "Bạn có thay đổi Lucky Draw chưa lưu. Bạn có muốn rời đi?"
+  },
   "luckyDraw": {
     "languageLabel": "Ngôn ngữ",
     "mute": "Tắt tiếng",
