@@ -62,6 +62,19 @@
     "fallbackTitle": "Overlay",
     "backToHome": "Back to home"
   },
+  "adminNav": {
+    "label": "Admin navigation",
+    "menu": "Admin sections",
+    "overview": "Overview",
+    "lucky-draw": "Lucky Draw",
+    "quiz": "Quiz",
+    "dictionary": "Dictionary",
+    "current": "Current",
+    "intro": "Choose a task to get started.",
+    "lucky-drawDescription": "Configure the event and prizes and review results.",
+    "quizDescription": "Import and preview questions from Excel.",
+    "dictionaryDescription": "Import, review, and publish the dictionary."
+  },
   "adminPage": {
     "section": "Admin",
     "title": "Control"

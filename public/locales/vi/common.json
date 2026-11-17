@@ -62,6 +62,19 @@
     "fallbackTitle": "Overlay",
     "backToHome": "Về trang chủ"
   },
+  "adminNav": {
+    "label": "Điều hướng quản trị",
+    "menu": "Khu vực quản trị",
+    "overview": "Tổng quan",
+    "lucky-draw": "Lucky Draw",
+    "quiz": "Quiz",
+    "dictionary": "Từ điển",
+    "current": "Hiện tại",
+    "intro": "Chọn công việc bạn muốn thực hiện.",
+    "lucky-drawDescription": "Thiết lập sự kiện, giải thưởng và xem kết quả.",
+    "quizDescription": "Nhập và xem trước câu hỏi từ Excel.",
+    "dictionaryDescription": "Nhập, duyệt và xuất bản từ điển."
+  },
   "adminPage": {
     "section": "Quản trị",
     "title": "Điều khiển"

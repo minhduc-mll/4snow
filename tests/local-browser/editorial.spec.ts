@@ -8,7 +8,7 @@ const runtime = Object.fromEntries(readFileSync("supabase/.temp/start-secrets/su
 function rec(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 const filters = { sourceId: null, level: null, review: null, hasDefinition: null, collisionsOnly: false };
 async function login(page: Page) {
-  await page.goto("/admin");
+  await page.goto("/admin#dictionary");
   const password = process.env.VTV_LOCAL_TEST_PASSWORD;
   if (!password) throw new Error("Local test password missing");
   await page.getByLabel(/Tài khoản|Username/i).fill("local-verification-admin");
