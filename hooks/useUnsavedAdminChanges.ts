@@ -13,11 +13,12 @@ export function useUnsavedAdminChanges(dirty: boolean, message: string): void {
       event.returnValue = "";
     };
     const onClick = (event: MouseEvent) => {
-      if (!inEditor(new URL(window.location.href)) || !(event.target instanceof Element)) return;
+      if (!(event.target instanceof Element)) return;
       if (event.target.closest("[data-admin-logout]")) {
         if (!window.confirm(message)) { event.preventDefault(); event.stopPropagation(); }
         return;
       }
+      if (!inEditor(new URL(window.location.href))) return;
       const link = event.target.closest("a[href]");
       if (!(link instanceof HTMLAnchorElement) || inEditor(new URL(link.href))) return;
       if (!window.confirm(message)) { event.preventDefault(); event.stopPropagation(); return; }

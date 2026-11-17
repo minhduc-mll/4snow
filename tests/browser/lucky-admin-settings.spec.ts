@@ -64,3 +64,19 @@ test("failed storage stays unsaved and navigation can be cancelled", async ({ pa
   await expect(page).toHaveURL(/#lucky-draw$/);
   await expect(page.getByLabel(/Tên sự kiện|Event name/i)).toHaveValue("Unsaved event");
 });
+
+test("logging out from another section protects an unsaved Lucky Draw draft", async ({ page }) => {
+  await page.getByLabel(/Tên sự kiện|Event name/i).fill("Unsaved event");
+  const navigation = page.getByRole("navigation", { name: /Điều hướng quản trị|Admin navigation/i });
+  page.once("dialog", dialog => dialog.accept());
+  await navigation.getByRole("link", { name: /Quiz/ }).click();
+  await expect(page).toHaveURL(/#quiz$/);
+  page.once("dialog", dialog => dialog.dismiss());
+  await page.getByRole("button", { name: /Đăng xuất|Log out/i }).click();
+  await expect(navigation).toBeVisible();
+  await navigation.getByRole("link", { name: /Lucky Draw/ }).click();
+  await expect(page.getByLabel(/Tên sự kiện|Event name/i)).toHaveValue("Unsaved event");
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: /Đăng xuất|Log out/i }).click();
+  await expect(page.getByLabel(/Tài khoản|Username/i)).toBeVisible();
+});
