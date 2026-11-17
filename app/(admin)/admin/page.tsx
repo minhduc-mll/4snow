@@ -41,7 +41,9 @@ export default function AdminPage(): React.ReactElement {
   React.useLayoutEffect(() => {
     const positions = scrollPositions.current;
     window.scrollTo(0, positions[section] ?? 0);
-    return () => { positions[section] = window.scrollY; };
+    const recordPosition = () => { positions[section] = window.scrollY; };
+    window.addEventListener("scroll", recordPosition, { passive: true });
+    return () => window.removeEventListener("scroll", recordPosition);
   }, [section]);
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
