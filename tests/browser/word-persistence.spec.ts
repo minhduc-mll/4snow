@@ -1,9 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { dictionary, input, submit, start, board } from "./helpers/word-game";
 
-test("a prepared player shell reloads fully offline with its saved round", async ({ page, context, baseURL }) => {
+for (const mode of ["dictionary","free"] as const) test(`a prepared player shell reloads fully offline in ${mode} mode`, async ({ page, context, baseURL }) => {
   test.skip(!baseURL?.endsWith(":3212"),"Production-only: Next dev waits for its HMR connection while hydrating offline.");
-  await dictionary(page); await start(page);
+  await dictionary(page); await start(page,3,mode);
+  if (mode === "free") {
+    await input(page).fill("XYZ");
+    await submit(page).click();
+  }
   await input(page).fill("mè");
   await expect(page.getByText("Đã sẵn sàng tiếp tục ván khi mất mạng.")).toBeVisible();
   await context.setOffline(true);
@@ -11,11 +15,12 @@ test("a prepared player shell reloads fully offline with its saved round", async
   page.on("request",request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documentNavigations++; });
   await page.reload();
   await expect(input(page)).toHaveValue("mè");
-  await page.getByRole("button",{ name: "Cách chơi", exact: true }).click();
-  await page.getByRole("combobox").selectOption("en");
-  await expect(page.getByText(/E, Ê and Ế are different/)).toBeVisible();
-  await page.getByRole("combobox").selectOption("vi");
-  await page.getByRole("button",{ name: /Đóng hướng dẫn|Close help/i }).click();
+  await page.getByRole("button",{ name: "Cài đặt", exact: true }).click();
+  const settings = page.getByRole("dialog");
+  await settings.getByRole("combobox").selectOption("en");
+  await expect(settings.getByRole("heading",{ name: "Settings", exact: true })).toBeVisible();
+  await settings.getByRole("combobox").selectOption("vi");
+  await settings.getByRole("button",{ name: "Hủy", exact: true }).click();
   await expect(input(page)).toHaveValue("mè");
   await input(page).fill("mèo"); await submit(page).click();
   await expect(page.getByText("Chúc mừng! Bạn đã tìm ra đáp án.")).toBeVisible();
@@ -116,7 +121,9 @@ test("corrupt saves are not overwritten by starting or selecting a level", async
   await page.evaluate(() => localStorage.setItem("vtv:round:v1","broken"));
   await page.reload();
   await expect(page.getByRole("status")).toContainText(/Bản lưu ván chơi bị lỗi/);
+  await page.getByRole("button",{ name: "Cài đặt", exact: true }).click();
   await page.getByRole("button",{ name: "9 chữ", exact: true }).click();
+  await page.getByRole("button",{ name: "Áp dụng", exact: true }).click();
   await expect(page.getByRole("button",{ name: /Bắt đầu ván/ })).toBeDisabled();
   expect(remote.pointers).toBe(0);
   expect(await page.evaluate(() => localStorage.getItem("vtv:round:v1"))).toBe("broken");

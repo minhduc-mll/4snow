@@ -1,4 +1,4 @@
-import type { PlayableRound, WordRound } from "../../types/vua-tieng-viet.ts";
+import type { PlayableRound, RoundRules, WordRound } from "../../types/vua-tieng-viet.ts";
 import { isRecord, isUuid } from "./publication-contract.ts";
 import { attribution, levelData } from "./public-release.ts";
 import { commitInput, submitGuess } from "./player-engine.ts";
@@ -14,7 +14,7 @@ type RoundSnapshot = Pick<PlayableRound,"answer" | "membership" | "attributions"
   releaseId: string; configurationId: string; level: WordRound["level"]; attemptLimit: number;
 };
 export type RoundSave = {
-  schemaVersion: 1; normalizerVersion: "vi-nfc-v2"; savedAt: string;
+  schemaVersion: 2; normalizerVersion: "vi-nfc-v2"; savedAt: string;
   revision: number; snapshot: RoundSnapshot; round: WordRound;
 };
 function exact(value: Record<string,unknown>, keys: string[]) {
@@ -34,7 +34,7 @@ export function decodeRoundSave(text: string): PlayableRound {
     bounded(text);
     const value = parseStrictJson(text,undefined,undefined,MAX_ROUND_SAVE_BYTES);
     if (!isRecord(value)) invalid();
-    if (value.schemaVersion !== 1 || value.normalizerVersion !== "vi-nfc-v2") throw new RoundSaveError("incompatible");
+    if ((value.schemaVersion !== 1 && value.schemaVersion !== 2) || value.normalizerVersion !== "vi-nfc-v2") throw new RoundSaveError("incompatible");
     if (!exact(value,["schemaVersion","normalizerVersion","savedAt","revision","snapshot","round"]) || !timestamp(value.savedAt) || !revision(value.revision) || !isRecord(value.snapshot) || !isRecord(value.round)) invalid();
     const snapshot = value.snapshot, round = value.round;
     if (!exact(snapshot,["releaseId","configurationId","level","attemptLimit","answer","membership","attributions"]) || !isUuid(snapshot.releaseId) || !isUuid(snapshot.configurationId) || !(snapshot.level === 3 || snapshot.level === 5 || snapshot.level === 7 || snapshot.level === 9) || typeof snapshot.attemptLimit !== "number" || !Number.isInteger(snapshot.attemptLimit) || snapshot.attemptLimit < 1 || snapshot.attemptLimit > 12 || !Array.isArray(snapshot.attributions) || !snapshot.attributions.length || snapshot.attributions.length > 80000) invalid();
@@ -43,8 +43,15 @@ export function decodeRoundSave(text: string): PlayableRound {
     const data = levelData({ guesses: snapshot.membership, answers: [snapshot.answer] },snapshot.level,ids,new Set());
     const answer = data.answers[0];
     if (!answer || answer.attributionIds.length !== attributions.length) invalid();
-    if (!exact(round,["id","releaseId","configVersion","level","answerId","attemptLimit","input","guesses","status","revision","startedAt","updatedAt","endedAt"]) || !isUuid(round.id) || round.releaseId !== snapshot.releaseId || round.configVersion !== snapshot.configurationId || round.level !== snapshot.level || round.answerId !== answer.id || round.attemptLimit !== snapshot.attemptLimit || typeof round.input !== "string" || round.input.length > 120 || !Array.isArray(round.guesses) || round.guesses.length > snapshot.attemptLimit || !["playing","won","lost"].includes(String(round.status)) || !revision(round.revision) || value.revision !== round.revision || !timestamp(round.startedAt) || !timestamp(round.updatedAt) || round.updatedAt < round.startedAt || value.savedAt < round.updatedAt || !(round.endedAt === null || timestamp(round.endedAt))) invalid();
-    let state: PlayableRound = { answer, membership: data.guesses, attributions, singleAnswerReplay: false, round: { id: round.id, releaseId: snapshot.releaseId, configVersion: snapshot.configurationId, level: snapshot.level, answerId: answer.id, attemptLimit: snapshot.attemptLimit, input: "", guesses: [], status: "playing", revision: 0, startedAt: round.startedAt, updatedAt: round.startedAt, endedAt: null } };
+    const roundKeys = ["id","releaseId","configVersion","level","answerId","attemptLimit","input","guesses","status","revision","startedAt","updatedAt","endedAt"];
+    let rules: RoundRules = { guessMode: "dictionary" };
+    if (value.schemaVersion === 2) {
+      roundKeys.push("rules");
+      if (!isRecord(round.rules) || !exact(round.rules,["guessMode"]) || (round.rules.guessMode !== "dictionary" && round.rules.guessMode !== "free")) invalid();
+      rules = { guessMode: round.rules.guessMode };
+    }
+    if (!exact(round,roundKeys) || !isUuid(round.id) || round.releaseId !== snapshot.releaseId || round.configVersion !== snapshot.configurationId || round.level !== snapshot.level || round.answerId !== answer.id || round.attemptLimit !== snapshot.attemptLimit || typeof round.input !== "string" || round.input.length > 120 || !Array.isArray(round.guesses) || round.guesses.length > snapshot.attemptLimit || !["playing","won","lost"].includes(String(round.status)) || !revision(round.revision) || value.revision !== round.revision || !timestamp(round.startedAt) || !timestamp(round.updatedAt) || round.updatedAt < round.startedAt || value.savedAt < round.updatedAt || !(round.endedAt === null || timestamp(round.endedAt))) invalid();
+    let state: PlayableRound = { answer, membership: data.guesses, attributions, singleAnswerReplay: false, round: { id: round.id, releaseId: snapshot.releaseId, configVersion: snapshot.configurationId, level: snapshot.level, rules, answerId: answer.id, attemptLimit: snapshot.attemptLimit, input: "", guesses: [], status: "playing", revision: 0, startedAt: round.startedAt, updatedAt: round.startedAt, endedAt: null } };
     const guessIds = new Set<string>();
     let previousTime = round.startedAt;
     for (const guess of round.guesses) {
@@ -67,7 +74,7 @@ export function decodeRoundSave(text: string): PlayableRound {
 export function encodeRoundSave(state: PlayableRound, savedAt: string): string {
   try {
     const round = state.round;
-    const envelope: RoundSave = { schemaVersion: 1, normalizerVersion: "vi-nfc-v2", savedAt, revision: round.revision, snapshot: { releaseId: round.releaseId, configurationId: round.configVersion, level: round.level, attemptLimit: round.attemptLimit, answer: state.answer, membership: state.membership, attributions: state.attributions }, round };
+    const envelope: RoundSave = { schemaVersion: 2, normalizerVersion: "vi-nfc-v2", savedAt, revision: round.revision, snapshot: { releaseId: round.releaseId, configurationId: round.configVersion, level: round.level, attemptLimit: round.attemptLimit, answer: state.answer, membership: state.membership, attributions: state.attributions }, round };
     const text = JSON.stringify(envelope);
     // State entered through a validated release or restore and validated transitions.
     // Avoid reparsing the entire membership on every committed keystroke.

@@ -6,16 +6,15 @@ test("setup leads to a compact game and a finished round can select a new length
   await dictionary(page);
   await page.goto("/vua-tieng-viet");
   await expect(board(page)).toHaveCount(0);
-  await page.getByRole("button", { name: /^3 chữ$/ }).click();
   await page.getByRole("button", { name: "Bắt đầu ván" }).click();
   await expect(input(page)).toBeEnabled();
   await expect(page.getByRole("button", { name: /^5 chữ$/ })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
   await input(page).fill("mèo");
   await submit(page).click();
-  await page.getByRole("button", { name: "Chọn số chữ" }).click();
+  await page.getByRole("button", { name: "Cài đặt" }).click();
   await page.getByRole("button", { name: /^5 chữ$/ }).click();
-  await page.getByRole("button", { name: "Bắt đầu ván" }).click();
+  await page.getByRole("button", { name: /Tải ván mới.*5 chữ/i }).click();
   await expect(input(page)).toBeEnabled();
   await expect(board(page).getByRole("img")).toHaveCount(30);
 });

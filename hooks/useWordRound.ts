@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import type { PlayableRound, WordLevel } from "@/types/vua-tieng-viet";
+import type { PlayableRound, RoundSettings } from "@/types/vua-tieng-viet";
 import { PlayerError, startRound, type PlayerErrorCode } from "@/lib/vua-tieng-viet/player-engine";
 import { useWordInput } from "@/hooks/useWordInput";
 import { usePublishedDictionary } from "@/hooks/usePublishedDictionary";
 import { createRoundStorage, ROUND_SAVE_KEY, type RoundRecovery } from "@/lib/vua-tieng-viet/round-save";
+
+import { DEFAULT_PLAYER_SETTINGS, readPlayerPreferences, writePlayerPreferences } from "@/lib/vua-tieng-viet/player-preferences";
 
 export function useWordRound() {
   const load = usePublishedDictionary();
@@ -19,30 +21,37 @@ export function useWordRound() {
   const [resolutionBusy,setResolutionBusy] = React.useState(false);
   const resolving = React.useRef(false);
   const [resolutionError,setResolutionError] = React.useState<RoundRecovery["kind"] | null>(null);
-  const [level,setLevel] = React.useState<WordLevel>(3);
+  const [preferences,setPreferences] = React.useState(DEFAULT_PLAYER_SETTINGS);
+  const [setupSettings,setSetupSettings] = React.useState<RoundSettings | null>(null);
+  const [settingsDraft,setSettingsDraft] = React.useState<RoundSettings | null>(null);
+  const [showTextFeedback,setShowTextFeedback] = React.useState(false);
+  const settings = state ? { level: state.round.level, guessMode: state.round.rules.guessMode } : setupSettings ?? preferences;
   const [busy,setBusy] = React.useState(false);
   const loading = React.useRef(false);
   const [error,setError] = React.useState<PlayerErrorCode | null>(null);
-  const [pendingLevel,setPendingLevel] = React.useState<WordLevel | null>(null);
+  const [retrySettings,setRetrySettings] = React.useState<RoundSettings | null>(null);
   const [helpOpen,setHelpOpen] = React.useState(false);
   const controller = React.useRef<AbortController | null>(null);
   const active = React.useRef(true);
-  const input = useWordInput({ state, current, loading, conflict: conflictRef, busy: busy || recovery === "loading" || conflict, conflicted: conflict, dialogOpen: pendingLevel !== null || helpOpen, replace, setError });
+  const input = useWordInput({ state, current, loading, conflict: conflictRef, busy: busy || recovery === "loading" || conflict, dialogOpen: settingsDraft !== null || helpOpen, replace, setError });
   const resetInput = input.reset;
   const showConflict = React.useCallback(() => {
     storage.pause();
     conflictRef.current = true; operation.current++; controller.current?.abort();
     loading.current = false; setBusy(false);
-    setConflict(true); setPendingLevel(null); setHelpOpen(false); resetInput();
+    setConflict(true); setSettingsDraft(null); setRetrySettings(null); setHelpOpen(false); resetInput();
   },[storage,resetInput]);
   React.useEffect(() => { active.current = true; return () => { active.current = false; controller.current?.abort(); }; },[]);
   React.useEffect(() => {
     // Read after hydration; no remote release is needed to resume historical inputs.
     const result = storage.read();
+    let storedPreferences = DEFAULT_PLAYER_SETTINGS;
+    try { storedPreferences = readPlayerPreferences(window.localStorage); } catch { /* Round recovery reports storage access problems. */ }
     queueMicrotask(() => {
       if (!active.current) return;
       setRecovery(result.kind);
-      if (result.kind === "restored") { current.current = result.state; setState(result.state); setLevel(result.state.round.level); }
+      setPreferences(storedPreferences);
+      if (result.kind === "restored") { current.current = result.state; setState(result.state); }
       if (result.kind === "unavailable") setStorageWarning(true);
     });
   },[storage]);
@@ -67,10 +76,11 @@ export function useWordRound() {
       if (result === "unavailable") setStorageWarning(true);
     });
   }
-  const begin = async (nextLevel: WordLevel) => {
+  const begin = async (nextSettings: RoundSettings) => {
+    const { level: nextLevel, guessMode } = nextSettings;
     if (loading.current || recoveryBlocked || conflictRef.current) return;
     const token = operation.current;
-    loading.current = true; setBusy(true); setError(null);
+    loading.current = true; setBusy(true); setError(null); setRetrySettings(null);
     try {
       controller.current = new AbortController();
       const release = await load(controller.current.signal);
@@ -81,26 +91,40 @@ export function useWordRound() {
         const number = value[0];
         if (number === undefined) throw new PlayerError("RANDOM_FAILED");
         return number;
-      },() => ({ id: crypto.randomUUID(), timestamp: new Date().toISOString() }));
+      },() => ({ id: crypto.randomUUID(), timestamp: new Date().toISOString() }),guessMode);
       const written = await storage.write(next,true);
       if (!active.current || token !== operation.current || conflictRef.current) return;
       if (written === "conflict") { showConflict(); return; }
       if (written === "superseded") return;
-      if (written === "unavailable") setStorageWarning(true);
-      current.current = next; setState(next); setLevel(nextLevel); resetInput();
-    } catch (failure) { if (active.current && token === operation.current) setError(failure instanceof PlayerError ? failure.code : "LOAD_FAILED"); }
+      if (written === "unavailable") {
+        setStorageWarning(true);
+        if (current.current) {
+          setRetrySettings(nextSettings);
+          return;
+        }
+      }
+      current.current = next; setState(next); setPreferences(nextSettings); setSetupSettings(null); resetInput();
+      try {
+        if (!writePlayerPreferences(window.localStorage,nextSettings)) setStorageWarning(true);
+      } catch { setStorageWarning(true); }
+    } catch (failure) {
+      if (active.current && token === operation.current) {
+        setError(failure instanceof PlayerError ? failure.code : "LOAD_FAILED");
+        setRetrySettings(nextSettings);
+      }
+    }
     finally { if (token === operation.current) { loading.current = false; if (active.current) setBusy(false); } }
   };
-  const requestStart = (nextLevel: WordLevel, event?: React.MouseEvent<HTMLButtonElement>) => {
-    if (event) input.rememberOpener(event.currentTarget);
-    if (loading.current || conflictRef.current) return;
-    if (current.current?.round.status === "playing") setPendingLevel(nextLevel);
-    else void begin(nextLevel);
+  const openSettings = (event: React.MouseEvent<HTMLButtonElement>) => {
+    input.rememberOpener(event.currentTarget);
+    setSettingsDraft(settings);
   };
-  const chooseLevel = (nextLevel: WordLevel, event?: React.MouseEvent<HTMLButtonElement>) => {
-    if (loading.current || conflictRef.current) return;
-    if (current.current?.round.status === "playing") requestStart(nextLevel,event);
-    else { setLevel(nextLevel); setError(null); }
+  const applySettings = () => {
+    if (!settingsDraft || loading.current || conflictRef.current) return;
+    const next = settingsDraft;
+    setSettingsDraft(null);
+    if (current.current) void begin(next);
+    else { setSetupSettings(next); setError(null); setRetrySettings(null); }
   };
   const resetSave = async () => {
     const result = await storage.reset();
@@ -116,7 +140,7 @@ export function useWordRound() {
     if (active.current) {
       if (result.kind === "restored" || result.kind === "empty") {
         const next = result.kind === "restored" ? result.state : null;
-        current.current = next; setState(next); if (next) setLevel(next.round.level);
+        current.current = next; setState(next); setSetupSettings(null);
         setRecovery(result.kind); setError(null); resetInput();
         conflictRef.current = false; setConflict(false);
       } else if (result.kind !== "superseded") {
@@ -126,5 +150,15 @@ export function useWordRound() {
     }
     resolving.current = false;
   };
-  return { state, level, busy: busy || recovery === "loading" || conflict, conflict, resolutionBusy, resolutionError, resolveConflict, recovery, recoveryBlocked, storageWarning, resetSave, error, pendingLevel, helpOpen, setHelpOpen, setPendingLevel, input, chooseLevel, requestStart, openHelp: (event: React.MouseEvent<HTMLButtonElement>) => { input.rememberOpener(event.currentTarget); setHelpOpen(true); }, confirm: () => { if (pendingLevel !== null) { const next = pendingLevel; setPendingLevel(null); void begin(next); } } };
+  return {
+    state, settings, busy: busy || recovery === "loading" || conflict, conflict, resolutionBusy,
+    resolutionError, resolveConflict, recovery, recoveryBlocked, storageWarning, resetSave, error,
+    settingsDraft, setSettingsDraft, openSettings, applySettings, showTextFeedback, setShowTextFeedback,
+    retry: retrySettings ? () => void begin(retrySettings) : null,
+    input, helpOpen, setHelpOpen, start: () => void begin(settings),
+    openHelp: (event: React.MouseEvent<HTMLButtonElement>) => {
+      input.rememberOpener(event.currentTarget);
+      setHelpOpen(true);
+    },
+  };
 }

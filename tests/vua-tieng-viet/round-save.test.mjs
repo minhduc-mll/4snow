@@ -4,9 +4,9 @@ import { playerPayload, fixtureId } from "./player-fixture.ts";
 import { startRound, commitInput, submitGuess } from "../../lib/vua-tieng-viet/player-engine.ts";
 import { encodeRoundSave, decodeRoundSave, createRoundStorage, ROUND_SAVE_KEY } from "../../lib/vua-tieng-viet/round-save.ts";
 const time = "2026-11-14T01:00:00.000Z";
-function fixture() {
+function fixture(guessMode = "dictionary") {
   const payload = playerPayload();
-  return startRound({ payload, payloadHash: "a".repeat(64), publishedAt: time },3,undefined,() => 0,() => ({ id: fixtureId(100), timestamp: time }));
+  return startRound({ payload, payloadHash: "a".repeat(64), publishedAt: time },3,undefined,() => 0,() => ({ id: fixtureId(100), timestamp: time }),guessMode);
 }
 test("a historical round survives an atomic save with raw input and full public snapshot", () => {
   const state = commitInput(fixture(),"me\u0300").state;
@@ -48,7 +48,9 @@ test("feedback and status hints cannot change the recovered result or keyboard e
 });
 test("reject structural history, incomplete provenance, and incompatible versions without repair", () => {
   const mutations = [
-    v => v.schemaVersion = 2,
+    v => v.schemaVersion = 3,
+    v => v.round.rules.guessMode = "future",
+    v => v.round.rules.blockAbsentLetters = false,
     v => v.normalizerVersion = "future",
     v => v.normalizerVersion = "vi-latin-v1",
     v => delete v.snapshot,
@@ -85,4 +87,24 @@ test("reject uncommitted editable input revisions and serialization failures", (
   assert.throws(() => decodeRoundSave(JSON.stringify(value)));
   const state = fixture(); state.answer.circular = state;
   assert.throws(() => encodeRoundSave(state,time));
+});
+
+test("version 1 restores dictionary rules and rewrites as version 2 on the next save", () => {
+  const value = saved();
+  value.schemaVersion = 1;
+  delete value.round.rules;
+  const restored = decodeRoundSave(JSON.stringify(value));
+  assert.equal(restored.round.rules.guessMode,"dictionary");
+  assert.equal(restored.round.guesses[0].normalized,"MEO");
+  assert.equal(JSON.parse(encodeRoundSave(restored,time)).schemaVersion,2);
+});
+test("free round replay accepts an out-of-dictionary guess and repeated eliminated letters", () => {
+  const first = submitted("zzz",fixture("free"),101);
+  const second = submitted("z z z",first,102);
+  assert.equal(second.round.guesses.length,2);
+  assert.deepEqual(second.round.guesses[0].feedback,["absent","absent","absent"]);
+  const restored = decodeRoundSave(encodeRoundSave(second,time));
+  assert.deepEqual(restored,second);
+  assert.equal(restored.membership.includes("ZZZ"),false);
+  assert.equal(restored.round.rules.guessMode,"free");
 });
