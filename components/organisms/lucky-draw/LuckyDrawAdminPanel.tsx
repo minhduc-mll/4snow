@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { History, Plus, Save, Trash2 } from "lucide-react";
+import { ChevronDown, History, Plus, Save, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/atoms/Badge";
 import { Button } from "@/components/atoms/Button";
@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/atoms/Card";
 import { Input } from "@/components/atoms/Input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/atoms/Dialog";
 import { ExceptTagsInput } from "@/components/molecules/lucky-draw/ExceptTagsInput";
 import {
   formatTicket,
@@ -29,10 +30,10 @@ import { useAppI18n } from "@/hooks/useAppI18n";
 import { useUnsavedAdminChanges } from "@/hooks/useUnsavedAdminChanges";
 import { useLuckyDrawStore } from "@/stores/useLuckyDrawStore";
 import { PATH } from "@/lib/paths";
-import { cn } from "@/lib/utils";
 import type { LuckyDrawConfig, LuckyDrawPrize } from "@/types/lucky-draw";
 
 type PrizeDraft = LuckyDrawPrize;
+type Confirmation = { kind: "prize"; index: number; name: string } | { kind: "results" };
 
 interface ConfigDraft {
   id: string;
@@ -72,7 +73,7 @@ function toDraft(config: LuckyDrawConfig): ConfigDraft {
 
 function toConfig(draft: ConfigDraft): LuckyDrawConfig {
   const prizes = draft.prizes.map((prize, index) => ({
-    id: normalizePrizeId(prize.id || prize.name, index + 1),
+    id: prize.id || normalizePrizeId(prize.name, index + 1),
     name: prize.name.trim(),
     winners_count: Math.trunc(prize.winners_count),
     order: index + 1,
@@ -122,9 +123,9 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
   const hydrated = useLuckyDrawStore((state) => state.hydrated);
 
   const [draftState, setDraftState] = React.useState<ConfigDraft>(defaultDraft);
-  const [selectedPrizeIdState, setSelectedPrizeIdState] = React.useState<string | null>(
-    defaultDraft.prizes[0]?.id ?? null,
-  );
+  const [openPrizeIndex, setOpenPrizeIndex] = React.useState<number | null>(0);
+  const [confirmation, setConfirmation] = React.useState<Confirmation | null>(null);
+  const [resultsError, setResultsError] = React.useState<string | null>(null);
   const [isDirty, setIsDirty] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
   const [showSaveSuccess, setShowSaveSuccess] = React.useState(false);
@@ -156,21 +157,6 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
 
     return toDraft(config);
   }, [config, draftState, hydrated, isDirty]);
-
-  const selectedPrizeId = React.useMemo<string | null>(() => {
-    if (!hydrated || isDirty) {
-      return selectedPrizeIdState;
-    }
-
-    if (
-      selectedPrizeIdState &&
-      draft.prizes.some((prize) => prize.id === selectedPrizeIdState)
-    ) {
-      return selectedPrizeIdState;
-    }
-
-    return draft.prizes[0]?.id ?? null;
-  }, [draft, hydrated, isDirty, selectedPrizeIdState]);
 
   const displayDigits = getDisplayDigits(draft.to);
   const rangeLabel = `${formatTicket(draft.from, displayDigits)} - ${formatTicket(
@@ -209,6 +195,7 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
 
   const handleAddPrize = (): void => {
     const baseDraft = draft;
+    setOpenPrizeIndex(baseDraft.prizes.length);
     setDraftState((current) => {
       const workingDraft = isDirty ? current : baseDraft;
       const nextOrder = workingDraft.prizes.length + 1;
@@ -240,6 +227,7 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
     setIsDirty(true);
     setShowSaveSuccess(false);
     setFormError(null);
+    setOpenPrizeIndex((current) => current === null ? null : current === index ? null : current > index ? current - 1 : current);
   };
 
   const handleSave = async (): Promise<void> => {
@@ -251,11 +239,6 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
       saveConfig(nextConfig);
       const nextDraft = toDraft(nextConfig);
       setDraftState(nextDraft);
-      setSelectedPrizeIdState((current) =>
-        current && nextDraft.prizes.some((prize) => prize.id === current)
-          ? current
-          : (nextDraft.prizes[0]?.id ?? null),
-      );
       setIsDirty(false);
       setShowSaveSuccess(true);
     } catch {
@@ -372,38 +355,38 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
           <div className="grid gap-3">
             {draft.prizes.map((prize, index) => {
               const savedResult = results.find((result) => result.prizeId === prize.id);
-              const isSelected = selectedPrizeId === prize.id;
+              const isOpen = openPrizeIndex === index;
 
               return (
                 <div
                   key={`${prize.order}-${index}`}
-                  className={cn(
-                    "grid gap-3 rounded-lg border bg-background p-3",
-                    isSelected ? "ring-2 ring-primary/40" : null,
-                  )}
+                  className="grid min-w-0 gap-3 rounded-lg border bg-background p-3"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Button
                       variant="ghost"
-                      className="justify-start px-0 text-left font-medium text-foreground"
-                      onClick={() => setSelectedPrizeIdState(prize.id)}
+                      className="h-auto min-h-11 min-w-0 flex-1 justify-start whitespace-normal px-0 text-left font-medium text-foreground"
+                      aria-expanded={isOpen}
+                      aria-controls={`prize-editor-${index}`}
+                      onClick={() => setOpenPrizeIndex(isOpen ? null : index)}
                     >
-                      {prize.name || `${t("luckyDraw.prize")} ${index + 1}`}
+                      {prize.name || `${t("luckyDraw.prize")} ${index + 1}`} · {t("luckyDrawUX.prizeSummary", { winners: prize.winners_count })}
+                      <ChevronDown aria-hidden className={`ml-2 size-4 shrink-0 ${isOpen ? "rotate-180" : ""}`} />
                     </Button>
                     <div className="flex items-center gap-2">
                       {savedResult ? <Badge variant="success">{t("luckyDraw.drawn")}</Badge> : null}
                       <Button
                         variant="ghost"
                         size="icon"
-                        aria-label={t("luckyDraw.removePrize")}
+                        aria-label={t("luckyDrawUX.removeNamedPrize", { name: prize.name || `${t("luckyDraw.prize")} ${index + 1}` })}
                         disabled={draft.prizes.length <= 1}
-                        onClick={() => handleRemovePrize(index)}
+                        onClick={() => setConfirmation({ kind: "prize", index, name: prize.name || `${t("luckyDraw.prize")} ${index + 1}` })}
                       >
                         <Trash2 className="size-4" aria-hidden />
                       </Button>
                     </div>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-[1fr_1fr_140px]">
+                  <div id={`prize-editor-${index}`} className={isOpen ? "grid gap-3 sm:grid-cols-[1fr_1fr_140px]" : "hidden"}>
                     <label className="grid gap-1.5 text-sm">
                       <span className="font-medium text-foreground">{t("luckyDraw.prizeId")}</span>
                       <Input
@@ -419,10 +402,13 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
                       <span className="font-medium text-foreground">{t("luckyDraw.prizeName")}</span>
                       <Input
                         value={prize.name}
+                        aria-invalid={!prize.name.trim()}
+                        aria-describedby={!prize.name.trim() ? `prize-name-error-${index}` : undefined}
                         onChange={(event) =>
                           handlePrizeChange(index, { name: event.target.value })
                         }
                       />
+                      {!prize.name.trim() && <span id={`prize-name-error-${index}`} className="text-destructive">{t("luckyDrawUX.prizeNameError")}</span>}
                     </label>
                     <label className="grid gap-1.5 text-sm">
                       <span className="font-medium text-foreground">{t("luckyDraw.winnersCount")}</span>
@@ -430,12 +416,15 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
                         type="number"
                         min={1}
                         value={prize.winners_count}
+                        aria-invalid={!Number.isFinite(prize.winners_count) || Math.trunc(prize.winners_count) < 1}
+                        aria-describedby={!Number.isFinite(prize.winners_count) || Math.trunc(prize.winners_count) < 1 ? `prize-count-error-${index}` : undefined}
                         onChange={(event) =>
                           handlePrizeChange(index, {
                             winners_count: Number(event.target.value),
                           })
                         }
                       />
+                      {(!Number.isFinite(prize.winners_count) || Math.trunc(prize.winners_count) < 1) && <span id={`prize-count-error-${index}`} className="text-destructive">{t("luckyDrawUX.prizeCountError")}</span>}
                     </label>
                   </div>
                 </div>
@@ -443,15 +432,6 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
             })}
           </div>
 
-          <Button
-            variant="outline"
-            size="lg"
-            leftIcon={<Plus className="size-4" aria-hidden />}
-            onClick={handleAddPrize}
-            className="w-full"
-          >
-            {t("luckyDraw.addPrize")}
-          </Button>
         </div>
 
         {(formError || validationErrors.length > 0) ? (
@@ -478,11 +458,12 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
               size="icon"
               aria-label={t("luckyDraw.clearAllResults")}
               disabled={results.length === 0}
-              onClick={clearAllResults}
+              onClick={() => setConfirmation({ kind: "results" })}
             >
               <Trash2 className="size-4" aria-hidden />
             </Button>
           </div>
+          {resultsError && <p role="alert" className="text-sm text-destructive">{resultsError}</p>}
           {results.length > 0 ? (
             <div className="grid gap-3">
               {results.map((result) => (
@@ -497,15 +478,8 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
         </div>
       </CardContent>
 
-      <CardFooter className="justify-end gap-3">
-        <Link href={PATH.luckyDraw}>
-          <Button
-            variant="outline"
-            disabled={isDirty || validationErrors.length > 0}
-          >
-            {t("luckyDraw.openDrawPage")}
-          </Button>
-        </Link>
+      <CardFooter className="flex-wrap justify-end gap-3">
+        {isDirty || validationErrors.length > 0 ? <Button variant="outline" disabled>{t("luckyDraw.openDrawPage")}</Button> : <Link href={PATH.luckyDraw} className="inline-flex min-h-10 items-center justify-center rounded-md border bg-background px-4 text-sm font-medium hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{t("luckyDraw.openDrawPage")}</Link>}
         <Button
           variant="primary"
           leftIcon={<Save className="size-4" aria-hidden />}
@@ -515,6 +489,25 @@ export function LuckyDrawAdminPanel(): React.ReactElement {
           {t("luckyDraw.saveConfig")}
         </Button>
       </CardFooter>
+      <Dialog open={confirmation !== null} onOpenChange={(open) => { if (!open) setConfirmation(null); }}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>{confirmation?.kind === "prize" ? t("luckyDrawUX.removePrizeTitle") : t("luckyDrawUX.clearResultsTitle")}</DialogTitle>
+            <DialogDescription>{confirmation?.kind === "prize" ? t("luckyDrawUX.removePrizeDescription", { name: confirmation.name }) : t("luckyDrawUX.clearResultsDescription")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmation(null)}>{t("luckyDrawUX.cancel")}</Button>
+            <Button variant="danger" onClick={() => {
+              if (confirmation?.kind === "prize") handleRemovePrize(confirmation.index);
+              if (confirmation?.kind === "results") {
+                try { clearAllResults(); setResultsError(null); }
+                catch { setResultsError(t("luckyDrawUX.storageError")); }
+              }
+              setConfirmation(null);
+            }}>{t("luckyDrawUX.confirmDelete")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

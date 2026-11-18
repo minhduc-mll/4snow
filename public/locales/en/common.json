@@ -162,6 +162,17 @@
     "submitAnswer": "Submit answer"
   },
   "luckyDrawUX": {
+    "prizeSummary": "{{winners}} winners",
+    "prizeNameError": "Enter a prize name.",
+    "prizeCountError": "Enter at least one winner.",
+    "historyWinners": "{{winners}} winners",
+    "removeNamedPrize": "Remove prize {{name}}",
+    "removePrizeTitle": "Remove prize?",
+    "removePrizeDescription": "{{name}} will be removed from the configuration when saved. Its results may be deleted and cannot be restored.",
+    "clearResultsTitle": "Clear all results?",
+    "clearResultsDescription": "All results saved in this browser will be deleted and cannot be restored. Previously winning tickets may be drawn again.",
+    "cancel": "Cancel",
+    "confirmDelete": "Confirm deletion",
     "settings": "Event and ticket settings",
     "startNumber": "Starting ticket number",
     "endNumber": "Ending ticket number",

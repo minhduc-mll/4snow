@@ -162,6 +162,17 @@
     "submitAnswer": "Gửi đáp án"
   },
   "luckyDrawUX": {
+    "prizeSummary": "{{winners}} người trúng",
+    "prizeNameError": "Nhập tên giải.",
+    "prizeCountError": "Nhập số người trúng từ 1 trở lên.",
+    "historyWinners": "{{winners}} người trúng",
+    "removeNamedPrize": "Xóa giải {{name}}",
+    "removePrizeTitle": "Xóa giải thưởng?",
+    "removePrizeDescription": "Giải {{name}} sẽ bị xóa khỏi cấu hình khi lưu. Kết quả gắn với giải có thể bị xóa và không thể khôi phục.",
+    "clearResultsTitle": "Xóa tất cả kết quả?",
+    "clearResultsDescription": "Tất cả kết quả đã lưu trên trình duyệt này sẽ bị xóa và không thể khôi phục. Các vé đã trúng có thể được quay lại.",
+    "cancel": "Hủy",
+    "confirmDelete": "Xác nhận xóa",
     "settings": "Thiết lập sự kiện và vé",
     "startNumber": "Số vé bắt đầu",
     "endNumber": "Số vé kết thúc",
