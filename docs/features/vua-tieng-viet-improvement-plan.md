@@ -1,6 +1,6 @@
 # Vua tiếng Việt — Spec cải thiện trải nghiệm chơi và quản trị từ điển
 
-Ngày cập nhật: 18/11/2026 (Asia/Saigon). Trạng thái: đặc tả để triển khai; chưa triển khai hay nghiệm thu tính năng.
+Ngày cập nhật: 18/11/2026 (Asia/Saigon). Trạng thái: đặc tả và tiêu chí nghiệm thu. Kết quả kiểm tra triển khai được ghi trong biên bản riêng.
 
 Đây là spec bổ sung cho [đặc tả nền](vua-tieng-viet-spec.md), chuyển các phát hiện F01–F10 của bản cải thiện thành yêu cầu có thể nghiệm thu. Các thay đổi về chế độ đoán, feedback không icon và quyết định duyệt nhóm trong tài liệu này thay thế yêu cầu cũ tương ứng khi triển khai; các ràng buộc còn lại vẫn giữ nguyên. Báo cáo gốc được giữ ở cuối để truy nguyên bằng chứng.
 
@@ -175,7 +175,7 @@ Test tốt kiểm hành vi quan sát được, dữ liệu lưu và quyền bị
 - Trình tự: (1) focus/ghi công; (2) mode/cài đặt và save migration cùng nhau; (3) hướng dẫn/accessibility; (4) import/bulk tin cậy; (5) chất lượng dictionary và rehearsal 10.000 mục. Có thể kiểm thử mỗi phần độc lập, nhưng nghiệm thu tổng phải đủ các gate trên.
 - Cập nhật đồng bộ gameplay requirements, đặc tả nền và dictionary requirements khi triển khai để không còn luật cũ mâu thuẫn. Không đánh dấu các ticket lịch sử đã giải quyết chỉ từ spec này.
 - Các điểm còn là giả định/tham số: “số lượng từ” là số chữ; batch 100 là mức khởi đầu chưa benchmark; độ phủ từ cụ thể cần dữ liệu nguồn có quyền và review. Mode Tự do không thay việc mở rộng accepted guesses.
-- Issue tracker là Markdown cục bộ theo cấu hình dự án. [Ticket triển khai](../../.scratch/vua-tieng-viet-improvements/issues/01-implement-improvement-spec.md) trỏ về spec này, không sao chép thành spec thứ hai.
+- Issue tracker là Markdown cục bộ theo cấu hình dự án. `.scratch/vua-tieng-viet-improvements/issues/01-implement-improvement-spec.md` trỏ về spec này, không sao chép thành spec thứ hai.
 - Lượt viết spec chỉ đối chiếu repository và bảo toàn báo cáo gốc; chưa chạy lại hành vi deployment. Đã tham khảo [Supabase changelog](https://supabase.com/changelog.md) theo workflow skill; không dùng nó để suy ra năng lực bộ dữ liệu hoặc thay đổi API.
 
 ### Phụ lục — Bản đánh giá gốc để truy nguyên

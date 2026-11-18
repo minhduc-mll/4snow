@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { requestPrivateDictionary } from "@/lib/vua-tieng-viet/private-request";
-import { previewImport, type PreviewResult } from "@/lib/vua-tieng-viet/preview";
-import { parseStrictJson } from "@/lib/vua-tieng-viet/strict-json";
+import type { PreviewResult } from "@/lib/vua-tieng-viet/preview";
+import { preflightImport, type ImportPreflight } from "@/lib/vua-tieng-viet/import-preflight";
 
 type PreviewJob = { requestId: string; input: unknown };
 
@@ -14,9 +14,9 @@ function isPreviewResult(value: unknown): value is PreviewResult {
 }
 
 export function useDictionaryPreview(onUnauthorized: () => void) {
-  const queryClient = useQueryClient();
-  const [local, setLocal] = React.useState<PreviewResult | null>(null);
+  const [local, setLocal] = React.useState<ImportPreflight | null>(null);
   const [job, setJob] = React.useState<PreviewJob | null>(null);
+  const [reading, setReading] = React.useState(false);
   const [fileError, setFileError] = React.useState(false);
   const generation = React.useRef(0);
   React.useEffect(() => () => { generation.current++; }, []);
@@ -32,21 +32,29 @@ export function useDictionaryPreview(onUnauthorized: () => void) {
       return data;
     },
   });
-  const selectFile = React.useCallback(async (file: File | null): Promise<void> => {
+
+  const selectFiles = React.useCallback(async (files: readonly File[]): Promise<void> => {
     const selected = ++generation.current;
-    setLocal(null); setJob(null); setFileError(false);
-    await queryClient.cancelQueries({ queryKey: ["vtv-private", "preview"] });
-    if (selected !== generation.current) return;
-    queryClient.removeQueries({ queryKey: ["vtv-private", "preview"] });
-    if (!file) return;
-    if (file.size > 512 * 1024) { setFileError(true); return; }
+    setLocal(null);
+    setJob(null);
+    setFileError(false);
+    setReading(files.length > 0);
     try {
-      const text = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
-      const result = await previewImport(text);
+      if (!files.length) return;
+      const result = await preflightImport(files);
       if (selected !== generation.current) return;
       setLocal(result);
-      try { setJob({ requestId: crypto.randomUUID(), input: parseStrictJson(text) }); } catch { /* Invalid JSON is reported by the browser preview. */ }
-    } catch { if (selected === generation.current) setFileError(true); }
-  }, [queryClient]);
-  return { local, remote: query.data ?? null, input: job?.input ?? null, loading: query.isFetching, remoteError: query.isError, fileError, selectFile };
+      const first = result.chunks[0];
+      if (!first || result.issues.some((issue) => issue.blocking)) return;
+      const requestId = crypto.randomUUID();
+      const bytes = new TextEncoder().encode(JSON.stringify({ operation: "import-preview", requestId, input: first.document })).length;
+      if (bytes <= 512 * 1024) setJob({ requestId, input: first.document });
+    } catch {
+      if (selected === generation.current) setFileError(true);
+    } finally {
+      if (selected === generation.current) setReading(false);
+    }
+  }, []);
+  const retry = () => { void query.refetch(); };
+  return { local, remote: query.data ?? null, checkingRemote: job !== null, loading: reading || query.isFetching, remoteError: query.isError, fileError, selectFiles, retry };
 }

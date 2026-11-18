@@ -1,6 +1,6 @@
 # Vua tiếng Việt Feature Requirements
 
-Status: Product decisions confirmed. This document specifies future implementation; the current work is documentation only.
+The [improvement specification](./vua-tieng-viet-improvement-plan.md) extends these requirements and records the acceptance gates for rollout.
 
 Implementation handoff: [implementation-ready specification](./vua-tieng-viet-spec.md), including source prerequisites, storage/API contracts, local snapshots, and testing.
 
@@ -12,7 +12,7 @@ Add a casual, solo Vietnamese word-guessing game named **Vua tiếng Việt**, b
 
 - Four levels: 3, 5, 7, and 9 normalized letters. Each accented Vietnamese letter occupies one cell; ordinary spaces do not occupy cells. For example, “tiếng Việt” occupies nine cells.
 - Six accepted guesses per round by default; attempt limit is admin configurable.
-- Guesses must match an approved dictionary entry. Validation is mandatory.
+- Settings offer Dictionary and Free modes plus 3, 5, 7, or 9 letters. Dictionary mode requires approved spelling membership and blocks letters proven absent. Free mode accepts supported same-length spellings and permits gray letters. Both validate input and use the same answer pool, attempt limit, and feedback.
 - Browser-side answer selection and evaluation are acceptable for this casual scope. Downloaded answers can be inspected; this is not a trusted competition.
 - Dictionary candidates, editorial metadata, and administration data remain private in Supabase.
 - Players may download only approved, published gameplay content and required attribution.
@@ -35,6 +35,7 @@ Follow the existing localization mechanism. The game title, Vietnamese answer sp
 
 ```ts
 type WordLevel = 3 | 5 | 7 | 9;
+type GuessMode = "dictionary" | "free";
 type RoundStatus = "playing" | "won" | "lost";
 type LetterFeedback = "correct" | "present" | "absent";
 
@@ -62,6 +63,7 @@ type WordRound = {
   level: WordLevel;
   answerId: string;
   attemptLimit: number;
+  guessMode: GuessMode;
   input: string;
   guesses: WordGuess[];
   status: RoundStatus;
@@ -83,7 +85,7 @@ Present input as individual cells, backed by one shared text input compatible wi
 
 The on-screen keyboard uses a conventional unaccented QWERTY layout. Each key with Vietnamese variants has a separate visible, accessible expansion control: pressing the main key enters its ordinary letter, while pressing the expansion control opens a small anchored dialog. Include every valid Vietnamese variant of the base letter, including vowel-shape and tone combinations, and d/đ. For E, include e, è, é, ẻ, ẽ, ẹ, ê, ề, ế, ể, ễ, ệ. Selecting a variant appends it to the next cell and closes the dialog. This does not replace or emulate the device's configured input method. Escape/outside dismissal does not change input; preserve input focus and make the dialog fully keyboard accessible.
 
-Disable **Gửi đáp án** while the committed input is incomplete or composing. Enter also cannot submit an incomplete/composing guess. A complete guess absent from the accent-sensitive published guess dictionary produces a clear, non-destructive message. Preserve editable input, consume no attempt, and reveal no feedback. No correctness feedback is available during typing.
+The button and Enter share the same eligibility check. Disable submission when input is invalid, incomplete, composing, or blocked by round state or mode. A complete guess absent from the accent-sensitive published guess dictionary produces a clear, non-destructive message. Preserve editable input, consume no attempt, and reveal no feedback. No correctness feedback is available during typing.
 
 Submission pseudocode:
 
@@ -91,7 +93,7 @@ Submission pseudocode:
 if round is finished or submission is already processing: return
 normalize and validate input
 if length differs from level: return validation error
-if normalized form is not an approved guess: return dictionary error
+in Dictionary mode, if a letter is blocked or the spelling is outside the saved membership: return an eligibility error
 evaluate exact positions first, then remaining occurrences
 append one accepted guess with input, feedback, and timestamp
 if all letters match: mark won
@@ -107,23 +109,23 @@ Process rapid Enter/click events once, including when multiple input handlers fi
 - Green: correct position.
 - Yellow: present in a different position.
 - Gray: absent or excess occurrence.
-- Gray disabled keyboard key: letter proven completely absent.
+- Gray keyboard keys mark known absence. Only Dictionary mode disables them.
 
 Allocate green matches before yellow matches, using only the remaining answer occurrences. Never award more green/yellow occurrences than exist in the answer.
 
-Keyboard knowledge uses correct > present > absent > unknown per exact accented letter. A gray excess occurrence must not disable a letter with a green/yellow occurrence. Truly absent letters are blocked in physical input and disabled on the virtual keyboard. Paste follows the same restriction. An absent E does not disable Ê, Ế, or their other variants; expansion controls remain available when they offer usable variants. Do not apply absent-letter restrictions to an unfinished IME draft. Backspace remains available and Enter follows normal validation.
+Keyboard knowledge uses correct > present > absent > unknown per exact accented letter. A gray excess occurrence must not disable a letter with a green/yellow occurrence. In Dictionary mode, truly absent letters are blocked in physical input and disabled on the virtual keyboard. Paste follows the same restriction. An absent E does not disable Ê, Ế, or their other variants; expansion controls remain available when they offer usable variants. Do not apply absent-letter restrictions to an unfinished IME draft. Backspace remains available and Enter follows normal validation.
 
 ## 6. Round flow and presentation
 
 Use a modern gameshow visual direction for mixed ages: deep purple background, darker purple surfaces, bright readable text, and lavender accents for primary actions. Reserve green/yellow/gray for feedback. Reuse existing font/component conventions with verified Vietnamese glyph support and minimal motion. No MC or shared-screen dependency.
 
-Order the screen as title and help action, length selection, guess board, stable message area, submit action, and on-screen keyboard. The board is the visual focus. It has one visible row per configured attempt and one cell per normalized letter. Preserve accepted rows; future rows remain empty. Prioritize the board and input on phones; keep the layout stable as messages appear.
+Keep help and Settings within reach, followed by the guess board, stable message area, submit action, and on-screen keyboard. The board is the visual focus. It has one visible row per configured attempt and one cell per normalized letter. Preserve accepted rows; future rows remain empty. Prioritize the board and input on phones; keep the layout stable as messages appear.
 
-Always show a brief instruction and three-state legend. **Cách chơi** opens detailed examples only on request; never open help automatically on entry. Explain accented-letter comparison, duplicate-letter allocation, the variant picker, validation, and disabled keys.
+Show a brief instruction. **Cách chơi** opens concise examples on request. Cells and letter keys use text and color. Provide a visible text feedback option and accessible state for each submitted cell. Explain accented-letter comparison, duplicate-letter allocation, the variant picker, validation, and disabled keys.
 
 Winning ends input and shows Vietnamese congratulations, the selected answer's original spelling, its specific reviewed definition, attempts used, and replay immediately below the preserved board. Only full accent-sensitive normalized equality wins; a differently accented spelling does not win. When source records share the exact normalized spelling, reveal the selected answer entry and its definition, never an arbitrary alternate meaning.
 
-Losing ends input and reveals the original answer with replay below the preserved board. Showing its definition on loss is optional. **Chơi lại** selects a new answer entry at the same length using the latest validated published release. Request confirmation before discarding an active round when changing levels or restarting. Failed new-round loading must retain the current board and save.
+Losing ends input and reveals the original answer with replay below the preserved board. Show the selected definition and entry-level attribution after either terminal outcome. During play, show only source-level credit that cannot identify the answer. **Chơi lại** selects a new answer entry at the same length using the latest validated published release. Request confirmation before discarding an active round when applying a different mode or level, or restarting. Failed new-round loading must retain the current board and save.
 
 Provide focus indicators, accessible labels, feedback beyond color, a readable nine-letter board on narrow screens, stable validation-message space, and reduced-motion behavior. Explain normalization, dictionary validation, all colors, and disabled keys in help.
 
@@ -131,7 +133,7 @@ Provide focus indicators, accessible labels, feedback beyond color, a readable n
 
 Supabase owns published content and configuration. Persist solo rounds in versioned browser localStorage, with no player progress uploaded, as the feature-specific exception in `shared.md`.
 
-Pin each round to the dictionary release and configuration selected when it starts. Persist a validated public snapshot sufficient to resume independently of subsequent publication: the selected answer with its definition and attribution, the level's accepted-guess membership, release/configuration versions, and attempt limit. Keep this snapshot in the feature's local persistence layer, separate from the live TanStack Query cache; it is historical round input, not a second source of current server state.
+Pin each round to the dictionary release and configuration selected when it starts. Persist a validated public snapshot sufficient to resume independently of subsequent publication: the selected answer with its definition and attribution, the level's accepted-guess membership, release/configuration versions, attempt limit, and fixed mode. Restore older saves as Dictionary mode. Remember settings separately from the active round and surface cross-tab conflicts before replacing a save. Keep this snapshot in the feature's local persistence layer, separate from the live TanStack Query cache; it is historical round input, not a second source of current server state.
 
 New rounds use the latest successfully loaded published release. Publishing content or changing settings must not change an active round. Restoring a valid saved snapshot continues under its original rules even if a newer release exists. If the snapshot is missing, incompatible, or invalid, explain the problem and offer a fresh round; never silently substitute the latest dictionary or answer. Offline play may resume a valid saved round, but starting a new round requires loading the current published release.
 
@@ -149,7 +151,7 @@ Automated coverage must verify accent-preserving normalization (including distin
 
 UI checks must cover nine-letter mobile layout, the purple palette and text contrast, all variant-key groups, keyboard navigation, picker dismissal/focus, non-color green/yellow/gray feedback, reduced motion, inline results with preserved rows, replay, and level-switch confirmation. Verify integration leaves other games independent.
 
-The repository currently has lint/build scripts and no declared test script. Select a suitable automated test setup during implementation planning; do not claim test coverage before it exists. Implementation completion requires relevant automated tests plus repository lint and build passing.
+Use the existing Node/Vitest and Playwright suites, strict typecheck, lint, and production build. Record physical device, accessibility, and offline results independently of mocked browser runs.
 
 ## 9. Implementation handoff
 
