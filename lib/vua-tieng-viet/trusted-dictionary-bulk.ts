@@ -1,10 +1,16 @@
-import { parseBulkRequest } from "./bulk-review-contract.ts";
+import { parseBulkRequest, type BulkRequest } from "./bulk-review-contract.ts";
 import { ImportOperationError } from "./trusted-dictionary-types.ts";
 import { editorialRequestHash, type WorkflowContext } from "./trusted-dictionary-workflow.ts";
 
 export async function handleBulkReview(body: object, text: string, { config, cors, respond }: WorkflowContext): Promise<Response> {
   if (new TextEncoder().encode(text).length > 64 * 1024) return respond(413, "PAYLOAD_TOO_LARGE", "Request is too large");
-  const request = parseBulkRequest(body);
+  let request: BulkRequest;
+  try {
+    request = parseBulkRequest(body);
+  } catch {
+    const requestId = "requestId" in body && typeof body.requestId === "string" && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(body.requestId) ? body.requestId : undefined;
+    return respond(400, "INVALID_INPUT", "Invalid bulk review request", requestId);
+  }
   const limiter = request.operation === "bulk-page" ? config.consumeReadLimit : config.consumeMutationLimit;
   if (!limiter || !config.bulkReview) return respond(503, "TEMPORARILY_UNAVAILABLE", "Service unavailable", request.requestId);
   try {
