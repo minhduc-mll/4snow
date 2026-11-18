@@ -99,7 +99,7 @@ export function useWordRound() {
   };
   const chooseLevel = (nextLevel: WordLevel, event?: React.MouseEvent<HTMLButtonElement>) => {
     if (loading.current || conflictRef.current) return;
-    if (current.current) requestStart(nextLevel,event);
+    if (current.current?.round.status === "playing") requestStart(nextLevel,event);
     else { setLevel(nextLevel); setError(null); }
   };
   const resetSave = async () => {
