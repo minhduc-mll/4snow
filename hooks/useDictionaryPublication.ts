@@ -8,12 +8,14 @@ import { adminSessionGeneration } from "@/hooks/useAdminAuth";
 import { isRecord, isRevision, type PublicationRequest } from "@/lib/vua-tieng-viet/publication-contract";
 import { parsePublicationPreview, parsePublishResult, parseDraftConfiguration, type DraftConfiguration, type PublicationPreview, type PublishResult } from "@/lib/vua-tieng-viet/publication-response";
 
+type PublicationMutationRequest = Exclude<PublicationRequest, { operation: "publication-game" }>;
+
 const ROOT = ["vtv-private", "publication"];
 type Result = { operation: "configuration"; data: DraftConfiguration } | { operation: "publication-preview"; data: PublicationPreview } | { operation: "publish"; data: PublishResult };
 export function useDictionaryPublication(onUnauthorized: () => void) {
   const client = useQueryClient();
   const preparing = React.useRef(false);
-  const pending = React.useRef<PublicationRequest | null>(null);
+  const pending = React.useRef<PublicationMutationRequest | null>(null);
   const controller = React.useRef<AbortController | null>(null);
   const active = React.useRef(true);
   const [canRetry, setCanRetry] = React.useState(false);
@@ -28,13 +30,13 @@ export function useDictionaryPublication(onUnauthorized: () => void) {
   const configuration = useQuery<DraftConfiguration>({ queryKey: [...ROOT,"configuration"], queryFn: skipToken, gcTime: 0 });
   const preview = useQuery<PublicationPreview>({ queryKey: [...ROOT, "preview"], queryFn: skipToken, gcTime: 0 });
   const published = useQuery<PublishResult>({ queryKey: [...ROOT, "published"], queryFn: skipToken, gcTime: 0 });
-  const mutation = useMutation({ mutationKey: ROOT, retry: false, gcTime: 0, mutationFn: async (request: PublicationRequest): Promise<Result> => {
+  const mutation = useMutation({ mutationKey: ROOT, retry: false, gcTime: 0, mutationFn: async (request: PublicationMutationRequest): Promise<Result> => {
     controller.current = new AbortController();
     const result = await call(request, controller.current.signal);
     try { return request.operation === "configuration" ? { operation: request.operation, data: parseDraftConfiguration(result) } : request.operation === "publication-preview" ? { operation: request.operation, data: parsePublicationPreview(result) } : { operation: request.operation, data: parsePublishResult(result) }; }
     catch { throw new Error("UNAVAILABLE"); }
   } });
-  const execute = async (request: PublicationRequest) => {
+  const execute = async (request: PublicationMutationRequest) => {
     if (!active.current) return;
     const session = adminSessionGeneration();
     pending.current = request; setCanRetry(false); setLocalError(false);
@@ -75,9 +77,9 @@ export function useDictionaryPublication(onUnauthorized: () => void) {
     } catch { if (active.current) setLocalError(true); }
     finally { preparing.current = false; }
   };
-  const publish = () => {
-    if (!preview.data?.valid || pending.current || mutation.isPending || preparing.current || draft.isFetching) return;
-    try { void execute({ operation: "publish", requestId: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), input: { buildId: preview.data.buildId, expectedDraftRevision: preview.data.draftRevision, expectedCurrentReleaseId: preview.data.expectedCurrentReleaseId } }); }
+  const publish = (confirmed: PublicationPreview) => {
+    if (!preview.data?.valid || confirmed.buildId !== preview.data.buildId || confirmed.contentHash !== preview.data.contentHash || pending.current || mutation.isPending || preparing.current || draft.isFetching) return;
+    try { void execute({ operation: "publish", requestId: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), input: { buildId: preview.data.buildId, expectedDraftRevision: preview.data.draftRevision, expectedCurrentReleaseId: confirmed.expectedCurrentReleaseId, contentHash: confirmed.contentHash } }); }
     catch { setLocalError(true); }
   };
   const configure = (attemptLimit: number) => {

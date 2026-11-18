@@ -5,9 +5,9 @@ const id = "30000000-0000-4000-8000-000000000003";
 const preview = { operation: "publication-preview", requestId: id, idempotencyKey: id, input: { expectedDraftRevision: "0" } };
 test("publication requires exact mutation envelopes and decimal revisions", () => {
   assert.deepEqual(parsePublicationRequest(preview), preview);
-  const publish = { ...preview, operation: "publish", input: { buildId: id, expectedDraftRevision: "1", expectedCurrentReleaseId: null } };
+  const publish = { ...preview, operation: "publish", input: { buildId: id, expectedDraftRevision: "1", expectedCurrentReleaseId: null, contentHash: "a".repeat(64) } };
   assert.deepEqual(parsePublicationRequest(publish), publish);
-  for (const input of [{ ...publish.input, expectedCurrentReleaseId: "" }, { ...publish.input, expectedDraftRevision: "01" }, { ...publish.input, expectedDraftRevision: "9223372036854775808" }, { ...publish.input, payload: {} }]) assert.throws(() => parsePublicationRequest({ ...publish, input }));
+  for (const input of [{ ...publish.input, expectedCurrentReleaseId: "" }, { ...publish.input, expectedDraftRevision: "01" }, { ...publish.input, expectedDraftRevision: "9223372036854775808" }, { ...publish.input, contentHash: undefined }, { ...publish.input, payload: {} }]) assert.throws(() => parsePublicationRequest({ ...publish, input }));
   assert.throws(() => parsePublicationRequest({ ...preview, idempotencyKey: undefined }));
 });
 
@@ -19,14 +19,18 @@ test("publication Edge boundary authorizes, limits, hashes retries, bounds outpu
   const token = `${unsigned}.${createHmac("sha256", "secret").update(unsigned).digest("base64url")}`;
   const hashes = [];
   let delay = 0, mode = "ok";
-  const config = { secret: "secret", origins: ["https://app.example"], now: () => 1001, consumeLimit: async () => delay, consumePublicationLimit: async () => delay, publication: async (_request, hash) => { hashes.push(hash); if (mode === "conflict") throw new ImportOperationError("REVISION_CONFLICT"); if (mode === "invalid") throw new ImportOperationError("RELEASE_INCOMPLETE"); return mode === "oversize" ? { text: "x".repeat(1024 * 1024) } : { buildId: id }; } };
+  const config = { secret: "secret", origins: ["https://app.example"], now: () => 1001, consumeLimit: async () => delay, consumePublicationLimit: async () => delay, consumeReadLimit: async () => delay, publication: async (_request, hash) => { hashes.push(hash); if (mode === "conflict") throw new ImportOperationError("REVISION_CONFLICT"); if (mode === "invalid") throw new ImportOperationError("RELEASE_INCOMPLETE"); return mode === "oversize" ? { text: "x".repeat(1024 * 1024) } : { buildId: id }; } };
   const send = (body, bearer = token) => handlePreview(new Request("https://example.invalid", { method: "POST", headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" }, body: JSON.stringify(body) }), config);
   assert.equal((await send(preview,"invalid")).status,401);
+  const game = { operation: "publication-game", requestId: id, input: { buildId: id, contentHash: "a".repeat(64) } };
+  assert.equal((await send(game,"invalid")).status,401);
   assert.equal(hashes.length,0);
   assert.equal((await send(preview)).status,200);
   assert.equal((await send({ ...preview, requestId: "40000000-0000-4000-8000-000000000004" })).status,200);
   assert.equal(hashes[0],hashes[1]);
-  const publish = { ...preview, operation: "publish", input: { buildId: id, expectedDraftRevision: "1", expectedCurrentReleaseId: null } };
+  assert.equal((await send(game)).status,200);
+  assert.equal((await send({ ...game, input: { ...game.input, contentHash: "invalid" } })).status,400);
+  const publish = { ...preview, operation: "publish", input: { buildId: id, expectedDraftRevision: "1", expectedCurrentReleaseId: null, contentHash: "a".repeat(64) } };
   delay = 8;
   const limited = await send(publish);
   assert.equal(limited.status,429); assert.equal(limited.headers.get("Retry-After"),"8");
