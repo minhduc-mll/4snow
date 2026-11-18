@@ -118,3 +118,6 @@ revoke all on function public.vtv_preview_game(uuid,text),
   public.vtv_publish_confirmed(uuid,uuid,text,uuid,bigint,uuid,text) from public,anon,authenticated;
 grant execute on function public.vtv_preview_game(uuid,text),
   public.vtv_publish_confirmed(uuid,uuid,text,uuid,bigint,uuid,text) to service_role;
+
+-- The original transaction is invoked internally by the confirmed RPC.
+revoke execute on function public.vtv_publish(uuid,uuid,text,uuid,bigint,uuid) from service_role;

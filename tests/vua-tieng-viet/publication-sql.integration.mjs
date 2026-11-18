@@ -23,6 +23,7 @@ try {
     assert.equal(sql(`select has_function_privilege('${role}', 'public.vtv_preview_game(uuid,text)', 'execute');`).trim(), "f");
     assert.equal(sql(`select has_function_privilege('${role}', 'public.vtv_publish_confirmed(uuid,uuid,text,uuid,bigint,uuid,text)', 'execute');`).trim(), "f");
   }
+  assert.equal(sql("select has_function_privilege('service_role', 'public.vtv_publish(uuid,uuid,text,uuid,bigint,uuid)', 'execute');").trim(), "f");
   const game = JSON.parse(sql(`select public.vtv_preview_game('${preview.buildId}','${preview.contentHash}');`));
   assert.deepEqual((await validateReleaseRow([game],game.id)).payload,payload);
   assert.equal(sql("select count(*) from public.vtv_current_release;").trim(), "0", "Preview play keeps public pointer untouched");
