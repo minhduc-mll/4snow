@@ -9,21 +9,10 @@ import { AdminLoginPanel } from "@/components/organisms/admin/AdminLoginPanel";
 import { LuckyDrawAdminPanel } from "@/components/organisms/lucky-draw/LuckyDrawAdminPanel";
 import { QuizImportPanel } from "@/components/organisms/quiz/QuizImportPanel";
 import { DictionaryWorkflow } from "@/components/organisms/vua-tieng-viet/DictionaryWorkflow";
+import { useAdminNavigation } from "@/hooks/useAdminNavigation";
 import { useAdminSession } from "@/hooks/useAdminAuth";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { PATH } from "@/lib/paths";
-
-type Section = "overview" | "lucky-draw" | "quiz" | "dictionary";
-const sections: Section[] = ["overview", "lucky-draw", "quiz", "dictionary"];
-function readSection(): Section {
-  const section = window.location.hash.slice(1).split("/")[0];
-  return sections.find((item) => item === section) ?? "overview";
-}
-function subscribeSection(callback: () => void): () => void {
-  window.addEventListener("hashchange", callback);
-  return () => window.removeEventListener("hashchange", callback);
-}
-function serverSection(): Section { return "overview"; }
 
 function KeepSection({ active, children }: { active: boolean; children: React.ReactNode }): React.ReactElement | null {
   const [visited, setVisited] = React.useState(active);
@@ -34,15 +23,7 @@ function KeepSection({ active, children }: { active: boolean; children: React.Re
 export default function AdminPage(): React.ReactElement {
   const { t } = useAppI18n();
   const { state: authState, login, logout: handleLogout } = useAdminSession();
-  const section = React.useSyncExternalStore(subscribeSection, readSection, serverSection);
-  const scrollPositions = React.useRef<Partial<Record<Section, number>>>({});
-  React.useLayoutEffect(() => {
-    const positions = scrollPositions.current;
-    window.scrollTo(0, positions[section] ?? 0);
-    const recordPosition = () => { positions[section] = window.scrollY; };
-    window.addEventListener("scroll", recordPosition, { passive: true });
-    return () => window.removeEventListener("scroll", recordPosition);
-  }, [section]);
+  const { section, sections } = useAdminNavigation();
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);

@@ -75,3 +75,22 @@ test("saved result history can be reviewed and cleared only after confirmation",
   expect(await page.evaluate(() => localStorage.getItem("lucky-draw:results:v1"))).toBeNull();
   await expect(clear).toBeDisabled();
 });
+
+test("prize IDs stay unique after removal and duplicate IDs are explained at the field", async ({ page }) => {
+  await page.goto("/admin#lucky-draw");
+  const add = page.getByRole("button", { name: /Thêm giải|Add prize/i });
+  await add.click();
+  await add.click();
+  await page.getByRole("button", { name: /Xóa giải Prize 2|Remove prize Prize 2|Xóa giải Giải 2/i }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /Xác nhận xóa|Confirm deletion/i }).click();
+  await add.click();
+  const id = page.getByLabel(/Mã giải|Prize ID/i).last();
+  await expect(id).toHaveValue("prize-4");
+  await id.fill("prize-3");
+  await expect(id).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByText(/Mỗi giải cần một mã riêng|Use a unique prize ID/i).last()).toBeVisible();
+  await expect(page.getByRole("button", { name: /Lưu cấu hình|Save config/i })).toBeDisabled();
+  await id.fill("unique-prize");
+  await expect(id).toHaveAttribute("aria-invalid", "false");
+  await expect(page.getByRole("button", { name: /Lưu cấu hình|Save config/i })).toBeEnabled();
+});

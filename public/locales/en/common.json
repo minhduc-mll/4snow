@@ -163,6 +163,9 @@
   },
   "luckyDrawUX": {
     "prizeSummary": "{{winners}} winners",
+    "reviewPrize": "Needs attention",
+    "prizeIdError": "Use a unique prize ID.",
+    "reviewErrors": "Review the highlighted fields and prize sections.",
     "prizeNameError": "Enter a prize name.",
     "prizeCountError": "Enter at least one winner.",
     "historyWinners": "{{winners}} winners",

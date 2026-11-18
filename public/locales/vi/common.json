@@ -163,6 +163,9 @@
   },
   "luckyDrawUX": {
     "prizeSummary": "{{winners}} người trúng",
+    "reviewPrize": "Cần chỉnh sửa",
+    "prizeIdError": "Mỗi giải cần một mã riêng.",
+    "reviewErrors": "Kiểm tra các trường và mục giải thưởng có lỗi.",
     "prizeNameError": "Nhập tên giải.",
     "prizeCountError": "Nhập số người trúng từ 1 trở lên.",
     "historyWinners": "{{winners}} người trúng",
