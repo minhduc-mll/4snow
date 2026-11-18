@@ -36,10 +36,10 @@ export function DictionaryWorkflow({ onUnauthorized }: Props): React.ReactElemen
         <span aria-hidden="true">{index + 1}.</span><span>{t(`dictionaryWorkflow.${item}`)}</span>{step === item ? <span className="ml-auto text-xs">{t("dictionaryWorkflow.current")}</span> : null}
       </a>)}
     </nav>
-    {!enabled ? <p role="status" className="rounded-lg border bg-card p-4">{t("dictionaryImport.disabled")} {t("dictionaryWorkflow.disabledHelp")}</p> : <>
-      <div hidden={step !== "import"}><DictionaryPreviewPanel onUnauthorized={onUnauthorized} /></div>
+    <div hidden={step !== "import"}><DictionaryPreviewPanel onUnauthorized={onUnauthorized} /></div>
+    {enabled ? <>
       <div hidden={step !== "review"}><CandidateEditorialPanel onUnauthorized={onUnauthorized} /></div>
       <div hidden={step !== "publish"}><DictionaryPublicationPanel onUnauthorized={onUnauthorized} /></div>
-    </>}
+    </> : step !== "import" ? <p role="status" className="rounded-lg border bg-card p-4">{t("dictionaryImport.disabled")} {t("dictionaryWorkflow.disabledHelp")}</p> : null}
   </section>;
 }

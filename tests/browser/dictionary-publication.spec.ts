@@ -3,6 +3,7 @@ import { isRecord } from "../../lib/vua-tieng-viet/publication-contract";
 
 const id = "30000000-0000-4000-8000-000000000003";
 test("administrator resolves preview errors, refreshes stale builds and retries committed publication", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
   await page.route("**/api/admin/login", route => route.fulfill({ json: { token: "test-token", expiresAt: Date.now() + 60000 } }));
   let previews = 0, publishes = 0, committed = 0;
   let retryKey: unknown;
@@ -34,10 +35,20 @@ test("administrator resolves preview errors, refreshes stale builds and retries 
   const card = page.locator("[data-slot=card]").filter({ has: page.getByText(/Xuất bản từ điển|Publish dictionary/i, { exact: true }) });
   const refresh = page.getByRole("button", { name: /Làm mới bản xem trước|Refresh publication preview/i });
   const publish = page.getByRole("button", { name: /Xuất bản bản đã duyệt|Publish reviewed release/i });
+  await expect(page.getByRole("navigation", { name: /Các bước quản lý từ điển|Dictionary workflow steps/i }).getByRole("link", { name: /Xuất bản|Publish/i })).toHaveAttribute("aria-current", "step");
   await expect(publish).toBeDisabled();
+  expect(publishes).toBe(0);
   await refresh.click();
   await expect(page.getByRole("region", { name: /Lỗi xuất bản|Publication errors/i })).toBeVisible();
   await expect(publish).toBeDisabled();
+  await page.getByRole("link", { name: /Mở phần duyệt mục từ|Go to candidate review/i }).click();
+  await expect(page).toHaveURL(/#dictionary\/review$/);
+  await page.goBack();
+  await expect(page.getByRole("region", { name: /Lỗi xuất bản|Publication errors/i })).toBeVisible();
+  await page.getByLabel(/Ngôn ngữ|Language/i).selectOption("en");
+  await expect(page.getByText("Publish dictionary", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect(publishes).toBe(0);
   await refresh.click();
   await expect(publish).toBeEnabled();
   await expect(page.getByRole("region", { name: /Xem trước nội dung người chơi|Player content preview/i })).toContainText("Nghĩa đã duyệt hiển thị cho người chơi.");
