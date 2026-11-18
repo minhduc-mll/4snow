@@ -11,7 +11,7 @@ test("administrator previews a chunk and logout clears the preview", async ({ pa
     if ("operation" in body && body.operation === "list") return route.fulfill({ json: { ok: true, requestId: body.requestId, data: { items: [], nextCursor: null, draftRevision: "0" } } });
     await route.fulfill({ json: { ok: true, requestId: body.requestId, data: { valid: true, entryCount: 1, collisionCount: 0, duplicateCount: 0, conflictCount: 0, canonicalHash: "0".repeat(64), errors: [], errorsTruncated: false } } });
   });
-  await page.goto("/admin");
+  await page.goto("/admin#dictionary");
   await page.getByLabel(/Tài khoản|Username/i).fill("admin");
   await page.getByLabel(/Mật khẩu|Password/i).fill("password");
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
@@ -34,7 +34,7 @@ test("an unauthorized trusted preview signs out and clears the file", async ({ p
     if (typeof body === "object" && body !== null && "operation" in body && body.operation === "list" && "requestId" in body) return route.fulfill({ json: { ok: true, requestId: body.requestId, data: { items: [], nextCursor: null, draftRevision: "0" } } });
     return route.fulfill({ status: 401, json: { ok: false } });
   });
-  await page.goto("/admin");
+  await page.goto("/admin#dictionary");
   await page.getByLabel(/Tài khoản|Username/i).fill("admin");
   await page.getByLabel(/Mật khẩu|Password/i).fill("password");
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
@@ -46,7 +46,7 @@ test("an unauthorized trusted preview signs out and clears the file", async ({ p
 test("logout from another tab clears the current preview", async ({ page }) => {
   await page.route("**/api/admin/login", async (route) => route.fulfill({ json: { token: "test-token", expiresAt: Date.now() + 60000 } }));
   await page.route("https://test-supabase.invalid/functions/v1/vtv-dictionary", async (route) => route.fulfill({ status: 503 }));
-  await page.goto("/admin");
+  await page.goto("/admin#dictionary");
   await page.getByLabel(/Tài khoản|Username/i).fill("admin");
   await page.getByLabel(/Mật khẩu|Password/i).fill("password");
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
@@ -77,7 +77,7 @@ test("resumable import retries a lost response with the same key and finalizes",
     if (body.operation === "import-finalize") { finalized = true; return route.fulfill({ json: { ...common, data: { status: "finalized", draftRevision: "1", createdCount: 1, noOpCount: 0 } } }); }
     throw new Error("Unexpected operation");
   });
-  await page.goto("/admin");
+  await page.goto("/admin#dictionary");
   await page.getByLabel(/Tài khoản|Username/i).fill("admin");
   await page.getByLabel(/Mật khẩu|Password/i).fill("password");
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
@@ -87,6 +87,7 @@ test("resumable import retries a lost response with the same key and finalizes",
   await page.getByRole("button", { name: /Thử lại an toàn|Retry safely/i }).click();
   await page.getByRole("button", { name: /Hoàn tất nhập|Finalize import/i }).click();
   await expect(page.getByText(/Đã hoàn tất, chờ duyệt|Finalized, awaiting review/i)).toBeVisible();
+  await page.getByRole("link", { name: /Duyệt|Review/i }).click();
   await expect(page.getByRole("button", { name: /mèo · 3/i })).toBeVisible();
 });
 
@@ -102,7 +103,7 @@ test("an administrator can resume an import with an existing receipt", async ({ 
     if (body.operation === "import-finalize") return route.fulfill({ json: { ...common, data: { status: "finalized", draftRevision: "3", createdCount: 0, noOpCount: 1 } } });
     throw new Error("Unexpected operation");
   });
-  await page.goto("/admin");
+  await page.goto("/admin#dictionary");
   await page.getByLabel(/Tài khoản|Username/i).fill("admin");
   await page.getByLabel(/Mật khẩu|Password/i).fill("password");
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
@@ -140,10 +141,11 @@ test("an administrator reviews an answer with explicit exclusion checks", async 
     }
     throw new Error("Unexpected operation");
   });
-  await page.goto("/admin");
+  await page.goto("/admin#dictionary");
   await page.getByLabel(/Tài khoản|Username/i).fill("admin");
   await page.getByLabel(/Mật khẩu|Password/i).fill("password");
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
+  await page.getByRole("link", { name: /Duyệt|Review/i }).click();
   await page.getByLabel(/Số chữ|Letter count/i).selectOption("3");
   await page.getByLabel(/Chỉ mục trùng cách viết|Only matching spellings/i).check();
   await page.getByRole("button", { name: /Áp dụng bộ lọc|Apply filters/i }).click();
@@ -182,7 +184,7 @@ test("late private preview cannot reappear after logout and login", async ({ pag
     requested?.(); await blocked;
     await route.fulfill({ json: { ok: true, requestId: body.requestId, data: { valid: true, entryCount: 1, collisionCount: 0, duplicateCount: 0, conflictCount: 0, canonicalHash: "0".repeat(64), errors: [], errorsTruncated: false } } }).catch(() => {});
   });
-  await page.goto("/admin");
+  await page.goto("/admin#dictionary");
   await page.getByLabel(/Tài khoản|Username/i).fill("admin"); await page.getByLabel(/Mật khẩu|Password/i).fill("password");
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
   await page.locator("#dictionary-preview-file").setInputFiles({ name: "synthetic.json", mimeType: "application/json", buffer: readFileSync("tests/vua-tieng-viet/fixtures/synthetic.json") });

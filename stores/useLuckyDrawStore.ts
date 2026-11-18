@@ -374,17 +374,32 @@ function saveLuckyDrawConfigOnly(config: LuckyDrawConfig): void {
   window.localStorage.removeItem(LUCKY_DRAW_LEGACY_STORAGE_KEY);
 }
 
-function persistState(
-  config: LuckyDrawConfig,
-  results: LuckyDrawDrawResult[],
-): void {
+function persistWithRollback(write: () => void): void {
   try {
-    saveLuckyDrawState(config, results);
+    if (typeof window === "undefined") return;
+    const keys = [LUCKY_DRAW_CONFIG_STORAGE_KEY, LUCKY_DRAW_RESULTS_STORAGE_KEY, LUCKY_DRAW_LEGACY_STORAGE_KEY];
+    const previous = keys.map((key) => window.localStorage.getItem(key));
+    try {
+      write();
+    } catch (error) {
+      keys.forEach((key, index) => {
+        try {
+          const value = previous[index];
+          if (value === null) window.localStorage.removeItem(key);
+          else window.localStorage.setItem(key, value);
+        } catch { /* Storage may have become unavailable; report the original failure. */ }
+      });
+      throw error;
+    }
   } catch {
     throw new Error(
       "Unable to save Lucky Draw data to this browser. Please check local storage permissions or available space.",
     );
   }
+}
+
+function persistState(config: LuckyDrawConfig, results: LuckyDrawDrawResult[]): void {
+  persistWithRollback(() => saveLuckyDrawState(config, results));
 }
 
 export const useLuckyDrawStore = create<LuckyDrawStore>()(
@@ -445,6 +460,7 @@ export const useLuckyDrawStore = create<LuckyDrawStore>()(
         ? get().selectedPrizeId
         : (normalizedConfig.prizes[0]?.id ?? null);
 
+      persistState(normalizedConfig, preservedResults);
       set({
         config: normalizedConfig,
         results: preservedResults,
@@ -452,7 +468,6 @@ export const useLuckyDrawStore = create<LuckyDrawStore>()(
         errorMessage: null,
       });
 
-      persistState(normalizedConfig, preservedResults);
     },
     setSelectedPrizeId: (prizeId) => {
       const prizeExists = get().config.prizes.some(
@@ -547,19 +562,13 @@ export const useLuckyDrawStore = create<LuckyDrawStore>()(
       persistState(get().config, nextResults);
     },
     clearAllResults: () => {
+      persistWithRollback(() => saveLuckyDrawConfigOnly(get().config));
       set({
         results: [],
         status: "idle",
         errorMessage: null,
       });
 
-      try {
-        saveLuckyDrawConfigOnly(get().config);
-      } catch {
-        throw new Error(
-          "Unable to save Lucky Draw data to this browser. Please check local storage permissions or available space.",
-        );
-      }
     },
     clearError: () => {
       set({ errorMessage: null });

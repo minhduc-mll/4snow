@@ -48,5 +48,5 @@ export function useDictionaryPreview(onUnauthorized: () => void) {
       try { setJob({ requestId: crypto.randomUUID(), input: parseStrictJson(text) }); } catch { /* Invalid JSON is reported by the browser preview. */ }
     } catch { if (selected === generation.current) setFileError(true); }
   }, [queryClient]);
-  return { local, remote: query.data ?? null, input: job?.input ?? null, loading: query.isFetching, remoteError: query.isError, fileError, selectFile };
+  return { local, remote: query.data ?? null, input: job?.input ?? null, loading: query.isFetching, remoteError: query.isError, fileError, selectFile, retry: query.refetch };
 }

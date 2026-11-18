@@ -10,12 +10,22 @@ interface ExceptTagsInputProps {
   value: string[];
   onChange: (nextValue: string[]) => void;
   placeholder?: string;
+  id?: string;
+  describedBy?: string;
+  invalid?: boolean;
+  removeLabel?: (tag: string) => string;
+  onPendingChange?: () => void;
 }
 
 export function ExceptTagsInput({
   value,
   onChange,
   placeholder,
+  id,
+  describedBy,
+  invalid,
+  removeLabel,
+  onPendingChange,
 }: ExceptTagsInputProps): React.ReactElement {
   const [inputValue, setInputValue] = React.useState("");
 
@@ -61,7 +71,7 @@ export function ExceptTagsInput({
             <Button
               size="icon"
               variant="ghost"
-              aria-label={`Remove ${tag}`}
+              aria-label={removeLabel ? removeLabel(tag) : `Remove ${tag}`}
               className="size-4"
               onClick={() => removeTagAt(index)}
             >
@@ -70,10 +80,13 @@ export function ExceptTagsInput({
           </span>
         ))}
         <Input
+          id={id}
+          aria-describedby={describedBy}
+          aria-invalid={invalid}
           value={inputValue}
           placeholder={placeholder}
           className="h-7 min-w-40 flex-1 border-0 bg-transparent px-1 focus-visible:ring-0"
-          onChange={(event) => setInputValue(event.target.value)}
+          onChange={(event) => { setInputValue(event.target.value); onPendingChange?.(); }}
           onKeyDown={handleKeyDown}
           onBlur={() => addTag(inputValue)}
         />

@@ -8,13 +8,13 @@ const runtime = Object.fromEntries(readFileSync("supabase/.temp/start-secrets/su
 function rec(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 const filters = { sourceId: null, level: null, review: null, hasDefinition: null, collisionsOnly: false };
 async function login(page: Page) {
-  await page.goto("/admin");
+  await page.goto("/admin#dictionary/review");
   const password = process.env.VTV_LOCAL_TEST_PASSWORD;
   if (!password) throw new Error("Local test password missing");
   await page.getByLabel(/Tài khoản|Username/i).fill("local-verification-admin");
   await page.getByLabel(/Mật khẩu|Password/i).fill(password);
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
-  await expect(page.locator("#dictionary-preview-file")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: /Các bước quản lý từ điển|Dictionary workflow steps/i })).toBeVisible();
 }
 async function call(page: Page, operation: string, input: unknown, mutation = false) {
   const token = await page.evaluate(() => localStorage.getItem("admin-auth-token"));

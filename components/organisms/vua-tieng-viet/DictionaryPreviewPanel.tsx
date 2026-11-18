@@ -20,7 +20,7 @@ function selectedDocument(value: unknown): SelectedDocument | null {
 
 export function DictionaryPreviewPanel({ onUnauthorized }: Props): React.ReactElement {
   const { t } = useAppI18n();
-  const { local, remote, input, loading, remoteError, fileError, selectFile } = useDictionaryPreview(onUnauthorized);
+  const { local, remote, input, loading, remoteError, fileError, selectFile, retry } = useDictionaryPreview(onUnauthorized);
   const importer = useDictionaryImport(onUnauthorized);
   const importEnabled = process.env.NEXT_PUBLIC_VTV_IMPORT_ENABLED === "true";
   const document = selectedDocument(input);
@@ -46,11 +46,12 @@ export function DictionaryPreviewPanel({ onUnauthorized }: Props): React.ReactEl
         <label htmlFor="dictionary-preview-file" className="text-sm font-medium">{t("dictionaryPreview.file")}</label>
         <Input id="dictionary-preview-file" type="file" accept=".json,application/json" onChange={(event) => void selectFile(event.target.files?.[0] ?? null)} />
         <div aria-live="polite" className="grid gap-3">
+          <p>{loading ? t("dictionaryPreview.loading") : ready ? t("dictionaryWorkflow.importReady") : fileError ? t("dictionaryWorkflow.fileHelp") : remoteError ? t("dictionaryWorkflow.previewHelp") : local ? t("dictionaryWorkflow.validationHelp") : t("dictionaryWorkflow.chooseFile")}</p>
           {fileError ? <Badge variant="danger">{t("dictionaryPreview.fileError")}</Badge> : null}
           {local ? result(t("dictionaryPreview.local"), local) : null}
-          {loading ? <p>{t("dictionaryPreview.loading")}</p> : null}
           {remote ? result(t("dictionaryPreview.remote"), remote) : null}
           {remoteError ? <Badge variant="danger">{t("dictionaryPreview.remoteError")}</Badge> : null}
+          {remoteError ? <div><Button variant="outline" disabled={loading} onClick={() => void retry()}>{t("editorial.retry")}</Button></div> : null}
           {importer.session ? <p>{t("dictionaryImport.progress")}: {importer.session.receipts.length}/{importer.session.expectedChunks} · {importer.session.status === "finalized" ? t("dictionaryImport.finalized") : t("dictionaryImport.staging")}</p> : null}
           {importer.session?.createdCount !== null && importer.session?.createdCount !== undefined ? <p>{t("dictionaryImport.created")}: {importer.session.createdCount} · {t("dictionaryImport.noop")}: {importer.session.noOpCount}</p> : null}
           {importer.session?.receipts.map((item) => <p key={item.chunkIndex}>{t("dictionaryImport.chunk")} {item.chunkIndex + 1}: {item.stagedCount} {t("dictionaryImport.entries")} · {t("dictionaryImport.provisional")}: {t("dictionaryImport.created")} {item.createdCount}, {t("dictionaryImport.noop")} {item.noOpCount}</p>)}
