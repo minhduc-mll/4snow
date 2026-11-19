@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Input } from "@/components/atoms/Input";
+import { Checkbox } from "@/components/atoms/Checkbox";
 import { bulkCategories, useBulkDecisionForm } from "@/hooks/useEditorialForms";
 import { Button } from "@/components/atoms/Button";
 import { useAppI18n } from "@/hooks/useAppI18n";
@@ -25,9 +25,9 @@ function BulkDecisionForm({ model, page, saved }: DecisionProps): React.ReactEle
           {bulkCategories.map((value) => <option key={value} value={value}>{t(value === "less-common" ? "editorial.lessCommon" : `editorial.${value}`)}</option>)}
         </select>
       </label>
-      <label className="flex items-center gap-2"><Input type="checkbox" className="size-4 shrink-0 p-0" disabled={decision.category !== "common"} checked={decision.answerEligible} onChange={(event) => setAnswerEligible(event.target.checked)} />{t("bulk.answers")}</label>
+      <label className="flex items-center gap-2"><Checkbox disabled={decision.category !== "common"} checked={decision.answerEligible} onChange={(event) => setAnswerEligible(event.target.checked)} />{t("bulk.answers")}</label>
       <label className="grid gap-1">{t("editorial.rationale")}<textarea className="rounded-md border bg-background px-3 py-2" maxLength={2000} required value={decision.rationale} onChange={(event) => setRationale(event.target.value)} /></label>
-      {checks.map((name) => <label className="flex items-center gap-2" key={name}><Input type="checkbox" className="size-4 shrink-0 p-0" checked={decision.exclusionChecks[name]} onChange={(event) => setCheck(name, event.target.checked)} />{t(`editorial.check_${name}`)}</label>)}
+      {checks.map((name) => <label className="flex items-center gap-2" key={name}><Checkbox checked={decision.exclusionChecks[name]} onChange={(event) => setCheck(name, event.target.checked)} />{t(`editorial.check_${name}`)}</label>)}
     </fieldset>
     <div><Button type="submit" disabled={!canConfirm || model.loading || model.saving}>{t(saved || page.checkpoint > 0 ? "bulk.resume" : "bulk.confirm")}</Button></div>
   </form>;

@@ -82,6 +82,7 @@ for (const reload of [false, true]) test(`an administrator resumes a lost bulk r
   await panel.getByText(/Kiểm tra mục 101|Inspect candidates 101/i).click();
   await expect(panel.getByText(/Nguồn cần được duyệt quyền|Source rights need clearance/i)).toBeVisible();
   await panel.getByRole("button", { name: /Trang trước|Previous page/i }).click();
+  await expect(panel.getByText(/Kiểm tra mục 1–100|Inspect candidates 1–100/i)).toBeVisible();
   await panel.getByLabel(/Lý do|Rationale/i).fill("Đã rà nhóm trong fixture.");
   for (const label of [/tên riêng|proper name/i, /chữ viết tắt|abbreviation/i, /xúc phạm|offensive/i, /sai cấu trúc|malformed/i, /chưa kiểm chứng|unverified generated/i]) {
     await panel.getByLabel(label).check();
@@ -90,6 +91,6 @@ for (const reload of [false, true]) test(`an administrator resumes a lost bulk r
   await expect(panel.getByRole("alert")).toBeVisible();
   if (reload) await page.reload();
   await panel.getByRole("button", { name: /Tiếp tục quyết định đã xác nhận|Resume confirmed decision/i }).click();
-  await expect(panel.getByRole("status")).toContainText(/Đã xử lý 101\/101|Processed 101 of 101/i);
+  await expect(panel.getByText(/Đã xử lý 101\/101|Processed 101 of 101/i)).toBeVisible();
   expect(applyAttempts).toBe(reload ? 3 : 4);
 });

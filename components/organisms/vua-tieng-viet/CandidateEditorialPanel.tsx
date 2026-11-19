@@ -4,6 +4,7 @@ import * as React from "react";
 import { Badge } from "@/components/atoms/Badge";
 import { Button } from "@/components/atoms/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/atoms/Card";
+import { Checkbox } from "@/components/atoms/Checkbox";
 import { Input } from "@/components/atoms/Input";
 import { BulkEditorialReview } from "@/components/molecules/BulkEditorialReview";
 import { useBulkEditorial } from "@/hooks/useBulkEditorial";
@@ -62,7 +63,7 @@ function ReviewEditor({ detail, save, saving, canRetry }: { detail: Detail; save
       </fieldset>
       {form.meaningWarning ? <p role="status">{t("bulk.meaning-warning")}</p> : null}
       {form.meaningWarning && form.answer ? <label className="flex items-center gap-2">
-        <Input type="checkbox" className="size-4 shrink-0 p-0" checked={form.warningAcknowledged} disabled={saving || canRetry} onChange={(event) => form.setWarningAcknowledged(event.target.checked)} />
+        <Checkbox checked={form.warningAcknowledged} disabled={saving || canRetry} onChange={(event) => form.setWarningAcknowledged(event.target.checked)} />
         {t("bulk.confirmMeaningWarning")}
       </label> : null}
       {form.invalid ? <Badge variant="danger">{t("editorial.invalid")}</Badge> : null}
@@ -98,7 +99,7 @@ export function CandidateEditorialPanel({ onUnauthorized }: Props): React.ReactE
         </div> : null}
         {bulk.resume ? <BulkEditorialReview model={bulk} openEntry={model.setSelectedEntry} /> : null}
         <ul className="grid gap-2">{model.list?.items.map((item) => <li key={item.id}>
-          {!bulk.resume ? <label className="flex items-center gap-2 py-1 text-sm"><Input type="checkbox" className="size-4 shrink-0 p-0" checked={selectedTargets.has(item.id)} disabled={bulk.loading || (bulk.targets.length >= 500 && !selectedTargets.has(item.id))} onChange={() => bulk.toggle({ entryId: item.id, expectedEntryRevision: item.revisionNumber })} />{t("bulk.selectRow", { word: item.original })}</label> : null}
+          {!bulk.resume ? <label className="flex items-center gap-2 py-1 text-sm"><Checkbox checked={selectedTargets.has(item.id)} disabled={bulk.loading || (bulk.targets.length >= 500 && !selectedTargets.has(item.id))} onChange={() => bulk.toggle({ entryId: item.id, expectedEntryRevision: item.revisionNumber })} />{t("bulk.selectRow", { word: item.original })}</label> : null}
           <Button variant="outline" className="w-full justify-start" onClick={() => model.setSelectedEntry(item.id)}>{item.original} · {item.level} · {t(`editorial.${item.review}`)}{item.collision ? ` · ${t("editorial.collision")}` : ""}</Button><p className="text-sm">{item.definitionVi ?? t("editorial.noDefinition")}</p><p className="break-all text-xs text-muted-foreground">{item.sourceId} · {item.id}</p></li>)}</ul>
         <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={!model.cursor} onClick={() => model.setCursor(null)}>{t("editorial.first")}</Button><Button variant="outline" disabled={!model.list?.nextCursor} onClick={() => model.setCursor(model.list?.nextCursor ?? null)}>{t("editorial.next")}</Button></div>
         {model.detailError ? <Badge variant="danger">{t("editorial.error")}</Badge> : null}
