@@ -1,6 +1,6 @@
 # Vua tiếng Việt — Spec cải thiện trải nghiệm chơi và quản trị từ điển
 
-Ngày cập nhật: 18/11/2026 (Asia/Saigon). Trạng thái: đặc tả và tiêu chí nghiệm thu. Kết quả kiểm tra triển khai được ghi trong biên bản riêng.
+Ngày cập nhật: 18/11/2026 (Asia/Saigon). Trạng thái: đặc tả và tiêu chí nghiệm thu. Xem [biên bản kiểm tra triển khai](./vua-tieng-viet-improvement-verification.md).
 
 Đây là spec bổ sung cho [đặc tả nền](vua-tieng-viet-spec.md), chuyển các phát hiện F01–F10 của bản cải thiện thành yêu cầu có thể nghiệm thu. Các thay đổi về chế độ đoán, feedback không icon và quyết định duyệt nhóm trong tài liệu này thay thế yêu cầu cũ tương ứng khi triển khai; các ràng buộc còn lại vẫn giữ nguyên. Báo cáo gốc được giữ ở cuối để truy nguyên bằng chứng.
 
@@ -451,4 +451,3 @@ Source chính để triển khai tiếp (đường dẫn tương đối từ rep
 Đã tham khảo [Supabase changelog](https://supabase.com/changelog.md) theo workflow của skill; không triển khai API Supabase mới hoặc dựa vào changelog để suy ra năng lực 10.000 mục. Các giới hạn số lượng trong tài liệu này lấy từ source repository, không phải giới hạn chung của Supabase.
 
 </details>
-
