@@ -73,21 +73,20 @@ test("keyboard-only picker focus is contained; Escape and outside dismissal pres
   await expect(input(page)).toHaveValue("È");
 });
 
-test("absent base does not disable accents; invalid and disabled pastes reject atomically",async ({ page }) => {
+test("absent letter groups and invalid pastes reject atomically",async ({ page }) => {
   await dictionary(page); await start(page);
-  await paste(page,"meo"); await expect(input(page)).toHaveValue("meo"); await submit(page).click();
-  await expect(keyboard(page).getByRole("button",{ name: /^E,/ })).toBeDisabled();
-  await expect(expansion(page,"E")).toBeEnabled();
-  await keyboard(page).getByRole("button",{ name: /^M,/ }).click();
-  await paste(page,"E"); await expect(input(page)).toHaveValue("M");
-  await expect(page.getByRole("status")).toContainText(/loại trừ|ruled out/i);
+  await paste(page,"SÔI"); await expect(input(page)).toHaveValue("SÔI"); await submit(page).click();
+  await expect(keyboard(page).getByRole("button",{ name: /^I,/ })).toBeDisabled();
+  await expect(expansion(page,"I")).toBeDisabled();
+  await keyboard(page).getByRole("button",{ name: "M", exact: true }).click();
+  await paste(page,"í"); await expect(input(page)).toHaveValue("M");
+  await expect(page.getByRole("status")).toContainText(/bị loại|ruled out/i);
   await paste(page,"èo!"); await expect(input(page)).toHaveValue("M");
   await expect(page.getByRole("status")).toContainText(/Chỉ nhập chữ|supported Vietnamese letters/i);
   await expansion(page,"E").click();
-  await expect(picker(page,"E").getByRole("button",{ name: /Nhập chữ E,|Enter letter E,/i })).toBeDisabled();
   await expect(picker(page,"E").getByRole("button",{ name: /Nhập chữ Ê$|Enter letter Ê$/i })).toBeEnabled();
   await picker(page,"E").getByRole("button",{ name: /Nhập chữ È$|Enter letter È$/i }).click();
-  await keyboard(page).getByRole("button",{ name: /^O,/ }).click();
+  await keyboard(page).getByRole("button",{ name: "O", exact: true }).click();
   await expect(input(page)).toHaveValue("MÈO"); await submit(page).click();
   await expect(page.getByRole("region",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!");
 });
@@ -115,7 +114,7 @@ test("typing, paste and virtual keys share sequential correction and duplicate-e
 });
 
 test("provisional IME letters are not rejected; modifiers and unrelated dialogs do not submit",async ({ page }) => {
-  await dictionary(page); await start(page);
+  await dictionary(page); await start(page, 3, "dictionary", "strict");
   await input(page).fill("meo"); await submit(page).click();
   await input(page).dispatchEvent("compositionstart"); await input(page).fill("me");
   await expect(input(page)).toHaveValue("me"); await expect(submit(page)).toBeDisabled();

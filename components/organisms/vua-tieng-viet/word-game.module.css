@@ -46,7 +46,8 @@
 .levelButton { color: var(--vtv-ink); border-color: var(--vtv-line); background: var(--vtv-surface); min-height: 2.75rem; padding-inline: .25rem; }
 .levelButton[aria-pressed=true] { color: var(--vtv-primary-ink); border-color: var(--vtv-primary); background: var(--vtv-primary); }
 .playArea { display: grid; gap: 1rem; padding: 1.25rem .75rem; background: var(--vtv-surface); border: 1px solid var(--vtv-line); border-radius: 1.25rem; }
-.boardMeta { color: var(--vtv-muted); font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; padding: 0 .3rem; font-variant-numeric: tabular-nums; }
+.boardMeta { color: var(--vtv-muted); font-size: .75rem; font-weight: 600; padding: 0 .3rem; font-variant-numeric: tabular-nums; }
+.boardMeta > :last-child { white-space: nowrap; }
 .board { --vtv-cell-size: clamp(1.75rem, calc((100dvh - 27rem) / var(--vtv-rows) - var(--vtv-gap)), 3.25rem); display: grid; gap: var(--vtv-gap); margin: 0 auto; padding: 0; list-style: none; width: min(100%,calc(var(--vtv-columns) * var(--vtv-cell-size) + (var(--vtv-columns) - 1) * var(--vtv-gap))); }
 .row { display: grid; grid-template-columns: repeat(var(--vtv-columns),minmax(0,1fr)); gap: var(--vtv-gap); position: relative; border-radius: .4rem; }
 .editing:focus-within { outline: 2px solid var(--vtv-primary); outline-offset: 3px; }
@@ -104,3 +105,10 @@
 .dialog [data-feedback=absent] { background: var(--vtv-absent); }
 @media (min-width: 40rem) { .shell:not(.activeShell) { padding-top: 1.5rem; } .shell:not(.activeShell) .playArea { padding: 1.5rem; } }
 @media (prefers-reduced-motion: reduce) { .shell *, .dialog *, .variantDialog * { animation: none !important; transition: none !important; } }
+
+.settingsSummary { color: var(--vtv-muted); font-size: .875rem; }
+.settingsActions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .5rem; }
+.settingsActions > button { width: 100%; min-height: 2.75rem; height: 100%; white-space: normal; }
+.settingsHelp { min-width: 2.75rem; min-height: 2.75rem; padding: 0; color: var(--vtv-primary); vertical-align: middle; }
+.settingsTip { width: min(18rem, var(--radix-popover-content-available-width)); }
+.modeButtons button { white-space: normal; min-height: 2.75rem; height: auto; }

@@ -123,3 +123,40 @@ test("public release validates exact schema, accent membership, four levels and 
     await assert.rejects(() => validateReleaseRow([playerReleaseRow(payload)], row.id));
   }
 });
+
+test("accent-aware scoring accepts omitted marks, reserves green cells, and flags wrong marks", () => {
+  assert.deepEqual(evaluateGuess("HỮUCƠ", "HỮUCO", "optional"), ["correct","correct","correct","correct","correct"]);
+  assert.deepEqual(evaluateGuess("HỮUCƠ", "HỮUCO", "strict"), ["correct","correct","correct","correct","present"]);
+  assert.deepEqual(evaluateGuess("HỮUCƠ", "HỰUCỜ", "optional"), ["correct","present","correct","correct","present"]);
+  assert.deepEqual(evaluateGuess("ĐƠN", "DƠỜ", "optional"), ["correct","correct","absent"]);
+});
+
+test("partial accents use dictionary membership and both modes lock absent letter groups", () => {
+  const payload = playerPayload();
+  const sample = payload.levels[5].answers[0];
+  payload.levels[5] = {
+    guesses: ["HỰUCỜ","HỮUCƠ"],
+    answers: [{ ...sample, original: "hữu cơ", normalized: "HỮUCƠ" }],
+  };
+  const initial = startRound(release(payload),5,undefined,() => 0,metadata,"dictionary","optional");
+  const guess = text => {
+    const { state } = commitInput(initial,text);
+    return submitGuess(state,state.round.revision,metadata);
+  };
+  assert.equal(guess("hữu co").state.round.status,"won");
+  assert.equal(guess("huu co").state.round.status,"won");
+  assert.equal(guess("hựu cờ").state.round.status,"playing");
+  assert.equal(guess("húu co").error,"NOT_IN_DICTIONARY");
+  const strict = startRound(release(payload),5,undefined,() => 0,metadata,"dictionary","strict");
+  const unaccented = commitInput(strict,"huu co").state;
+  const graded = submitGuess(unaccented,unaccented.round.revision,metadata);
+  assert.equal(graded.error,null);
+  assert.deepEqual(graded.state.round.guesses[0].feedback,["correct","present","correct","correct","present"]);
+
+  for (const mode of ["free","dictionary"]) {
+    const round = startRound(release(playerPayload()),3,undefined,() => 0,metadata,mode,"optional");
+    const { state } = commitInput(round,"AAA");
+    const next = submitGuess(state,state.round.revision,metadata).state;
+    assert.equal(commitInput(next,"ấ").error,"ABSENT_LETTER");
+  }
+});

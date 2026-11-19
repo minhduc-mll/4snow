@@ -31,7 +31,7 @@ for (const mode of ["dictionary","free"] as const) test(`a prepared player shell
 
 test("offline dictionary recovery restores historical membership, raw input and results; replay still needs online validation", async ({ page }) => {
   const remote = await dictionary(page);
-  await start(page);
+  await start(page, 3, "dictionary", "strict");
   await input(page).fill("MEO"); await submit(page).click();
   await input(page).fill("mè");
   const original = await page.evaluate(() => localStorage.getItem("vtv:round:v1"));

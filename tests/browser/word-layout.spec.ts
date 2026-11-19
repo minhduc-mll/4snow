@@ -14,7 +14,22 @@ test("setup leads to a compact game and a finished round can select a new length
   await submit(page).click();
   await page.getByRole("button", { name: "Cài đặt" }).click();
   await page.getByRole("button", { name: /^5 chữ$/ }).click();
-  await page.getByRole("button", { name: /Tải ván mới.*5 chữ/i }).click();
+  const dialog = page.getByRole("dialog", { name: "Cài đặt" });
+  await expect(dialog.getByText("5 chữ · Từ điển · Cho phép bỏ dấu")).toBeVisible();
+  const help = dialog.getByRole("button", { name: "Giải thích độ chính xác" });
+  await help.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/hữu co.*hữu cơ/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  const confirm = dialog.getByRole("button", { name: "Tải ván mới", exact: true });
+  const cancel = dialog.getByRole("button", { name: "Hủy", exact: true });
+  for (const width of [375, 1280]) {
+    await page.setViewportSize({ width, height: 667 });
+    await expect(confirm).toBeVisible();
+    await expect(cancel).toBeVisible();
+    expect((await confirm.boundingBox())?.height).toBe((await cancel.boundingBox())?.height);
+  }
+  await confirm.click();
   await expect(input(page)).toBeEnabled();
   await expect(board(page).getByRole("img")).toHaveCount(30);
 });

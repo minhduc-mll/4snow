@@ -107,10 +107,10 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
   let letters: string[] = [];
   try { letters = Array.from(normalizeSpelling(state?.round.input ?? "").normalized); } catch { /* Committed state is validated; composition is displayed separately. */ }
   const eligibility = guessEligibility(state,draft !== null,busy || dialogOpen);
-  const knowledge = React.useMemo(() => keyboardKnowledge(state?.round.guesses ?? []),[state?.round.guesses]);
+  const knowledge = React.useMemo(() => keyboardKnowledge(state?.round.guesses ?? [], state?.round.rules.accuracy),[state?.round.guesses, state?.round.rules.accuracy]);
   return {
     field, letters, draft, eligibility, submit, actionRef, reset, focusInput,
-    keyboard: { knowledge, disabled: disabled || draft !== null, blockAbsentLetters: state?.round.rules.guessMode === "dictionary", onKey: virtualKey, focusInput },
+    keyboard: { knowledge, disabled: disabled || draft !== null, blockAbsentLetters: Boolean(state?.round.rules.accuracy) || state?.round.rules.guessMode === "dictionary", onKey: virtualKey, focusInput },
     rememberOpener: (element: HTMLButtonElement) => { openerRef.current = element; },
     restoreFocus: () => openerRef.current?.focus({ preventScroll: true }),
     restoreConflictFocus: () => { if (inputRef.current && !inputRef.current.disabled) focusInput(); else actionRef.current?.focus({ preventScroll: true }); },

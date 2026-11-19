@@ -25,7 +25,7 @@ export function useWordRound() {
   const [setupSettings,setSetupSettings] = React.useState<RoundSettings | null>(null);
   const [settingsDraft,setSettingsDraft] = React.useState<RoundSettings | null>(null);
   const [showTextFeedback,setShowTextFeedback] = React.useState(false);
-  const settings = state ? { level: state.round.level, guessMode: state.round.rules.guessMode } : setupSettings ?? preferences;
+  const settings = state ? { level: state.round.level, guessMode: state.round.rules.guessMode, accuracy: state.round.rules.accuracy ?? preferences.accuracy } : setupSettings ?? preferences;
   const [busy,setBusy] = React.useState(false);
   const loading = React.useRef(false);
   const [error,setError] = React.useState<PlayerErrorCode | null>(null);
@@ -77,7 +77,7 @@ export function useWordRound() {
     });
   }
   const begin = async (nextSettings: RoundSettings) => {
-    const { level: nextLevel, guessMode } = nextSettings;
+    const { level: nextLevel, guessMode, accuracy } = nextSettings;
     if (loading.current || recoveryBlocked || conflictRef.current) return;
     const token = operation.current;
     loading.current = true; setBusy(true); setError(null); setRetrySettings(null);
@@ -91,7 +91,7 @@ export function useWordRound() {
         const number = value[0];
         if (number === undefined) throw new PlayerError("RANDOM_FAILED");
         return number;
-      },() => ({ id: crypto.randomUUID(), timestamp: new Date().toISOString() }),guessMode);
+      },() => ({ id: crypto.randomUUID(), timestamp: new Date().toISOString() }),guessMode,accuracy);
       const written = await storage.write(next,true);
       if (!active.current || token !== operation.current || conflictRef.current) return;
       if (written === "conflict") { showConflict(); return; }
