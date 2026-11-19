@@ -36,7 +36,7 @@ async function backend(context: BrowserContext) {
 }
 async function admin(page: Page) {
   await page.addInitScript(() => localStorage.setItem("admin-auth-token","test-token"));
-  await page.goto("/admin");
+  await page.goto("/admin#dictionary/publish");
   await expect(page.getByRole("button",{ name: /Làm mới bản xem trước/ })).toBeEnabled();
   await page.getByRole("button",{ name: /Làm mới bản xem trước/ }).click();
   await expect(page.getByLabel("Số lượt đoán (1–12)")).toHaveValue("6");

@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test("real local admin login and trusted Supabase preview, then logout cleanup", async ({ page }) => {
   test.setTimeout(90000);
-  await page.goto("/admin");
+  await page.goto("/admin#dictionary");
   await page.getByLabel(/Tài khoản|Username/i).fill("local-verification-admin");
   const password = process.env.VTV_LOCAL_TEST_PASSWORD;
   if (!password) throw new Error("Local verification password missing");

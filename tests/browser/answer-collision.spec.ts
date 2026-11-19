@@ -40,7 +40,7 @@ test("administrator selects an exact collision meaning with conflict and lost-re
     }
     throw new Error("Unexpected operation");
   });
-  await page.goto("/admin");
+  await page.goto("/admin#dictionary/review");
   await page.getByLabel(/Tài khoản|Username/i).fill("admin");
   await page.getByLabel(/Mật khẩu|Password/i).fill("password");
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();

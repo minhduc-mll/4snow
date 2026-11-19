@@ -70,7 +70,7 @@ export function DictionaryPreviewPanel({ onUnauthorized }: Props): React.ReactEl
         ) : null}
         <div role="status" aria-atomic="true" className="grid gap-2 text-sm">
           {fileError ? <Badge variant="danger">{t("dictionaryPreview.fileError")}</Badge> : null}
-          {loading ? <p>{t("dictionaryPreview.loading")}</p> : null}
+          <p>{loading ? t("dictionaryPreview.loading") : fileError ? t("dictionaryWorkflow.fileHelp") : remoteError ? t("dictionaryWorkflow.previewHelp") : local && !ready ? t("dictionaryWorkflow.validationHelp") : !local ? t("dictionaryImport.datasetDescription") : null}</p>
           {remote ? <section aria-label={t("dictionaryPreview.remote")}>
             <h3 className="font-semibold">{t("dictionaryPreview.remote")}</h3>
             <p>{remote.valid && ready ? t("dictionaryImport.firstPartVerified") : t("dictionaryPreview.invalid")}</p>
@@ -83,7 +83,7 @@ export function DictionaryPreviewPanel({ onUnauthorized }: Props): React.ReactEl
           {!importEnabled ? <p>{t("dictionaryImport.disabled")}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
-          {remoteError ? <Button type="button" variant="outline" onClick={retry}>{t("dictionaryImport.retry")}</Button> : null}
+          {remoteError ? <Button type="button" variant="outline" disabled={loading} onClick={retry}>{t("dictionaryImport.retry")}</Button> : null}
           <Button type="button" disabled={!importEnabled || !ready || loading || importer.loading || status === "finalized"} onClick={() => { if (local) { retainSelectedFiles(); importer.run(local); } }}>
             {t(importer.errorCode ? "dictionaryImport.retry" : "dictionaryImport.start")}
           </Button>
