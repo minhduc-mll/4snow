@@ -29,22 +29,22 @@ test("same-round edits pause other tabs; load-saved restores exact input and foc
 });
 
 test("keep-this-round replaces a different round without merging its accepted history", async ({ page, context }) => {
-  await dictionary(page); await start(page);
+  await dictionary(page); await start(page, 3, "dictionary", "strict");
   const original = decodeRoundSave(await saved(page));
   const other = await context.newPage(); await dictionary(other); await other.goto("/vua-tieng-viet"); await expect(input(other)).toBeEnabled();
   await input(page).fill("MEO"); await submit(page).click();
   await expect(conflict(other)).toBeVisible();
   await page.getByRole("button",{ name: "Cài đặt", exact: true }).click();
   await page.getByRole("button",{ name: "5 chữ", exact: true }).click();
-  await page.getByRole("button",{ name: /Tải ván mới.*5 chữ/ }).click();
-  await expect(page.getByText("5 chữ · Từ điển",{ exact: true })).toBeVisible();
+  await page.getByRole("button",{ name: "Tải ván mới", exact: true }).click();
+  await expect(page.getByText(/5 chữ · Từ điển · /)).toBeVisible();
   await other.getByRole("button",{ name: "Giữ ván này và thay bản lưu", exact: true }).click();
   await expect(conflict(other)).toBeHidden(); await expect(input(other)).toHaveValue(""); await expect(input(other)).toBeFocused();
   const kept = decodeRoundSave(await saved(other));
   expect(kept.round.id).toBe(original.round.id); expect(kept.round.guesses).toHaveLength(0);
   await expect(conflict(page)).toBeVisible();
   await page.getByRole("button",{ name: "Tải ván đang lưu", exact: true }).click();
-  await expect(page.getByText("3 chữ · Từ điển",{ exact: true })).toBeVisible();
+  await expect(page.getByText(/3 chữ · Từ điển · /)).toBeVisible();
   await expect(input(page)).toHaveValue("");
 });
 
@@ -97,12 +97,12 @@ test("a competing save invalidates an asynchronous replacement even after explic
   });
   await page.getByRole("button",{ name: "Cài đặt", exact: true }).click();
   await page.getByRole("button",{ name: "5 chữ", exact: true }).click();
-  await page.getByRole("button",{ name: /Tải ván mới.*5 chữ/ }).click(); await requested.promise;
+  await page.getByRole("button",{ name: "Tải ván mới", exact: true }).click(); await requested.promise;
   await input(other).fill("M"); await expect(conflict(page)).toBeVisible();
   await page.getByRole("button",{ name: "Tải ván đang lưu", exact: true }).click();
   await expect(input(page)).toHaveValue("M"); await expect(input(page)).toBeFocused(); const recovered = await saved(page);
   gate.resolve(); await finished.promise;
-  await expect(page.getByText("3 chữ · Từ điển",{ exact: true })).toBeVisible();
+  await expect(page.getByText(/3 chữ · Từ điển · /)).toBeVisible();
   expect(await saved(page)).toBe(recovered);
 });
 
@@ -114,7 +114,7 @@ test("cancelled or failed replacement preserves the recoverable save and focus",
   const settings = page.getByRole("button",{ name: "Cài đặt", exact: true });
   await settings.click(); await five.click(); await page.getByRole("button",{ name: "Hủy", exact: true }).click();
   await expect(settings).toBeFocused(); expect(await saved(page)).toBe(before);
-  remote.fail = true; await settings.click(); await five.click(); await page.getByRole("button",{ name: /Tải ván mới.*5 chữ/ }).click();
+  remote.fail = true; await settings.click(); await five.click(); await page.getByRole("button",{ name: "Tải ván mới", exact: true }).click();
   await expect(page.locator("#vtv-message")).toContainText("Chưa tải được");
   await expect(input(page)).toHaveValue("m"); expect(await saved(page)).toBe(before);
   remote.fail = false;

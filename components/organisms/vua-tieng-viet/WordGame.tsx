@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { MotionConfig } from "framer-motion";
 import { Button } from "@/components/atoms/Button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/atoms/Dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/atoms/Popover";
 import { WordBoard } from "@/components/molecules/WordBoard";
 import { WordKeyboard } from "@/components/molecules/WordKeyboard";
 import { WordAttributions } from "@/components/molecules/WordAttributions";
@@ -14,11 +15,12 @@ import { useWordRound } from "@/hooks/useWordRound";
 import { useWordOfflineShell } from "@/hooks/useWordOfflineShell";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { PATH } from "@/lib/paths";
-import type { GuessMode, LetterFeedback, WordLevel } from "@/types/vua-tieng-viet";
+import type { AccentAccuracy, GuessMode, LetterFeedback, RoundSettings, WordLevel } from "@/types/vua-tieng-viet";
 import styles from "./word-game.module.css";
 
 const levels: WordLevel[] = [3,5,7,9];
 const modes: GuessMode[] = ["dictionary","free"];
+const accuracies: AccentAccuracy[] = ["strict", "optional"];
 const feedbackStates: LetterFeedback[] = ["correct","present","absent"];
 const interactive = "a, button, input, label, select, textarea, summary, [tabindex], [contenteditable], [role=button], [role=dialog]";
 
@@ -30,8 +32,10 @@ export function WordGame() {
   const round = state?.round;
   const playing = round?.status === "playing";
   const { actionRef, eligibility } = input;
-  const describeSettings = (level: WordLevel, guessMode: GuessMode) => t("wordGame.settings.summary",{
-    level, mode: t(`wordGame.settings.${guessMode}`),
+  const describeSettings = ({ level, guessMode, accuracy }: RoundSettings, legacy = false) => t("wordGame.settings.summary", {
+    level,
+    mode: t(`wordGame.settings.${guessMode}`),
+    accuracy: t(`wordGame.settings.${legacy ? "legacy" : accuracy}`),
   });
   const focusOnPlayArea = (event: MouseEvent<HTMLElement>) => {
     if (!playing || model.busy || settingsDraft || model.helpOpen || event.button !== 0 ||
@@ -63,7 +67,7 @@ export function WordGame() {
       {!round ? <header className={styles.header}><h1>Vua tiếng Việt</h1><p>{t("wordGame.tagline")}</p></header> : null}
       <section className={styles.playArea} aria-label={t("wordGame.playArea")}>
         <div className={styles.boardMeta}>
-          <span>{describeSettings(settings.level,settings.guessMode)}</span>
+          <span>{describeSettings(settings, Boolean(round && !round.rules.accuracy))}</span>
           {round ? <span aria-live="polite" aria-atomic="true">{t("wordGame.attempts",{ used: round.guesses.length, limit: round.attemptLimit })}</span> : null}
         </div>
         {round ? <WordBoard round={round} level={round.level} letters={input.letters} field={input.field} showTextFeedback={model.showTextFeedback} /> : null}
@@ -92,11 +96,11 @@ export function WordGame() {
     </DialogContent></Dialog>
     <Dialog open={model.helpOpen} onOpenChange={model.setHelpOpen}><DialogContent className={styles.dialog} onCloseAutoFocus={event => { event.preventDefault(); input.restoreFocus(); }}>
       <DialogHeader><DialogTitle>{t("wordGame.help")}</DialogTitle><DialogDescription>{t(round ? "wordGame.helpAttempts" : "wordGame.helpIntro",{ limit: round?.attemptLimit })}</DialogDescription></DialogHeader>
-      <p>{t("wordGame.helpAccents")}</p>
+      <p>{t("wordGame.helpAccents")}</p>{!round || round.rules.accuracy ? <p>{t("wordGame.settings.accuracyHelp")}</p> : null}
       <ul className={styles.legend} aria-label={t("wordGame.legend")}>{feedbackStates.map(feedback => <li key={feedback}><span className={styles.legendSymbol} data-feedback={feedback} aria-hidden="true" />{t(`wordGame.${feedback}`)}</li>)}</ul>
       <p>{t("wordGame.helpExample")}</p>
       <p>{t("wordGame.helpInput")}</p>
-      <p>{t("wordGame.helpDictionary")}</p>
+      <p>{t(round && !round.rules.accuracy ? "wordGame.helpLegacyDictionary" : "wordGame.helpDictionary")}</p>
       <details><summary className="cursor-pointer font-medium">{t("wordGame.helpRepeated")}</summary><p>{t("wordGame.helpRepeatedExample")}</p></details>
       {state && playing ? <WordAttributions items={state.attributions} sourceOnly /> : null}
       <DialogFooter><Button className={styles.primary} onClick={() => model.setHelpOpen(false)}>{t("wordGame.close")}</Button></DialogFooter>
@@ -109,13 +113,32 @@ export function WordGame() {
         <fieldset className={styles.levels}><legend>{t("wordGame.level")}</legend><div className={styles.levelButtons}>
           {levels.map(level => <Button key={level} variant="outline" aria-pressed={settingsDraft.level === level} className={styles.levelButton} onClick={() => model.setSettingsDraft({ ...settingsDraft, level })}>{level} {t("wordGame.letters")}</Button>)}
         </div></fieldset>
-        <fieldset className={styles.levels}><legend>{t("wordGame.settings.mode")}</legend><div className={`${styles.levelButtons} ${styles.modeButtons}`}>
+        <fieldset className={styles.levels}><legend>{t("wordGame.settings.mode")} <SettingsHelp label={t("wordGame.settings.modeHelpLabel")} text={t("wordGame.helpDictionary")} /></legend><div className={`${styles.levelButtons} ${styles.modeButtons}`}>
           {modes.map(guessMode => <Button key={guessMode} variant="outline" aria-pressed={settingsDraft.guessMode === guessMode} className={styles.levelButton} onClick={() => model.setSettingsDraft({ ...settingsDraft, guessMode })}>{t(`wordGame.settings.${guessMode}`)}</Button>)}
         </div></fieldset>
+        <fieldset className={styles.levels}>
+          <legend>{t("wordGame.settings.accuracy")} <SettingsHelp label={t("wordGame.settings.accuracyHelpLabel")} text={t("wordGame.settings.accuracyHelp")} /></legend>
+          <div className={`${styles.levelButtons} ${styles.modeButtons}`}>
+            {accuracies.map(accuracy => <Button key={accuracy} variant="outline" aria-pressed={settingsDraft.accuracy === accuracy} className={styles.levelButton} onClick={() => model.setSettingsDraft({ ...settingsDraft, accuracy })}>{t(`wordGame.settings.${accuracy}`)}</Button>)}
+          </div>
+        </fieldset>
         <Button variant="outline" className={styles.levelButton} aria-pressed={model.showTextFeedback} onClick={() => model.setShowTextFeedback(value => !value)}>{t("wordGame.settings.textFeedback")}</Button>
         <LanguageControl inline />
-        <DialogFooter><Button variant="outline" onClick={() => model.setSettingsDraft(null)}>{t("wordGame.settings.cancel")}</Button><Button className={styles.primary} onClick={model.applySettings}>{round ? t("wordGame.settings.applyRound",{ settings: describeSettings(settingsDraft.level,settingsDraft.guessMode) }) : t("wordGame.settings.apply")}</Button></DialogFooter>
+        <p className={styles.settingsSummary}>{describeSettings(settingsDraft)}</p>
+        <DialogFooter className={styles.settingsActions}>
+          <Button variant="outline" onClick={() => model.setSettingsDraft(null)}>{t("wordGame.settings.cancel")}</Button>
+          <Button className={styles.primary} onClick={model.applySettings}>{round ? t("wordGame.settings.applyRound") : t("wordGame.settings.apply")}</Button>
+        </DialogFooter>
       </div> : null}
     </DialogContent></Dialog>
   </main></MotionConfig>;
+}
+
+function SettingsHelp({ label, text }: { label: string; text: string }) {
+  return <Popover>
+    <PopoverTrigger asChild>
+      <Button variant="ghost" className={styles.settingsHelp} aria-label={label}>?</Button>
+    </PopoverTrigger>
+    <PopoverContent className={styles.settingsTip} sideOffset={4}>{text}</PopoverContent>
+  </Popover>;
 }

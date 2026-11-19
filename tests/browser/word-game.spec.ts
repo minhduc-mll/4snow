@@ -23,7 +23,7 @@ test("help explains repeated-letter feedback on request", async ({ page }) => {
 
 test("published play preserves invalid guesses, defers IME, pins old rules and replays the latest release", async ({ page }) => {
   const control = await dictionary(page);
-  await start(page);
+  await start(page, 3, "dictionary", "strict");
   expect(control.pointers).toBe(2);
   await expect(board(page).getByRole("listitem")).toHaveCount(6);
   await input(page).fill("mè");
@@ -114,7 +114,7 @@ test("level replacement confirms, restores cancellation focus and preserves a ro
   await page.getByRole("button",{ name: /Tải ván mới|Load new round/i }).click();
   await expect(page.getByRole("status")).toContainText(/Chưa tải được|Could not load/i);
   await expect(input(page)).toHaveValue("m");
-  await expect(page.getByText("3 chữ · Từ điển",{ exact: true })).toBeVisible();
+  await expect(page.getByText(/3 chữ · Từ điển · /)).toBeVisible();
   control.fail = false;
   await page.evaluate(() => { Object.defineProperty(Crypto.prototype,"getRandomValues",{ configurable: true, value: () => { throw new Error("test random unavailable"); } }); });
   await page.getByRole("button",{ name: /Thử lại tải ván mới|Retry loading the new round/i }).click();
@@ -135,7 +135,7 @@ test("missing/malformed releases recover, loss locks the board and offline repla
   await startButton.click(); await expect(page.getByRole("status")).toContainText(/không hợp lệ|malformed/i);
   control.corrupt = false;
   await startButton.click(); await expect(input(page)).toBeEnabled();
-  await input(page).fill("meo"); await submit(page).click();
+  await input(page).fill("SÔI"); await submit(page).click();
   const result = page.getByRole("region",{ name: /Kết quả ván chơi|Round result/i });
   await expect(result).toContainText(/Đã hết lượt|Round complete/i);
   await expect(result).toContainText("mèo"); await expect(input(page)).toHaveCount(0);
@@ -196,27 +196,28 @@ test("Free mode applies atomically, shows text feedback and restores its histori
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button",{ name: "Tự do", exact: true }).click();
   await dialog.getByRole("button",{ name: "Xem phản hồi bằng chữ" }).click();
-  await dialog.getByRole("button",{ name: /Tải ván mới.*Tự do/ }).click();
+  await dialog.getByRole("button",{ name: "Tải ván mới", exact: true }).click();
 
-  await expect(page.getByText("3 chữ · Tự do",{ exact: true })).toBeVisible();
+  await expect(page.getByText(/3 chữ · Tự do · /)).toBeVisible();
   await expect(input(page)).toHaveValue("");
   await input(page).fill("AAA");
   await submit(page).click();
   await expect(input(page)).toBeFocused();
   await expect(board(page).getByText("1. A · Không có hoặc dư")).toBeVisible();
   await expect(board(page)).not.toContainText(/[✓↔×]/);
-  await page.getByRole("button",{ name: /^A,/ }).click();
-  await expect(input(page)).toHaveValue("A");
+  await expect(page.getByRole("button",{ name: /^A,/ })).toBeDisabled();
+  await input(page).pressSequentially("a");
+  await expect(input(page)).toHaveValue("");
   await page.evaluate(() => {
     localStorage.setItem("vtv:preferences:v1", JSON.stringify({ schemaVersion: 1, preferredLevel: 9, guessMode: "dictionary" }));
   });
   control.fail = true;
   await page.reload();
-  await expect(page.getByText("3 chữ · Tự do",{ exact: true })).toBeVisible();
-  await expect(input(page)).toHaveValue("A");
+  await expect(page.getByText(/3 chữ · Tự do · /)).toBeVisible();
+  await expect(input(page)).toHaveValue("");
   await expect(board(page).locator("[data-feedback]")).toHaveCount(3);
   await input(page).fill("AAA");
-  await expect(submit(page)).toBeEnabled();
+  await expect(submit(page)).toBeDisabled();
 });
 
 test("help exposes source credit and keeps the answer entry link for the result",async ({ page }) => {

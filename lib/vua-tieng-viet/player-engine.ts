@@ -1,5 +1,6 @@
-import type { GuessEligibility, GuessMode, LetterFeedback, PlayableRound, PublishedRelease, WordAnswer, WordGuess, WordLevel } from "../../types/vua-tieng-viet.ts";
+import type { AccentAccuracy, GuessEligibility, GuessMode, LetterFeedback, PlayableRound, PublishedRelease, WordAnswer, WordGuess, WordLevel } from "../../types/vua-tieng-viet.ts";
 import { normalizeSpelling } from "./dictionary-contract.ts";
+import { variantsFor } from "./letter-variants.ts";
 import { isUuid } from "./publication-contract.ts";
 
 export type PlayerErrorCode = "NO_RELEASE" | "INVALID_RELEASE" | "EMPTY_LEVEL" | "LOAD_FAILED" | "OFFLINE" | "RELEASE_CHANGED" | "RANDOM_FAILED" | "INVALID_INPUT" | "INCOMPLETE" | "NOT_IN_DICTIONARY" | "ABSENT_LETTER";
@@ -7,29 +8,54 @@ export class PlayerError extends Error {
   readonly code: PlayerErrorCode;
   constructor(code: PlayerErrorCode) { super(code); this.code = code; }
 }
-export function evaluateGuess(answer: string, guess: string): LetterFeedback[] {
+function baseLetter(letter: string): string {
+  return letter.normalize("NFD").replace(/\p{M}/gu, "").replace(/Đ/g, "D");
+}
+
+function matchesLetter(guess: string, expected: string, accuracy?: AccentAccuracy): boolean {
+  return guess === expected || (accuracy === "optional" && guess === baseLetter(expected));
+}
+
+export function evaluateGuess(answer: string, guess: string, accuracy?: AccentAccuracy): LetterFeedback[] {
   const remaining = new Map<string, number>();
   const expected = Array.from(answer), letters = Array.from(guess);
   const feedback: LetterFeedback[] = letters.map((letter, index) => {
-    if (letter === expected[index]) return "correct";
     const other = expected[index];
-    if (other) remaining.set(other, (remaining.get(other) ?? 0) + 1);
+    if (other && matchesLetter(letter, other, accuracy)) return "correct";
+    if (other) {
+      const key = accuracy ? baseLetter(other) : other;
+      remaining.set(key, (remaining.get(key) ?? 0) + 1);
+    }
     return "absent";
   });
   letters.forEach((letter, index) => {
-    if (feedback[index] === "correct" || !(remaining.get(letter) ?? 0)) return;
+    const key = accuracy ? baseLetter(letter) : letter;
+    const count = remaining.get(key) ?? 0;
+    if (feedback[index] === "correct" || count === 0) return;
     feedback[index] = "present";
-    remaining.set(letter, (remaining.get(letter) ?? 0) - 1);
+    remaining.set(key, count - 1);
   });
   return feedback;
 }
-export function keyboardKnowledge(guesses: WordGuess[]): Map<string, LetterFeedback> {
+export function keyboardKnowledge(guesses: WordGuess[], accuracy?: AccentAccuracy): Map<string, LetterFeedback> {
   const knowledge = new Map<string, LetterFeedback>();
+  const groups = new Map<string, LetterFeedback>();
   const strength = { absent: 0, present: 1, correct: 2 };
   for (const guess of guesses) Array.from(guess.normalized).forEach((letter, index) => {
     const feedback = guess.feedback[index], previous = knowledge.get(letter);
-    if (feedback && (!previous || strength[feedback] > strength[previous])) knowledge.set(letter, feedback);
+    if (!feedback) return;
+    if (!previous || strength[feedback] > strength[previous]) knowledge.set(letter, feedback);
+    if (accuracy) {
+      const base = baseLetter(letter), group = groups.get(base);
+      if (!group || strength[feedback] > strength[group]) groups.set(base, feedback);
+    }
   });
+  for (const [base, feedback] of groups) {
+    for (const letter of variantsFor(base)) {
+      if (feedback === "absent") knowledge.set(letter, "absent");
+      else if (knowledge.get(letter) === "absent") knowledge.delete(letter);
+    }
+  }
   return knowledge;
 }
 export function selectAnswer(answers: WordAnswer[], previousId: string | undefined, randomUint32: () => number): WordAnswer {
@@ -48,7 +74,7 @@ export function selectAnswer(answers: WordAnswer[], previousId: string | undefin
   } catch (error) { throw error instanceof PlayerError ? error : new PlayerError("RANDOM_FAILED"); }
 }
 type RoundMetadata = { id: string; timestamp: string };
-export function startRound(release: PublishedRelease, level: WordLevel, previousId: string | undefined, randomUint32: () => number, metadata: () => RoundMetadata, guessMode: GuessMode = "dictionary"): PlayableRound {
+export function startRound(release: PublishedRelease, level: WordLevel, previousId: string | undefined, randomUint32: () => number, metadata: () => RoundMetadata, guessMode: GuessMode = "dictionary", accuracy?: AccentAccuracy): PlayableRound {
   try {
     const payload = release.payload, data = payload.levels[level];
     if (!Number.isInteger(payload.attemptLimit) || payload.attemptLimit < 1 || payload.attemptLimit > 12) throw new PlayerError("INVALID_RELEASE");
@@ -56,15 +82,40 @@ export function startRound(release: PublishedRelease, level: WordLevel, previous
     const answer = selectAnswer(data.answers, previousId, randomUint32);
     const { id, timestamp } = metadata();
     if (!isUuid(id) || !Number.isFinite(Date.parse(timestamp))) throw new PlayerError("RANDOM_FAILED");
-    return { answer, membership: data.guesses, attributions: payload.attributions.filter(attr => answer.attributionIds.includes(attr.id)), singleAnswerReplay: previousId !== undefined && data.answers.length === 1, round: { id, releaseId: payload.releaseId, configVersion: payload.configurationId, level, rules: { guessMode }, answerId: answer.id, attemptLimit: payload.attemptLimit, input: "", guesses: [], status: "playing", revision: 0, startedAt: timestamp, updatedAt: timestamp, endedAt: null } };
+    return { answer, membership: data.guesses, attributions: payload.attributions.filter(attr => answer.attributionIds.includes(attr.id)), singleAnswerReplay: previousId !== undefined && data.answers.length === 1, round: { id, releaseId: payload.releaseId, configVersion: payload.configurationId, level, rules: accuracy ? { guessMode, accuracy } : { guessMode }, answerId: answer.id, attemptLimit: payload.attemptLimit, input: "", guesses: [], status: "playing", revision: 0, startedAt: timestamp, updatedAt: timestamp, endedAt: null } };
   } catch (error) { throw error instanceof PlayerError ? error : new PlayerError("RANDOM_FAILED"); }
 }
 type Transition = { state: PlayableRound; error: PlayerErrorCode | null };
-const memberships = new WeakMap<string[], ReadonlySet<string>>();
+type MembershipIndex = { exact: ReadonlySet<string>; byBase?: Map<string, string[]> };
+const memberships = new WeakMap<string[], MembershipIndex>();
+
+function inDictionary(words: string[], guess: string, accuracy?: AccentAccuracy): boolean {
+  let index = memberships.get(words);
+  if (!index) {
+    index = { exact: new Set(words) };
+    memberships.set(words, index);
+  }
+  if (index.exact.has(guess)) return true;
+  if (!accuracy) return false;
+  if (!index.byBase) {
+    index.byBase = new Map();
+    for (const word of words) {
+      const base = baseLetter(word);
+      const entries = index.byBase.get(base);
+      if (entries) entries.push(word);
+      else index.byBase.set(base, [word]);
+    }
+  }
+  const letters = Array.from(guess);
+  return index.byBase.get(baseLetter(guess))?.some(word =>
+    Array.from(word).every((letter, position) => matchesLetter(letters[position] ?? "", letter, "optional"))
+  ) ?? false;
+}
 
 function blocksLetter(state: PlayableRound, normalized: string): boolean {
-  if (state.round.rules.guessMode === "free") return false;
-  const knowledge = keyboardKnowledge(state.round.guesses);
+  const { accuracy, guessMode } = state.round.rules;
+  if (!accuracy && guessMode === "free") return false;
+  const knowledge = keyboardKnowledge(state.round.guesses, accuracy);
   return Array.from(normalized).some(letter => knowledge.get(letter) === "absent");
 }
 
@@ -78,12 +129,7 @@ export function guessEligibility(state: PlayableRound | null, composing = false,
     if (level > state.round.level) return { canSubmit: false, reason: "invalid" };
     if (blocksLetter(state,normalized)) return { canSubmit: false, reason: "absent-letter" };
     if (state.round.rules.guessMode === "dictionary") {
-      let membership = memberships.get(state.membership);
-      if (!membership) {
-        membership = new Set(state.membership);
-        memberships.set(state.membership,membership);
-      }
-      if (!membership.has(normalized)) return { canSubmit: false, reason: "not-in-dictionary" };
+      if (!inDictionary(state.membership, normalized, state.round.rules.accuracy)) return { canSubmit: false, reason: "not-in-dictionary" };
     }
     return { canSubmit: true, normalized };
   } catch { return { canSubmit: false, reason: "invalid" }; }
@@ -118,9 +164,9 @@ export function submitGuess(state: PlayableRound, expectedRevision: number, meta
   try {
     const { id, timestamp } = metadata();
     if (!isUuid(id) || !Number.isFinite(Date.parse(timestamp))) throw new Error("Invalid metadata");
-    const guess: WordGuess = { id, input: round.input, normalized, feedback: evaluateGuess(state.answer.normalized, normalized), submittedAt: timestamp };
+    const guess: WordGuess = { id, input: round.input, normalized, feedback: evaluateGuess(state.answer.normalized, normalized, round.rules.accuracy), submittedAt: timestamp };
     const guesses = [...round.guesses, guess];
-    const status = normalized === state.answer.normalized ? "won" : guesses.length >= round.attemptLimit ? "lost" : "playing";
+    const status = guess.feedback.every(feedback => feedback === "correct") ? "won" : guesses.length >= round.attemptLimit ? "lost" : "playing";
     return { state: { ...state, round: { ...round, guesses, input: "", status, revision: round.revision + 1, updatedAt: timestamp, endedAt: status === "playing" ? null : timestamp } }, error: null };
   } catch { return { state, error: "RANDOM_FAILED" }; }
 }

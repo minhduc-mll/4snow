@@ -4,9 +4,9 @@ import { playerPayload, fixtureId } from "./player-fixture.ts";
 import { startRound, commitInput, submitGuess } from "../../lib/vua-tieng-viet/player-engine.ts";
 import { encodeRoundSave, decodeRoundSave, createRoundStorage, ROUND_SAVE_KEY } from "../../lib/vua-tieng-viet/round-save.ts";
 const time = "2026-11-14T01:00:00.000Z";
-function fixture(guessMode = "dictionary") {
+function fixture(guessMode = "dictionary", accuracy) {
   const payload = playerPayload();
-  return startRound({ payload, payloadHash: "a".repeat(64), publishedAt: time },3,undefined,() => 0,() => ({ id: fixtureId(100), timestamp: time }),guessMode);
+  return startRound({ payload, payloadHash: "a".repeat(64), publishedAt: time },3,undefined,() => 0,() => ({ id: fixtureId(100), timestamp: time }),guessMode,accuracy);
 }
 test("a historical round survives an atomic save with raw input and full public snapshot", () => {
   const state = commitInput(fixture(),"me\u0300").state;
@@ -48,7 +48,7 @@ test("feedback and status hints cannot change the recovered result or keyboard e
 });
 test("reject structural history, incomplete provenance, and incompatible versions without repair", () => {
   const mutations = [
-    v => v.schemaVersion = 3,
+    v => v.schemaVersion = 4,
     v => v.round.rules.guessMode = "future",
     v => v.round.rules.blockAbsentLetters = false,
     v => v.normalizerVersion = "future",
@@ -107,4 +107,12 @@ test("free round replay accepts an out-of-dictionary guess and repeated eliminat
   assert.deepEqual(restored,second);
   assert.equal(restored.membership.includes("ZZZ"),false);
   assert.equal(restored.round.rules.guessMode,"free");
+});
+
+test("an omitted-accent win and its pinned accuracy survive a save", () => {
+  const state = submitted("meo",fixture("dictionary","optional"),101);
+  assert.equal(state.round.status,"won");
+  const encoded = encodeRoundSave(state,time);
+  assert.equal(JSON.parse(encoded).schemaVersion,3);
+  assert.deepEqual(decodeRoundSave(encoded),state);
 });
