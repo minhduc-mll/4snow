@@ -83,9 +83,7 @@ test("resumable import retries a lost response with the same key and finalizes",
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
   await page.locator("#dictionary-preview-file").setInputFiles({ name: "synthetic.json", mimeType: "application/json", buffer: readFileSync("tests/vua-tieng-viet/fixtures/synthetic.json") });
   await page.getByRole("button", { name: /Bắt đầu hoặc tiếp tục|Start or resume/i }).click();
-  await page.getByRole("button", { name: /Tải phần này lên|Upload this chunk/i }).click();
   await page.getByRole("button", { name: /Thử lại an toàn|Retry safely/i }).click();
-  await page.getByRole("button", { name: /Hoàn tất nhập|Finalize import/i }).click();
   await expect(page.getByText(/Đã hoàn tất, chờ duyệt|Finalized, awaiting review/i)).toBeVisible();
   await page.getByRole("link", { name: /Duyệt|Review/i }).click();
   await expect(page.getByRole("button", { name: /mèo · 3/i })).toBeVisible();
@@ -99,7 +97,7 @@ test("an administrator can resume an import with an existing receipt", async ({ 
     const common = { ok: true, requestId: body.requestId };
     if (body.operation === "list") return route.fulfill({ json: { ...common, data: { items: [], nextCursor: null, draftRevision: "0" } } });
     if (body.operation === "import-preview") return route.fulfill({ json: { ...common, data: { valid: true, entryCount: 1, collisionCount: 0, duplicateCount: 0, conflictCount: 0, canonicalHash: createHash("sha256").update(canonicalJson(body.input)).digest("hex"), errors: [], errorsTruncated: false } } });
-    if (body.operation === "import-start") return route.fulfill({ json: { ...common, data: { importId: "60000000-0000-4000-8000-000000000006", expectedChunks: 1, status: "staging", draftRevision: "2", receipts: [{ chunkIndex: 0, canonicalHash: "a".repeat(64), stagedCount: 1, createdCount: 0, noOpCount: 1, countsProvisional: true }] } } });
+    if (body.operation === "import-start") return route.fulfill({ json: { ...common, data: { importId: "60000000-0000-4000-8000-000000000006", expectedChunks: 1, status: "staging", draftRevision: "2", receipts: [{ chunkIndex: 0, canonicalHash: createHash("sha256").update(canonicalJson(JSON.parse(readFileSync("tests/vua-tieng-viet/fixtures/synthetic.json", "utf8")))).digest("hex"), stagedCount: 1, createdCount: 0, noOpCount: 1, countsProvisional: true }] } } });
     if (body.operation === "import-finalize") return route.fulfill({ json: { ...common, data: { status: "finalized", draftRevision: "3", createdCount: 0, noOpCount: 1 } } });
     throw new Error("Unexpected operation");
   });
@@ -110,7 +108,6 @@ test("an administrator can resume an import with an existing receipt", async ({ 
   await page.locator("#dictionary-preview-file").setInputFiles({ name: "synthetic.json", mimeType: "application/json", buffer: readFileSync("tests/vua-tieng-viet/fixtures/synthetic.json") });
   await page.getByRole("button", { name: /Bắt đầu hoặc tiếp tục|Start or resume/i }).click();
   await expect(page.getByText(/Tiến độ nhập: 1\/1|Import progress: 1\/1/i)).toBeVisible();
-  await page.getByRole("button", { name: /Hoàn tất nhập|Finalize import/i }).click();
   await expect(page.getByText(/Mục đã có, không thay đổi: 1|Existing unchanged candidates: 1/i)).toBeVisible();
 });
 
@@ -194,4 +191,48 @@ test("late private preview cannot reappear after logout and login", async ({ pag
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
   await expect(page.locator("#dictionary-preview-file")).toHaveValue("");
   await expect(page.getByRole("heading", { name: /Kiểm tra tin cậy|Trusted preview/i })).toHaveCount(0);
+});
+
+test("an import paused by an expired session resumes after sign-in without choosing files again", async ({ page }) => {
+  const fixture = readFileSync("tests/vua-tieng-viet/fixtures/synthetic.json", "utf8");
+  const canonicalHash = createHash("sha256").update(canonicalJson(JSON.parse(fixture))).digest("hex");
+  const importId = "60000000-0000-4000-8000-000000000006";
+  const receipt = { chunkIndex: 0, canonicalHash, stagedCount: 1, createdCount: 1, noOpCount: 0, countsProvisional: true };
+  let applied = 0;
+  await page.route("**/api/admin/login", (route) => route.fulfill({ json: { token: "test-token", expiresAt: Date.now() + 60000 } }));
+  await page.route("https://test-supabase.invalid/functions/v1/vtv-dictionary", async (route) => {
+    const body: unknown = route.request().postDataJSON();
+    if (typeof body !== "object" || body === null || !("operation" in body) || !("requestId" in body)) throw new Error("Malformed request");
+    const success = (data: unknown) => route.fulfill({ json: { ok: true, requestId: body.requestId, data } });
+    if (body.operation === "list") return success({ items: [], nextCursor: null, draftRevision: "0" });
+    if (body.operation === "import-preview") return success({ valid: true, entryCount: 1, collisionCount: 0, duplicateCount: 0, conflictCount: 0, canonicalHash, errors: [], errorsTruncated: false });
+    if (body.operation === "import-start") return success({ importId, expectedChunks: 1, status: "staging", draftRevision: "0", receipts: applied ? [receipt] : [] });
+    if (body.operation === "import-apply") {
+      applied++;
+      return success(receipt);
+    }
+    if (body.operation === "import-finalize") {
+      if (await route.request().headerValue("authorization") === "Bearer test-token") {
+        return route.fulfill({ status: 401, json: { ok: false } });
+      }
+      return success({ status: "finalized", draftRevision: "1", createdCount: 1, noOpCount: 0 });
+    }
+    throw new Error("Unexpected import operation");
+  });
+  const signIn = async () => {
+    await page.getByLabel(/Tài khoản|Username/i).fill("admin");
+    await page.getByLabel(/Mật khẩu|Password/i).fill("password");
+    await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
+  };
+  await page.goto("/admin#dictionary");
+  await signIn();
+  await page.locator("#dictionary-preview-file").setInputFiles({ name: "synthetic.json", mimeType: "application/json", buffer: Buffer.from(fixture) });
+  await page.getByRole("button", { name: /Bắt đầu hoặc tiếp tục|Start or resume/i }).click();
+  await expect(page.getByLabel(/Tài khoản|Username/i)).toBeVisible();
+  await page.route("**/api/admin/login", (route) => route.fulfill({ json: { token: "renewed-token", expiresAt: Date.now() + 60000 } }));
+  await signIn();
+  await expect(page.locator("#dictionary-preview-file")).toHaveValue("");
+  await page.getByRole("button", { name: /Bắt đầu hoặc tiếp tục|Start or resume/i }).click();
+  await expect(page.getByText(/Đã hoàn tất, chờ duyệt|Finalized, awaiting review/i)).toBeVisible();
+  expect(applied).toBe(1);
 });

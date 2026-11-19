@@ -54,10 +54,21 @@ export function createDictionaryAdapter(url: string, serviceKey: string): Omit<P
     consumeMutationLimit: () => limit("vtv_consume_import_mutation_limit"),
     consumePublicationLimit: () => limit("vtv_consume_publication_limit"),
     publication: async (operation, requestHash) => {
+      if (operation.operation === "publication-game") {
+        const parameters = { p_build_id: operation.input.buildId, p_content_hash: operation.input.contentHash };
+        return call("vtv_preview_game", JSON.stringify(parameters), ["INVALID_INPUT", "NOT_FOUND", "REVISION_CONFLICT", "RELEASE_INCOMPLETE"], "Preview game unavailable");
+      }
       const common = { p_request_id: operation.requestId, p_idempotency_key: operation.idempotencyKey, p_request_hash: requestHash, p_expected_draft_revision: operation.input.expectedDraftRevision };
-      const name = operation.operation === "publish" ? "vtv_publish" : operation.operation === "configuration" ? "vtv_configure" : "vtv_publication_preview";
-      const parameters = operation.operation === "configuration" ? { p_request_id: operation.requestId, p_idempotency_key: operation.idempotencyKey, p_request_hash: requestHash, p_input: operation.input } : operation.operation === "publish" ? { ...common, p_build_id: operation.input.buildId, p_expected_current_release_id: operation.input.expectedCurrentReleaseId } : common;
+      const name = operation.operation === "publish" ? "vtv_publish_confirmed" : operation.operation === "configuration" ? "vtv_configure" : "vtv_publication_preview";
+      const parameters = operation.operation === "configuration" ? { p_request_id: operation.requestId, p_idempotency_key: operation.idempotencyKey, p_request_hash: requestHash, p_input: operation.input } : operation.operation === "publish" ? { ...common, p_build_id: operation.input.buildId, p_expected_current_release_id: operation.input.expectedCurrentReleaseId, p_content_hash: operation.input.contentHash } : common;
       return call(name, JSON.stringify(parameters), ["INVALID_INPUT", "NOT_FOUND", "IDEMPOTENCY_CONFLICT", "REVISION_CONFLICT", "RELEASE_INCOMPLETE"], "Publication unavailable");
+    },
+    bulkReview: (operation, hash) => {
+      const name = operation.operation === "bulk-create" ? "vtv_bulk_create" : operation.operation === "bulk-page" ? "vtv_bulk_page" : "vtv_bulk_apply";
+      const parameters = operation.operation === "bulk-apply"
+        ? { p_input: operation.input, p_request_id: operation.requestId, p_idempotency_key: operation.idempotencyKey, p_request_hash: hash }
+        : { p_input: operation.input };
+      return call(name, JSON.stringify(parameters), ["INVALID_INPUT", "NOT_FOUND", "IDEMPOTENCY_CONFLICT", "REVISION_CONFLICT"], "Bulk review unavailable");
     },
     consumeReadLimit: () => limit("vtv_consume_read_limit"),
     editorialRead: async (operation, position) => {

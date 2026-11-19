@@ -3,7 +3,7 @@ import { normalizeSpelling } from "./dictionary-contract.ts";
 export type ReviewStatus = "pending" | "approved" | "rejected";
 export type Category = "common" | "regional" | "technical" | "less-common" | "excluded";
 export type ExclusionChecks = { names: boolean; abbreviations: boolean; offensive: boolean; malformed: boolean; unverified: boolean };
-export type ReviewInput = { entryId: string; expectedEntryRevision: number; expectedDraftRevision: string; original: string; definitionVi: string | null; review: ReviewStatus; answerEligible: boolean; category: Category; rationale: string; exclusionChecks: ExclusionChecks };
+export type ReviewInput = { entryId: string; expectedEntryRevision: number; expectedDraftRevision: string; original: string; definitionVi: string | null; review: ReviewStatus; answerEligible: boolean; category: Category; rationale: string; exclusionChecks: ExclusionChecks; meaningWarningAcknowledged?: true };
 export type Filters = { sourceId: string | null; level: 3 | 5 | 7 | 9 | null; review: ReviewStatus | null; hasDefinition: boolean | null; collisionsOnly: boolean };
 export type RightsDecision = "cleared" | "unresolved" | "rejected";
 export type RightsReviewInput = { sourceId: string; expectedDraftRevision: string; decision: RightsDecision; evidence: string; obligations: string };
@@ -25,6 +25,10 @@ function status(value: unknown): value is ReviewStatus { return value === "pendi
 function category(value: unknown): value is Category { return value === "common" || value === "regional" || value === "technical" || value === "less-common" || value === "excluded"; }
 function cursor(value: unknown): value is string | null { return value === null || (bounded(value, 512) && value.length > 0); }
 
+export function hasMeaningWarning(definition: string): boolean {
+  return /(^|[^\p{L}])(?:hiếm|cổ|địa phương)([^\p{L}]|$)/iu.test(definition.normalize("NFC"));
+}
+
 export function parseEditorialRequest(value: unknown): EditorialRequest {
   if (!record(value) || !uuid(value.requestId) || !record(value.input)) throw new Error("Invalid request");
   const input = value.input;
@@ -44,14 +48,17 @@ export function parseEditorialRequest(value: unknown): EditorialRequest {
     return { operation: "rights-review", requestId: value.requestId, idempotencyKey: value.idempotencyKey, input: { sourceId: input.sourceId, expectedDraftRevision: input.expectedDraftRevision, decision: input.decision, evidence: input.evidence, obligations: input.obligations } };
   }
   if (value.operation === "review") {
-    if (!keys(value, ["operation", "requestId", "idempotencyKey", "input"]) || !uuid(value.idempotencyKey) || !keys(input, ["entryId", "expectedEntryRevision", "expectedDraftRevision", "original", "definitionVi", "review", "answerEligible", "category", "rationale", "exclusionChecks"]) || !uuid(input.entryId) || typeof input.expectedEntryRevision !== "number" || !Number.isSafeInteger(input.expectedEntryRevision) || input.expectedEntryRevision < 1 || input.expectedEntryRevision > 2147483647 || typeof input.expectedDraftRevision !== "string" || !/^(0|[1-9][0-9]{0,18})$/.test(input.expectedDraftRevision) || BigInt(input.expectedDraftRevision) > BigInt("9223372036854775807") || !bounded(input.original, 120) || !input.original || !(input.definitionVi === null || (bounded(input.definitionVi, 2000) && input.definitionVi.trim().length > 0)) || !status(input.review) || typeof input.answerEligible !== "boolean" || !category(input.category) || !bounded(input.rationale, 2000) || !record(input.exclusionChecks) || !keys(input.exclusionChecks, ["names", "abbreviations", "offensive", "malformed", "unverified"])) throw new Error("Invalid review");
+    const fields = ["entryId", "expectedEntryRevision", "expectedDraftRevision", "original", "definitionVi", "review", "answerEligible", "category", "rationale", "exclusionChecks"];
+    const acknowledged = input.meaningWarningAcknowledged === true;
+    if (!keys(value, ["operation", "requestId", "idempotencyKey", "input"]) || !uuid(value.idempotencyKey) || !keys(input, acknowledged ? [...fields, "meaningWarningAcknowledged"] : fields) || !uuid(input.entryId) || typeof input.expectedEntryRevision !== "number" || !Number.isSafeInteger(input.expectedEntryRevision) || input.expectedEntryRevision < 1 || input.expectedEntryRevision > 2147483647 || typeof input.expectedDraftRevision !== "string" || !/^(0|[1-9][0-9]{0,18})$/.test(input.expectedDraftRevision) || BigInt(input.expectedDraftRevision) > BigInt("9223372036854775807") || !bounded(input.original, 120) || !input.original || !(input.definitionVi === null || (bounded(input.definitionVi, 2000) && input.definitionVi.trim().length > 0)) || !status(input.review) || typeof input.answerEligible !== "boolean" || !category(input.category) || !bounded(input.rationale, 2000) || !record(input.exclusionChecks) || !keys(input.exclusionChecks, ["names", "abbreviations", "offensive", "malformed", "unverified"])) throw new Error("Invalid review");
     const c = input.exclusionChecks;
     if (typeof c.names !== "boolean" || typeof c.abbreviations !== "boolean" || typeof c.offensive !== "boolean" || typeof c.malformed !== "boolean" || typeof c.unverified !== "boolean") throw new Error("Invalid exclusion checks");
     const normalized = normalizeSpelling(input.original);
     if (![3, 5, 7, 9].includes(normalized.level)) throw new Error("Invalid level");
     if (input.review === "approved" && (!c.names || !c.abbreviations || !c.offensive || !c.malformed || !c.unverified || input.category === "excluded" || !input.rationale.trim())) throw new Error("Approval requires exclusion checks");
     if (input.answerEligible && (input.review !== "approved" || input.category !== "common" || input.definitionVi === null || !input.rationale.trim())) throw new Error("Answer requires a reviewed meaning");
-    return { operation: "review", requestId: value.requestId, idempotencyKey: value.idempotencyKey, input: { entryId: input.entryId, expectedEntryRevision: input.expectedEntryRevision, expectedDraftRevision: input.expectedDraftRevision, original: input.original, definitionVi: input.definitionVi, review: input.review, answerEligible: input.answerEligible, category: input.category, rationale: input.rationale, exclusionChecks: { names: c.names, abbreviations: c.abbreviations, offensive: c.offensive, malformed: c.malformed, unverified: c.unverified } } };
+    if (input.answerEligible && input.definitionVi !== null && hasMeaningWarning(input.definitionVi) && !acknowledged) throw new Error("Answer needs explicit meaning review");
+    return { operation: "review", requestId: value.requestId, idempotencyKey: value.idempotencyKey, input: { entryId: input.entryId, expectedEntryRevision: input.expectedEntryRevision, expectedDraftRevision: input.expectedDraftRevision, original: input.original, definitionVi: input.definitionVi, review: input.review, answerEligible: input.answerEligible, category: input.category, rationale: input.rationale, ...(acknowledged ? { meaningWarningAcknowledged: true } : {}), exclusionChecks: { names: c.names, abbreviations: c.abbreviations, offensive: c.offensive, malformed: c.malformed, unverified: c.unverified } } };
   }
   if (!keys(value, ["operation", "requestId", "input"])) throw new Error("Invalid request");
   if (value.operation === "detail") {

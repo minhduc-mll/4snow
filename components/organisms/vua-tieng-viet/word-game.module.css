@@ -33,14 +33,16 @@
 .container { width: 100%; max-width: 34rem; margin: 0 auto; display: grid; gap: 1.25rem; }
 .topbar, .boardMeta { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .home { display: inline-flex; gap: .5rem; align-items: center; min-height: 2.75rem; color: var(--vtv-muted); font-size: .875rem; }
-.help { color: var(--vtv-muted); }
+.help { color: var(--vtv-muted); min-height: 2.75rem; padding-inline: .45rem; }
+.topActions { display: flex; flex-wrap: wrap; justify-content: flex-end; }
+.settingsGroups { display: grid; gap: .75rem; }
 .header { text-align: center; display: grid; gap: .5rem; }
 .header h1 { font-size: clamp(2rem,7vw,3rem); font-weight: 750; letter-spacing: -.04em; line-height: 1.1; }
-.header p:not(.eyebrow) { color: var(--vtv-muted); }
-.eyebrow { color: var(--vtv-primary); font-size: .75rem; text-transform: uppercase; letter-spacing: .2em; font-weight: 600; }
+.header p { color: var(--vtv-muted); }
 .levels { border: 0; padding: 0; min-width: 0; }
 .levels legend { text-align: center; width: 100%; color: var(--vtv-muted); font-size: .875rem; margin-bottom: .6rem; }
 .levelButtons { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .5rem; }
+.modeButtons { grid-template-columns: repeat(2,minmax(0,1fr)); }
 .levelButton { color: var(--vtv-ink); border-color: var(--vtv-line); background: var(--vtv-surface); min-height: 2.75rem; padding-inline: .25rem; }
 .levelButton[aria-pressed=true] { color: var(--vtv-primary-ink); border-color: var(--vtv-primary); background: var(--vtv-primary); }
 .playArea { display: grid; gap: 1rem; padding: 1.25rem .75rem; background: var(--vtv-surface); border: 1px solid var(--vtv-line); border-radius: 1.25rem; }
@@ -49,7 +51,7 @@
 .row { display: grid; grid-template-columns: repeat(var(--vtv-columns),minmax(0,1fr)); gap: var(--vtv-gap); position: relative; border-radius: .4rem; }
 .editing:focus-within { outline: 2px solid var(--vtv-primary); outline-offset: 3px; }
 .cell { position: relative; aspect-ratio: 1; display: grid; place-items: center; min-width: 0; border: 1px solid var(--vtv-line); border-radius: .5rem; background: var(--vtv-raised); color: var(--vtv-ink); font-size: clamp(.85rem,4vw,1.5rem); font-weight: 700; }
-.symbol { position: absolute; font-size: .65rem; line-height: 1; bottom: .1rem; right: .15rem; }
+.textFeedback { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .15rem .75rem; padding: .2rem 0 .45rem; color: var(--vtv-muted); font-size: .75rem; }
 .sharedInput { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; caret-color: transparent; font-size: 1rem; cursor: text; }
 .message { min-height: 3rem; display: grid; place-items: center; text-align: center; font-size: .875rem; color: var(--vtv-muted); padding: 0 .25rem; }
 .submit, .primary { background: var(--vtv-primary); color: var(--vtv-primary-ink); font-weight: 650; min-height: 2.75rem; }
@@ -58,7 +60,7 @@
 .instruction { text-align: center; color: var(--vtv-muted); font-size: .875rem; }
 .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem 1rem; font-size: .75rem; color: var(--vtv-muted); }
 .legend li { display: flex; align-items: center; gap: .35rem; }
-.legendSymbol { border-radius: .2rem; min-width: 1.25rem; line-height: 1.25rem; text-align: center; }
+.legendSymbol { border-radius: .2rem; width: 1rem; height: 1rem; text-align: center; }
 .keyboard { display: grid; gap: .3rem; }
 .keyRow { display: flex; justify-content: center; gap: .25rem; }
 .keyColumn { flex: 1 1 0; min-width: 0; max-width: 3rem; display: flex; flex-direction: column; gap: .15rem; }
@@ -73,7 +75,6 @@
 .key, .variantChoice { transition: none; }
 .variantChoice:hover:not(:disabled) { outline: 1px solid var(--vtv-primary); }
 .variantClose { color: var(--vtv-muted); width: 100%; margin-top: .6rem; }
-.keySymbol { position: absolute; font-size: .6rem; bottom: .05rem; right: .1rem; }
 .key:disabled { opacity: 1; }
 .key:disabled:not([data-feedback]) { opacity: .55; }
 .key:hover:not(:disabled) { outline: 1px solid var(--vtv-primary); }

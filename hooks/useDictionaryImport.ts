@@ -1,16 +1,18 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
 import { requestPrivateDictionary } from "@/lib/vua-tieng-viet/private-request";
 import { PrivateRequestError } from "@/lib/vua-tieng-viet/private-transport";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminSessionGeneration } from "@/hooks/useAdminAuth";
+import { rememberImportFiles } from "@/lib/vua-tieng-viet/import-selection";
+import type { ImportPreflight } from "@/lib/vua-tieng-viet/import-preflight";
 import type { ImportStartMutation, ImportApplyMutation, ImportFinalizeMutation } from "@/lib/vua-tieng-viet/import-contract";
 
 type Receipt = { chunkIndex: number; canonicalHash: string; stagedCount: number; createdCount: number; noOpCount: number; countsProvisional: true };
 type ImportSession = { importId: string; expectedChunks: number; status: string; draftRevision: string; receipts: Receipt[]; artifactId: string; artifactRevision: string; createdCount: number | null; noOpCount: number | null };
 type ImportAction = Pick<ImportStartMutation, "operation" | "input"> | Pick<ImportApplyMutation, "operation" | "input"> | Pick<ImportFinalizeMutation, "operation" | "input">;
-type ImportRequest = ImportAction & { idempotencyKey: string };
+
 type StartResponse = { importId: string; expectedChunks: number; status: "staging" | "finalized" | "failed"; draftRevision: string; receipts: Receipt[] };
 type FinalizeResponse = { status: "finalized"; draftRevision: string; createdCount: number; noOpCount: number };
 const SESSION_KEY = ["vtv-private", "import-session"];
@@ -29,70 +31,107 @@ function finalizeResponse(value: Record<string, unknown>): FinalizeResponse {
   return { status: "finalized", draftRevision: value.draftRevision, createdCount: value.createdCount, noOpCount: value.noOpCount };
 }
 
+
+function importError(error: unknown): string {
+  if (!(error instanceof PrivateRequestError)) return error instanceof Error ? error.message : "UNAVAILABLE";
+  if (error.kind !== "IMPORT_CONFLICT" || !record(error.details)) return error.kind;
+  const { reason, location } = error.details;
+  const allowed = ["ARTIFACT_MISMATCH", "CHUNK_HASH_MISMATCH", "IMPORT_NOT_STAGING", "ARTIFACT_LIMIT", "MISSING_CHUNKS", "SOURCE_METADATA_MISMATCH", "DUPLICATE_IDENTITY", "SOURCE_REFERENCE", "CANDIDATE_CONTENT_MISMATCH"];
+  if (typeof reason !== "string" || !allowed.includes(reason)) return error.kind;
+  const part = record(location) && typeof location.chunkIndex === "number" ? ` (part ${location.chunkIndex + 1}${typeof location.entryIndex === "number" ? `, entry ${location.entryIndex + 1}` : ""})` : "";
+  return `${reason}${part}`;
+}
+
+function applyKey(hash: string): string {
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
+}
+
+function waitForQuota(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    signal.throwIfAborted();
+    const abort = () => { window.clearTimeout(timer); reject(signal.reason); };
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    }, 60_000);
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
 export function useDictionaryImport(onUnauthorized: () => void) {
   const queryClient = useQueryClient();
-  const pending = React.useRef<ImportRequest | null>(null);
-  const active = React.useRef(true);
   const controller = React.useRef<AbortController | null>(null);
-  const [canRetry, setCanRetry] = React.useState(false);
-  const [errorCode, setErrorCode] = React.useState<string | null>(null);
+  const [waitingForQuota, setWaitingForQuota] = React.useState(false);
   const sessionQuery = useQuery<ImportSession>({ queryKey: SESSION_KEY, queryFn: async () => { throw new Error("Start an import first"); }, enabled: false, gcTime: 0 });
-  React.useEffect(() => { active.current = true; return () => { active.current = false; controller.current?.abort(); pending.current = null; }; }, []);
+  React.useEffect(() => () => { controller.current?.abort(); }, []);
+
   const mutation = useMutation({
     mutationKey: ["vtv-private", "import"], retry: false, gcTime: 0,
-    mutationFn: async (request: ImportRequest): Promise<Record<string, unknown>> => {
-      controller.current = new AbortController();
-      try {
-        const data = await requestPrivateDictionary({ ...request, requestId: crypto.randomUUID() }, controller.current.signal, onUnauthorized);
-        if (!record(data)) throw new Error("UNAVAILABLE");
-        return data;
-      } catch (error) {
-        if (error instanceof PrivateRequestError && error.kind === "IMPORT_CONFLICT" && record(error.details)) {
-          const reasons = ["ARTIFACT_MISMATCH", "CHUNK_HASH_MISMATCH", "IMPORT_NOT_STAGING", "ARTIFACT_LIMIT", "MISSING_CHUNKS", "SOURCE_METADATA_MISMATCH", "DUPLICATE_IDENTITY", "SOURCE_REFERENCE", "CANDIDATE_CONTENT_MISMATCH"];
-          const reason = typeof error.details.reason === "string" && reasons.includes(error.details.reason) ? error.details.reason : null;
-          let location = "";
-          const value = error.details.location;
-          if (record(value) && typeof value.chunkIndex === "number" && Number.isInteger(value.chunkIndex) && value.chunkIndex >= 0 && value.chunkIndex < 100) {
-            location = `:chunk=${value.chunkIndex + 1}`;
-            if (typeof value.entryIndex === "number" && Number.isInteger(value.entryIndex) && value.entryIndex >= 0 && value.entryIndex < 200) location += `,entry=${value.entryIndex + 1}`;
+    mutationFn: async ({ preflight, signal }: { preflight: ImportPreflight; signal: AbortSignal }) => {
+      const generation = adminSessionGeneration();
+      const assertSession = () => {
+        signal.throwIfAborted();
+        if (generation !== adminSessionGeneration()) throw new PrivateRequestError("CANCELLED");
+      };
+      const request = async (action: ImportAction, idempotencyKey: string = crypto.randomUUID()): Promise<Record<string, unknown>> => {
+        let waited = false;
+        for (;;) {
+          assertSession();
+          try {
+            const data = await requestPrivateDictionary({ ...action, idempotencyKey, requestId: crypto.randomUUID() }, signal, onUnauthorized);
+            assertSession();
+            if (!record(data)) throw new PrivateRequestError("UNAVAILABLE");
+            return data;
+          } catch (error) {
+            if (waited || !(error instanceof PrivateRequestError) || error.kind !== "RATE_LIMITED") throw error;
+            waited = true;
+            setWaitingForQuota(true);
+            try { await waitForQuota(signal); }
+            finally { if (!signal.aborted) setWaitingForQuota(false); }
           }
-          throw new Error(reason ? `${error.kind}:${reason}${location}` : error.kind);
         }
-        throw error;
+      };
+      const { artifactId, artifactRevision, chunks } = preflight;
+      const start = startResponse(await request({ operation: "import-start", input: { artifactId, artifactRevision, chunkCount: chunks.length } }));
+      const receipts = new Map<number, Receipt>();
+      if (start.expectedChunks !== chunks.length) throw new Error("ARTIFACT_MISMATCH");
+      for (const item of start.receipts) {
+        if (receipts.has(item.chunkIndex) || chunks[item.chunkIndex]?.canonicalHash !== item.canonicalHash) throw new Error("CHUNK_HASH_MISMATCH");
+        receipts.set(item.chunkIndex, item);
       }
+      const session: ImportSession = { ...start, artifactId, artifactRevision, createdCount: null, noOpCount: null };
+      queryClient.setQueryData(SESSION_KEY, session);
+      if (start.status === "finalized") {
+        if (receipts.size !== chunks.length) throw new Error("MISSING_CHUNKS");
+        rememberImportFiles(null);
+        void queryClient.invalidateQueries({ queryKey: ["vtv-private", "editorial"] });
+        return;
+      }
+      if (start.status !== "staging") throw new Error("IMPORT_NOT_STAGING");
+      for (const [index, chunk] of chunks.entries()) {
+        if (receipts.has(index)) continue;
+        const item = receipt(await request({ operation: "import-apply", input: { importId: start.importId, document: chunk.document, canonicalHash: chunk.canonicalHash } }, applyKey(chunk.canonicalHash)));
+        if (item.chunkIndex !== index || item.canonicalHash !== chunk.canonicalHash) throw new Error("CHUNK_HASH_MISMATCH");
+        receipts.set(index, item);
+        queryClient.setQueryData<ImportSession>(SESSION_KEY, { ...session, receipts: [...receipts.values()] });
+      }
+      const finalized = finalizeResponse(await request({ operation: "import-finalize", input: { importId: start.importId, expectedDraftRevision: start.draftRevision } }));
+      queryClient.setQueryData<ImportSession>(SESSION_KEY, { ...session, ...finalized, receipts: [...receipts.values()] });
+      rememberImportFiles(null);
+      void queryClient.invalidateQueries({ queryKey: ["vtv-private", "editorial"] });
     },
   });
-  const execute = React.useCallback(async (request: ImportRequest): Promise<void> => {
-    const session = adminSessionGeneration();
-    pending.current = request;
-    setCanRetry(false); setErrorCode(null);
-    try {
-      const data = await mutation.mutateAsync(request);
-      if (!active.current || session !== adminSessionGeneration()) return;
-      if (request.operation === "import-start") {
-        const start = startResponse(data);
-        queryClient.setQueryData<ImportSession>(SESSION_KEY, { ...start, artifactId: request.input.artifactId, artifactRevision: request.input.artifactRevision, createdCount: null, noOpCount: null });
-      } else if (request.operation === "import-apply") {
-        const item = receipt(data);
-        queryClient.setQueryData<ImportSession>(SESSION_KEY, (previous) => previous ? { ...previous, receipts: [...previous.receipts.filter((prior) => prior.chunkIndex !== item.chunkIndex), item] } : previous);
-      } else {
-        const { draftRevision, createdCount, noOpCount } = finalizeResponse(data);
-        queryClient.setQueryData<ImportSession>(SESSION_KEY, (previous) => previous ? { ...previous, status: "finalized", draftRevision, createdCount, noOpCount } : previous);
-        void queryClient.invalidateQueries({ queryKey: ["vtv-private", "editorial"] });
-      }
-      pending.current = null;
-    } catch (error) {
-      if (!active.current || session !== adminSessionGeneration()) return;
-      const code = error instanceof Error ? error.message : "UNAVAILABLE";
-      setErrorCode(code);
-      setCanRetry(code === "UNAVAILABLE" || code === "RATE_LIMITED");
-      if (code !== "UNAVAILABLE" && code !== "RATE_LIMITED") pending.current = null;
-    }
-  }, [mutation, queryClient]);
-  const perform = React.useCallback(async (action: ImportAction): Promise<void> => {
-    try { await execute({ ...action, idempotencyKey: crypto.randomUUID() }); }
-    catch { setErrorCode("UNAVAILABLE"); }
-  }, [execute]);
-  const retry = React.useCallback(async (): Promise<void> => { if (pending.current) await execute(pending.current); }, [execute]);
-  return { session: sessionQuery.data ?? null, loading: mutation.isPending, errorCode, canRetry, perform, retry };
+  const { mutate, reset } = mutation;
+  const run = (preflight: ImportPreflight) => {
+    if (controller.current || preflight.issues.some((issue) => issue.blocking) || !preflight.chunks.length) return;
+    const active = new AbortController();
+    controller.current = active;
+    mutate({ preflight, signal: active.signal }, { onSettled: () => { controller.current = null; } });
+  };
+  const clear = () => {
+    reset();
+    queryClient.removeQueries({ queryKey: SESSION_KEY, exact: true });
+    queryClient.setQueryData(SESSION_KEY, null);
+  };
+  return { session: sessionQuery.data ?? null, loading: mutation.isPending, errorCode: mutation.error ? importError(mutation.error) : null, waitingForQuota, run, clear };
 }

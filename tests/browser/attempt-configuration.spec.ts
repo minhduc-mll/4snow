@@ -14,12 +14,13 @@ async function backend(context: BrowserContext) {
     const envelope = { ok: true, requestId: body.requestId };
     if (body.operation === "list") return route.fulfill({ json: { ...envelope,data: { items: [],nextCursor: null,draftRevision: String(revision) } } });
     const request = parsePublicationRequest(body);
+    if (request.operation === "publication-game") throw new Error("Unexpected preview round");
     const receipt = receipts.get(request.idempotencyKey);
     if (receipt) return route.fulfill({ json: { ...envelope,data: receipt } });
     if (request.input.expectedDraftRevision !== String(revision)) return route.fulfill({ status: 409,json: { ok: false, requestId: body.requestId, error: { code: "REVISION_CONFLICT", message: "Revision conflict" } } });
     if (request.operation === "publication-preview") {
       builds++;
-      return route.fulfill({ json: { ...envelope,data: { buildId: fixtureId(300+builds),contentHash: "a".repeat(64),valid: true,errors: [],errorCount: 0,coverage: Object.fromEntries([3,5,7,9].map(n => [n,{ guesses: 1,answers: 1 }])),draftRevision: String(revision),expectedCurrentReleaseId: fixtureId(90),configuration: { configurationId,attemptLimit: attempts,normalizerVersion: "vi-nfc-v2" },sourceCount: 1,attributionCount: 1,playerSamples: { "3": [],"5": [],"7": [],"9": [] },sampleAttributions: [] } } });
+      return route.fulfill({ json: { ...envelope,data: { buildId: fixtureId(300+builds),contentHash: "a".repeat(64),valid: true,errors: [],errorCount: 0,payloadBytes: 1024,changes: Object.fromEntries([3,5,7,9].map(n => [n,{ guesses: { added: 0, removed: 0 }, answers: { added: 0, removed: 0 } }])),coverage: Object.fromEntries([3,5,7,9].map(n => [n,{ guesses: 1,answers: 1 }])),draftRevision: String(revision),expectedCurrentReleaseId: fixtureId(90),configuration: { configurationId,attemptLimit: attempts,normalizerVersion: "vi-nfc-v2" },sourceCount: 1,sources: [{ id: fixtureId(80), name: "Synthetic source", revision: "source-v1" }],attributionCount: 1,playerSamples: { "3": [],"5": [],"7": [],"9": [] },sampleAttributions: [] } } });
     }
     if (request.operation === "configuration") {
       attempts = request.input.attemptLimit; revision++; configurationId = fixtureId(200+revision); control.commits++;
@@ -52,6 +53,7 @@ test("bounded attempt drafts retry safely and stay private until a refreshed rel
   const publish = page.getByRole("button",{ name: /Xuất bản bản đã duyệt/ }); await expect(publish).toBeDisabled();
   await page.getByRole("button",{ name: /Làm mới bản xem trước/ }).click();
   await expect(publish).toBeEnabled(); await publish.click();
+  await page.getByRole("button", { name: "Xác nhận xuất bản", exact: true }).click();
   await expect.poll(() => control.liveAttempts).toBe(1); expect(control.liveConfigurationId).not.toBe(fixtureId(91));
 });
 test("concurrent configuration and publication reject stale drafts without silently rebasing", async ({ page, context }) => {
@@ -67,5 +69,6 @@ test("concurrent configuration and publication reject stale drafts without silen
   await page.getByLabel("Số lượt đoán (1–12)").fill("6"); await page.getByRole("button",{ name: "Lưu cấu hình nháp",exact: true }).click();
   await expect.poll(() => control.commits).toBe(2);
   await other.getByRole("button",{ name: /Xuất bản bản đã duyệt/ }).click();
+  await other.getByRole("button", { name: "Xác nhận xuất bản", exact: true }).click();
   await expect(other.getByRole("alert").filter({ hasText: /đã cũ/ })).toBeVisible(); expect(control.liveAttempts).toBe(6);
 });

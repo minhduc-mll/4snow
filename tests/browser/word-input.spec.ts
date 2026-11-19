@@ -161,7 +161,7 @@ for (const width of [320,375]) test(`nine-letter input and picker fit ${width}px
   await expect(input(page)).toBeFocused(); await expect(input(page)).toHaveValue("Ậ");
   await page.screenshot({ path: `output/playwright/input-${width}.png`,fullPage: true });
   await page.getByRole("button",{ name: "Cách chơi", exact: true }).click();
-  await expect(page.getByRole("list",{ name: /Chú thích gợi ý|Feedback legend/i })).toContainText("✓");
+  await expect(page.getByRole("list",{ name: /Chú thích gợi ý|Feedback legend/i })).not.toContainText(/[✓↔×]/);
   await page.getByRole("button",{ name: /Đóng hướng dẫn|Close help/i }).click();
   expect(await page.getByRole("button",{ name: /Xóa chữ cuối|Delete last letter/i }).evaluate(element => getComputedStyle(element).transitionDuration)).toBe("0s");
 });

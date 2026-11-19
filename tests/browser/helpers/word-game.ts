@@ -21,10 +21,16 @@ export async function dictionary(page: Page, limit = 6) {
 export const input = (page: Page) => page.getByRole("textbox",{ name: /Nhập từ tiếng Việt|Enter a Vietnamese word/i });
 export const board = (page: Page) => page.getByRole("list",{ name: /Bảng đoán từ|Guess board/i });
 export const submit = (page: Page) => page.getByRole("button",{ name: "Gửi đáp án", exact: true });
-export async function start(page: Page, level: WordLevel = 3) {
+export async function start(page: Page, level: WordLevel = 3, mode: "dictionary" | "free" = "dictionary") {
   await page.goto("/vua-tieng-viet");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button",{ name: new RegExp(`^${level} (chữ|letters)$`) }).click();
+  if (level !== 3 || mode !== "dictionary") {
+    await page.getByRole("button",{ name: /Cài đặt|Settings/i, exact: true }).click();
+    const settings = page.getByRole("dialog");
+    await settings.getByRole("button",{ name: new RegExp(`^${level} (chữ|letters)$`) }).click();
+    if (mode === "free") await settings.getByRole("button",{ name: /Tự do|Free/i, exact: true }).click();
+    await settings.getByRole("button",{ name: /Áp dụng|Apply/i, exact: true }).click();
+  }
   await page.getByRole("button",{ name: /Bắt đầu ván|Start round/i }).click();
   await expect(input(page)).toBeEnabled();
 }

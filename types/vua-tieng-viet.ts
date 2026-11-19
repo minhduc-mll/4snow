@@ -1,4 +1,10 @@
 export type WordLevel = 3 | 5 | 7 | 9;
+export type GuessMode = "dictionary" | "free";
+export type RoundRules = { guessMode: GuessMode };
+export type RoundSettings = { level: WordLevel; guessMode: GuessMode };
+export type GuessEligibility =
+  | { canSubmit: true; normalized: string }
+  | { canSubmit: false; reason: "incomplete" | "composing" | "invalid" | "not-in-dictionary" | "absent-letter" | "unavailable" };
 export type LetterFeedback = "correct" | "present" | "absent";
 export type RoundStatus = "playing" | "won" | "lost";
 export type WordAnswer = { id: string; original: string; normalized: string; level: WordLevel; definitionVi: string; attributionIds: string[] };
@@ -8,5 +14,5 @@ export type ReleasePayload = { schemaVersion: 1; normalizerVersion: "vi-nfc-v2";
 export type PublishedRelease = { payload: ReleasePayload; payloadHash: string; publishedAt: string };
 export type CurrentRelease = { releaseId: string; pointerRevision: string };
 export type WordGuess = { id: string; input: string; normalized: string; feedback: LetterFeedback[]; submittedAt: string };
-export type WordRound = { id: string; releaseId: string; configVersion: string; level: WordLevel; answerId: string; attemptLimit: number; input: string; guesses: WordGuess[]; status: RoundStatus; revision: number; startedAt: string; updatedAt: string; endedAt: string | null };
+export type WordRound = { id: string; releaseId: string; configVersion: string; level: WordLevel; rules: RoundRules; answerId: string; attemptLimit: number; input: string; guesses: WordGuess[]; status: RoundStatus; revision: number; startedAt: string; updatedAt: string; endedAt: string | null };
 export type PlayableRound = { round: WordRound; answer: WordAnswer; membership: string[]; attributions: PublicAttribution[]; singleAnswerReplay: boolean };

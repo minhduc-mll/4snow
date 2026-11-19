@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { InputProps } from "@/components/atoms/Input";
 import type { PlayableRound } from "@/types/vua-tieng-viet";
-import { commitInput, keyboardKnowledge, submitGuess, type PlayerErrorCode } from "@/lib/vua-tieng-viet/player-engine";
+import { commitInput, guessEligibility, keyboardKnowledge, submitGuess, type PlayerErrorCode } from "@/lib/vua-tieng-viet/player-engine";
 import { normalizeSpelling } from "@/lib/vua-tieng-viet/dictionary-contract";
 
 type Options = {
@@ -12,14 +12,13 @@ type Options = {
   loading: React.RefObject<boolean>;
   conflict: React.RefObject<boolean>;
   busy: boolean;
-  conflicted: boolean;
   dialogOpen: boolean;
   replace: (next: PlayableRound) => void;
   setError: (error: PlayerErrorCode | null) => void;
 };
 
 /** Adapts browser input and focus to the same committed game transitions. */
-export function useWordInput({ state, current, loading, conflict, busy, conflicted, dialogOpen, replace, setError }: Options) {
+export function useWordInput({ state, current, loading, conflict, busy, dialogOpen, replace, setError }: Options) {
   const [draft,setDraft] = React.useState<string | null>(null);
   const composing = React.useRef(false), suppressEnter = React.useRef(false), processing = React.useRef(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -27,7 +26,22 @@ export function useWordInput({ state, current, loading, conflict, busy, conflict
   const openerRef = React.useRef<HTMLButtonElement | null>(null);
   const reset = React.useCallback(() => { setDraft(null); composing.current = false; suppressEnter.current = false; },[]);
   const roundId = state?.round.id, guessCount = state?.round.guesses.length;
-  React.useEffect(() => { if (roundId) inputRef.current?.focus(); },[roundId,guessCount]);
+  const terminal = state?.round.status === "lost" || state?.round.status === "won";
+  const focusedTransition = React.useRef<string | null>(null);
+  const focusInput = () => {
+    const element = inputRef.current;
+    if (element && !element.disabled) element.focus({ preventScroll: true });
+  };
+  React.useEffect(() => {
+    if (!roundId || busy || dialogOpen) return;
+    const transition = `${roundId}:${guessCount}`;
+    if (focusedTransition.current === transition) return;
+    focusedTransition.current = transition;
+    const active = document.activeElement;
+    if (active && active !== document.body && active !== inputRef.current && active !== actionRef.current) return;
+    if (terminal) actionRef.current?.focus({ preventScroll: true });
+    else inputRef.current?.focus({ preventScroll: true });
+  },[roundId,guessCount,terminal,busy,dialogOpen]);
   const edit = (raw: string) => {
     if (loading.current || processing.current || conflict.current || !current.current) return;
     if (composing.current) { setDraft(raw); return; }
@@ -37,6 +51,7 @@ export function useWordInput({ state, current, loading, conflict, busy, conflict
   };
   const submit = () => {
     if (!current.current || loading.current || processing.current || conflict.current || composing.current || current.current.round.status !== "playing" || dialogOpen) return;
+    focusInput();
     processing.current = true;
     try {
       const timestamp = new Date(Math.max(Date.now(),Date.parse(current.current.round.updatedAt))).toISOString();
@@ -49,7 +64,7 @@ export function useWordInput({ state, current, loading, conflict, busy, conflict
     if (!current.current || composing.current) return;
     const raw = current.current.round.input.normalize("NFC");
     edit(letter === "Backspace" ? Array.from(raw.trimEnd()).slice(0,-1).join("") : raw + letter);
-    if (restoreFocus) inputRef.current?.focus();
+    if (restoreFocus) focusInput();
   };
   const compositionStart = () => { if (current.current?.round.status === "playing") { composing.current = true; suppressEnter.current = false; setDraft(current.current.round.input); } };
   const caretToEnd = (element: HTMLInputElement) => {
@@ -91,13 +106,13 @@ export function useWordInput({ state, current, loading, conflict, busy, conflict
   };
   let letters: string[] = [];
   try { letters = Array.from(normalizeSpelling(state?.round.input ?? "").normalized); } catch { /* Committed state is validated; composition is displayed separately. */ }
-  const canSubmit = !!state && state.round.status === "playing" && letters.length === state.round.level && draft === null && !busy && !conflicted;
+  const eligibility = guessEligibility(state,draft !== null,busy || dialogOpen);
   const knowledge = React.useMemo(() => keyboardKnowledge(state?.round.guesses ?? []),[state?.round.guesses]);
   return {
-    field, letters, draft, canSubmit, submit, actionRef, reset,
-    keyboard: { knowledge, disabled: disabled || draft !== null, onKey: virtualKey, focusInput: () => inputRef.current?.focus() },
+    field, letters, draft, eligibility, submit, actionRef, reset, focusInput,
+    keyboard: { knowledge, disabled: disabled || draft !== null, blockAbsentLetters: state?.round.rules.guessMode === "dictionary", onKey: virtualKey, focusInput },
     rememberOpener: (element: HTMLButtonElement) => { openerRef.current = element; },
-    restoreFocus: () => openerRef.current?.focus(),
-    restoreConflictFocus: () => { if (inputRef.current && !inputRef.current.disabled) inputRef.current.focus(); else actionRef.current?.focus(); },
+    restoreFocus: () => openerRef.current?.focus({ preventScroll: true }),
+    restoreConflictFocus: () => { if (inputRef.current && !inputRef.current.disabled) focusInput(); else actionRef.current?.focus({ preventScroll: true }); },
   };
 }

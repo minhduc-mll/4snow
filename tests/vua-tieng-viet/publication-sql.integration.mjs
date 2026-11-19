@@ -17,7 +17,18 @@ try {
   const preview = JSON.parse(sql(`select public.vtv_publication_preview('${randomUUID()}','${randomUUID()}','${"a".repeat(64)}',1);`));
   const payload = JSON.parse(sql(`select payload from private.vtv_release_builds where id='${preview.buildId}';`));
   assert.equal(preview.contentHash, createHash("sha256").update(canonicalJson(payload)).digest("hex"), "SQL/JS canonical hash parity");
-  const concurrent = await Promise.allSettled([1,2].map(() => promisify(execFile)("docker", ["exec", container, "psql", "-U", "postgres", "-d", database, "-v", "ON_ERROR_STOP=1", "-At", "-c", `select public.vtv_publish('${randomUUID()}','${randomUUID()}','${"b".repeat(64)}','${preview.buildId}',1,null);`], { encoding: "utf8" })));
+  assert.equal(preview.payloadBytes, Buffer.byteLength(canonicalJson(payload)), "SQL/JS UTF-8 size parity");
+  assert.deepEqual(preview.changes[3], { guesses: { added: preview.coverage[3].guesses, removed: 0 }, answers: { added: preview.coverage[3].answers, removed: 0 } });
+  for (const role of ["anon", "authenticated"]) {
+    assert.equal(sql(`select has_function_privilege('${role}', 'public.vtv_preview_game(uuid,text)', 'execute');`).trim(), "f");
+    assert.equal(sql(`select has_function_privilege('${role}', 'public.vtv_publish_confirmed(uuid,uuid,text,uuid,bigint,uuid,text)', 'execute');`).trim(), "f");
+  }
+  assert.equal(sql("select has_function_privilege('service_role', 'public.vtv_publish(uuid,uuid,text,uuid,bigint,uuid)', 'execute');").trim(), "f");
+  const game = JSON.parse(sql(`select public.vtv_preview_game('${preview.buildId}','${preview.contentHash}');`));
+  assert.deepEqual((await validateReleaseRow([game],game.id)).payload,payload);
+  assert.equal(sql("select count(*) from public.vtv_current_release;").trim(), "0", "Preview play keeps public pointer untouched");
+  assert.throws(() => sql(`select public.vtv_publish_confirmed('${randomUUID()}','${randomUUID()}','${"b".repeat(64)}','${preview.buildId}',1,null,'${"c".repeat(64)}');`), /REVISION_CONFLICT/);
+  const concurrent = await Promise.allSettled([1,2].map(() => promisify(execFile)("docker", ["exec", container, "psql", "-U", "postgres", "-d", database, "-v", "ON_ERROR_STOP=1", "-At", "-c", `select public.vtv_publish_confirmed('${randomUUID()}','${randomUUID()}','${"b".repeat(64)}','${preview.buildId}',1,null,'${preview.contentHash}');`], { encoding: "utf8" })));
   assert.equal(concurrent.filter(result => result.status === "fulfilled").length, 1, "Exactly one concurrent publisher succeeds");
   const failed = concurrent.find(result => result.status === "rejected");
   assert.ok(failed && failed.reason.stderr.includes("REVISION_CONFLICT"));
@@ -27,5 +38,9 @@ try {
   const publicRows = JSON.parse(sql("set role anon; select json_agg(r) from public.vtv_releases r;").replace(/^SET\s*/,""));
   const playable = await validateReleaseRow(publicRows,publicPointer.releaseId);
   assert.equal(playable.payload.levels[9].answers[0].normalized,"TIẾNGVIỆT");
+  const revisionAfterPublish = sql("select revision from private.vtv_draft where id=1;").trim();
+  const nextBuild = JSON.parse(sql(`select public.vtv_publication_preview('${randomUUID()}','${randomUUID()}','${"a".repeat(64)}',${revisionAfterPublish});`));
+  assert.equal(nextBuild.expectedCurrentReleaseId, publicPointer.releaseId);
+  assert.deepEqual(nextBuild.changes[3], { guesses: { added: 0, removed: 0 }, answers: { added: 0, removed: 0 } });
   console.log("PASS publication SQL in disposable local database");
 } finally { run(["exec", container, "dropdb", "-U", "postgres", database]); }

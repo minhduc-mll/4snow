@@ -3,6 +3,7 @@ import { parseStrictJson } from "./strict-json.ts";
 import { ImportOperationError, type PreviewDependencies, type ImportConflictReason, type ImportConflictLocation } from "./trusted-dictionary-types.ts";
 import { handleImport } from "./trusted-dictionary-import.ts";
 import { handleEditorial } from "./trusted-dictionary-editorial.ts";
+import { handleBulkReview } from "./trusted-dictionary-bulk.ts";
 import { handlePublication } from "./trusted-dictionary-publication.ts";
 export { ImportOperationError } from "./trusted-dictionary-types.ts";
 export type { ImportErrorCode, ImportConflictReason, ImportConflictLocation, PreviewDependencies } from "./trusted-dictionary-types.ts";
@@ -46,7 +47,8 @@ export async function handlePreview(request: Request, config: PreviewDependencie
     const body = parseStrictJson(text, 520 * 1024, 512 * 1024, 64 * 1024);
     if (typeof body !== "object" || body === null || Array.isArray(body) || !("operation" in body)) return respond(400, "INVALID_INPUT", "Invalid request");
     const context = { config, cors, respond };
-    if (body.operation === "publication-preview" || body.operation === "publish" || body.operation === "configuration") return await handlePublication(body, context);
+    if (body.operation === "bulk-create" || body.operation === "bulk-page" || body.operation === "bulk-apply") return await handleBulkReview(body, text, context);
+    if (body.operation === "publication-game" || body.operation === "publication-preview" || body.operation === "publish" || body.operation === "configuration") return await handlePublication(body, context);
     if (body.operation === "list" || body.operation === "detail" || body.operation === "list-history" || body.operation === "review" || body.operation === "rights-review" || body.operation === "select-answer" || body.operation === "collision") return await handleEditorial(body, text, context);
     return await handleImport(body, text, context);
   } catch (error) {

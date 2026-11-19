@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 
 const container = "supabase_db_4snow";
 const suite = process.argv[2] ?? "import";
-if (suite !== "import" && suite !== "editorial") throw new Error("Expected import or editorial SQL suite");
+if (!["import", "editorial", "bulk"].includes(suite)) throw new Error("Expected import, editorial, or bulk SQL suite");
 const database = `vtv_verify_${randomUUID().replaceAll("-", "")}`;
 let created = false;
 const docker = (args, input) => execFileSync("docker", args, { input, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });

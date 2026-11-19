@@ -22,7 +22,7 @@ function KeepSection({ active, children }: { active: boolean; children: React.Re
 
 export default function AdminPage(): React.ReactElement {
   const { t } = useAppI18n();
-  const { state: authState, login, logout: handleLogout } = useAdminSession();
+  const { state: authState, login, logout: handleLogout, expire: handleExpiry } = useAdminSession();
   const { section, sections } = useAdminNavigation();
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -56,7 +56,7 @@ export default function AdminPage(): React.ReactElement {
           {section === "overview" && <section aria-labelledby="overview-heading" className="grid gap-4"><div><h2 id="overview-heading" className="text-2xl font-semibold">{t("adminNav.overview")}</h2><p className="text-muted-foreground">{t("adminNav.intro")}</p></div><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{sections.filter((item) => item !== "overview").map((item) => <a key={item} href={`#${item}`} className="rounded-lg border bg-card p-5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary hover:bg-muted"><h3 className="font-semibold">{t(`adminNav.${item}`)}</h3><p className="mt-2 text-sm text-muted-foreground">{t(`adminNav.${item}Description`)}</p></a>)}</div></section>}
           <KeepSection active={section === "lucky-draw"}><LuckyDrawAdminPanel /></KeepSection>
           <KeepSection active={section === "quiz"}><QuizImportPanel /></KeepSection>
-          <KeepSection active={section === "dictionary"}><DictionaryWorkflow onUnauthorized={handleLogout} /></KeepSection>
+          <KeepSection active={section === "dictionary"}><DictionaryWorkflow onUnauthorized={handleExpiry} /></KeepSection>
         </div>
       </div>
     </div>

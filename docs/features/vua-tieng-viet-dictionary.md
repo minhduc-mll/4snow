@@ -1,6 +1,6 @@
 # Vua tiếng Việt Dictionary and Administration Requirements
 
-Status: Product decisions confirmed. This document specifies future implementation; the current work is documentation only.
+The [improvement specification](./vua-tieng-viet-improvement-plan.md) extends these requirements and records the acceptance gates for rollout.
 
 Implementation handoff: [implementation-ready specification](./vua-tieng-viet-spec.md), including versioned imports, database/RLS design, trusted operation contracts, and publication tests.
 
@@ -12,11 +12,11 @@ Use Kaikki/Wiktionary for Vietnamese words and definitions. Prefer Vietnamese-la
 
 Use Underthesea-related lexical resources to expand candidate guesses. Underthesea tokenization output alone is not proof that an expression is a valid dictionary entry. Identify the specific resource, revision, provenance, and usage rights before importing it. Underthesea candidates require explicit editorial approval and cannot automatically become answers.
 
-Every imported candidate requires review before publication. Accepted guesses require verified spelling and eligibility; answer entries additionally require a reviewed Vietnamese definition linked to the chosen meaning. Administrators can review and edit both. Preserve provenance when editing.
+Every imported candidate requires an explicit decision before publication. A confirmed group decision creates a separate audited outcome for each eligible entry in its frozen selection. Accepted guesses require verified spelling and eligibility; answer entries additionally require a reviewed Vietnamese definition linked to the chosen meaning. Administrators can review and edit both. Preserve provenance when editing.
 
 Prepare source data offline and export versioned JSON for upload through `/admin`. Underthesea tooling, when needed, runs only during offline preparation. Add no deployed Python or Node server, runtime source scraping, or source-fetch requirement to the application.
 
-The JSON format must identify its schema version, source artifact revisions, provenance/rights records, and candidate entries. Browser previews report validation errors; trusted import validation remains authoritative. Uploading an artifact creates private candidates, never automatically published content. Specify the exact typed format and size/batch limits before implementing the importer.
+The JSON format must identify its schema version, source artifact revisions, provenance/rights records, and candidate entries. Browser previews report validation errors; trusted import validation remains authoritative. Uploading an artifact creates private candidates, never automatically published content. Select all pre-split parts or a single complete JSON with the same metadata and without chunkIndex/chunkCount. Preflight reports entry counts, sources, lengths, spellings, meanings, and location-specific issues. The browser generates parts up to 200 entries and 512 KiB UTF-8, with up to 100 parts per session. Start sends a sequential queue and resumes from backend receipts with matching hashes. After session loss, sign in again to continue using files already selected in the same tab. The browser holds only those original file references in memory, clears previews, and checks backend receipts again. Reloading the page requires selecting the same files.
 
 ## 2. Provenance and licensing
 
@@ -47,9 +47,11 @@ Admin capabilities:
 - Filter by source, normalized length, review status, definition availability, and normalized collisions.
 - Edit spelling and Vietnamese definitions while retaining previous revisions and provenance.
 - Approve or reject candidates and separately control answer eligibility.
-- Preview the exact player-facing answer, definition, and attribution.
+- Preview the exact player-facing answer, definition, and attribution. Compare release membership and answer counts, and test the build in an isolated round.
 - Inspect coverage for all four levels before publication.
 - Publish approved content and configure the attempt limit.
+
+Freeze row, page, and filtered selections by entry and revision before confirmation. Review the scope and blockers, then apply bounded batches of up to 100 entries with trusted checks and receipts. Resolve stale entries and exceptional meanings separately. Review current rights and evidence per source version. A metadata revision requires a new rights decision.
 
 Use immutable revisions and append-only editorial events where practical. Every mutation records timestamps, input, outcome, and relevant configuration/revision. Never include passwords, JWTs, or secrets in audit records. The shared admin JWT identifies a role, not an individual editor; do not claim per-person attribution.
 
@@ -111,7 +113,7 @@ Build a complete validated release before changing what players can read. Public
 
 Require coverage for all four levels, unique normalized answers, valid guess membership, reviewed definitions, and source/rights completeness. A failed publication leaves the previous published release usable. Only explicitly approved content enters a release.
 
-Use revision checks to reject stale admin edits and prevent silent overwrites. Deduplicate retried trusted operations.
+Use revision checks to reject stale admin edits and prevent silent overwrites. Confirm the preview build and content hash before atomically publishing. Deduplicate retried trusted operations.
 
 Published release content is immutable. Publish corrections as a new release and atomically change the current-release pointer only after validation succeeds. New rounds use the current release; active and restored rounds use their saved release/configuration snapshots as specified in the gameplay document.
 

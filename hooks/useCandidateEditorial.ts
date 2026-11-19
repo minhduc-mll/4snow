@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
 import { requestPrivateDictionary } from "@/lib/vua-tieng-viet/private-request";
@@ -9,7 +9,7 @@ import { parseEditorialRequest, type Category, type ExclusionChecks, type Filter
 import { parseCollisionPage } from "@/lib/vua-tieng-viet/collision-response";
 
 type Summary = { id: string; sourceId: string; original: string; normalized: string; level: number; definitionVi: string | null; review: ReviewStatus; collision: boolean; revisionNumber: number };
-type Revision = { id: string; revisionNumber: number; original: string; normalized: string; level: number; definitionVi: string | null; review: ReviewStatus; answerEligible: boolean; category: Category | null; rationale: string | null; exclusionChecks: ExclusionChecks | null; createdAt: string | null; actorRole: string | null };
+type Revision = { id: string; revisionNumber: number; original: string; normalized: string; level: number; definitionVi: string | null; review: ReviewStatus; answerEligible: boolean; category: Category | null; rationale: string | null; exclusionChecks: ExclusionChecks | null; createdAt: string | null; actorRole: string | null; bulkBatchId: string | null };
 type HistoryPage = { items: Revision[]; nextCursor: string | null };
 type Attribution = { id: string; sourceName: string; sourceEntryId: string; sourceSenseId: string | null; entryUrl: string; artifactUrl: string; artifactSha256: string; resourceRevision: string; artifactRevision: string; licenseName: string; licenseVersion: string | null; licenseUrl: string; attributionText: string; historyUrl: string | null; modificationsNotice: string };
 type RightsReview = { id: string; previousReviewId: string | null; decision: RightsDecision; evidence: string; obligations: string; createdAt: string; actorRole: string };
@@ -33,7 +33,7 @@ function rightsReview(value: unknown): RightsReview | null {
 function checks(value: unknown): value is ExclusionChecks | null { return value === null || (rec(value) && typeof value.names === "boolean" && typeof value.abbreviations === "boolean" && typeof value.offensive === "boolean" && typeof value.malformed === "boolean" && typeof value.unverified === "boolean"); }
 function revision(value: unknown): Revision {
   if (!rec(value) || typeof value.id !== "string" || typeof value.revisionNumber !== "number" || typeof value.original !== "string" || typeof value.normalized !== "string" || typeof value.level !== "number" || !nullableString(value.definitionVi) || !status(value.review) || typeof value.answerEligible !== "boolean" || !category(value.category) || !nullableString(value.rationale) || !checks(value.exclusionChecks)) throw new Error("INVALID_RESPONSE");
-  return { id: value.id, revisionNumber: value.revisionNumber, original: value.original, normalized: value.normalized, level: value.level, definitionVi: value.definitionVi, review: value.review, answerEligible: value.answerEligible, category: value.category, rationale: value.rationale, exclusionChecks: value.exclusionChecks, createdAt: typeof value.createdAt === "string" ? value.createdAt : null, actorRole: typeof value.actorRole === "string" ? value.actorRole : null };
+  return { id: value.id, revisionNumber: value.revisionNumber, original: value.original, normalized: value.normalized, level: value.level, definitionVi: value.definitionVi, review: value.review, answerEligible: value.answerEligible, category: value.category, rationale: value.rationale, exclusionChecks: value.exclusionChecks, createdAt: typeof value.createdAt === "string" ? value.createdAt : null, actorRole: typeof value.actorRole === "string" ? value.actorRole : null, bulkBatchId: typeof value.bulkBatchId === "string" ? value.bulkBatchId : null };
 }
 function history(value: unknown): HistoryPage {
   if (!rec(value) || !Array.isArray(value.items) || value.items.length > 50 || !nullableString(value.nextCursor)) throw new Error("INVALID_RESPONSE");
@@ -53,10 +53,10 @@ function detail(value: unknown): Detail {
   return { id: value.id, sourceId: value.sourceId, rightsReview: rightsReview(value.rightsReview), attributionPreview: attribution(value.attributionPreview), entryUrl: value.entryUrl, sourceEntryId: value.sourceEntryId, sourceSenseId: value.sourceSenseId, sourceNotes: value.sourceNotes, source: { name: value.source.name, artifactUrl: value.source.artifactUrl, artifactSha256: value.source.artifactSha256, resourceRevision: value.source.resourceRevision, originDump: value.source.originDump, retrievedAt: value.source.retrievedAt, rights: { licenseName: value.source.rights.licenseName, licenseVersion: value.source.rights.licenseVersion, licenseUrl: value.source.rights.licenseUrl, attributionText: value.source.rights.attributionText, historyUrl: value.source.rights.historyUrl, redistributionNote: value.source.rights.redistributionNote, modificationsNotice: value.source.rights.modificationsNotice } }, current: revision(value.current), draftRevision: value.draftRevision, history: history(value.history) };
 }
 
-export function useRightsReviewForm(sourceId: string, draftRevision: string, save: (input: RightsReviewInput, retry: boolean) => Promise<void>) {
-  const [decision, setDecision] = React.useState<RightsDecision>("unresolved");
-  const [evidence, setEvidence] = React.useState("");
-  const [obligations, setObligations] = React.useState("");
+export function useRightsReviewForm(sourceId: string, draftRevision: string, current: RightsReview | null, save: (input: RightsReviewInput, retry: boolean) => Promise<void>) {
+  const [decision, setDecision] = React.useState<RightsDecision>(current?.decision ?? "unresolved");
+  const [evidence, setEvidence] = React.useState(current?.evidence ?? "");
+  const [obligations, setObligations] = React.useState(current?.obligations ?? "");
   const [invalid, setInvalid] = React.useState(false);
   const input: RightsReviewInput = { sourceId, expectedDraftRevision: draftRevision, decision, evidence, obligations };
   const submit = (): void => {
@@ -67,7 +67,8 @@ export function useRightsReviewForm(sourceId: string, draftRevision: string, sav
     } catch { setInvalid(true); }
   };
   const changeDecision = (next: string): void => { if (next === "cleared" || next === "unresolved" || next === "rejected") setDecision(next); };
-  return { decision, changeDecision, evidence, setEvidence, obligations, setObligations, invalid, submit, retry: () => void save(input, true) };
+  const reset = () => { setDecision(current?.decision ?? "unresolved"); setEvidence(current?.evidence ?? ""); setObligations(current?.obligations ?? ""); setInvalid(false); };
+  return { decision, changeDecision, evidence, setEvidence, obligations, setObligations, invalid, submit, reset, retry: () => void save(input, true) };
 }
 
 export function useCandidateEditorial(onUnauthorized: () => void) {
