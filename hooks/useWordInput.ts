@@ -17,12 +17,24 @@ type Options = {
   setError: (error: PlayerErrorCode | null) => void;
 };
 
+const touchInputQuery = "(hover: none) and (pointer: coarse)";
+const usesTouchInput = () => window.matchMedia(touchInputQuery).matches;
+const desktopServerSnapshot = () => false;
+
+function subscribeToTouchInput(onChange: () => void) {
+  const media = window.matchMedia(touchInputQuery);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
 /** Adapts browser input and focus to the same committed game transitions. */
 export function useWordInput({ state, current, loading, conflict, busy, dialogOpen, replace, setError }: Options) {
+  const touchInput = React.useSyncExternalStore(subscribeToTouchInput, usesTouchInput, desktopServerSnapshot);
   const [draft,setDraft] = React.useState<string | null>(null);
   const composing = React.useRef(false), suppressEnter = React.useRef(false), processing = React.useRef(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const actionRef = React.useRef<HTMLButtonElement>(null);
+  const nativeKeyboardButtonRef = React.useRef<HTMLButtonElement>(null);
   const openerRef = React.useRef<HTMLButtonElement | null>(null);
   const reset = React.useCallback(() => { setDraft(null); composing.current = false; suppressEnter.current = false; },[]);
   const roundId = state?.round.id, guessCount = state?.round.guesses.length;
@@ -30,7 +42,17 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
   const focusedTransition = React.useRef<string | null>(null);
   const focusInput = () => {
     const element = inputRef.current;
-    if (element && !element.disabled) element.focus({ preventScroll: true });
+    if (usesTouchInput() || !element || element.disabled) return false;
+    element.focus({ preventScroll: true });
+    return true;
+  };
+  const openNativeKeyboard = () => {
+    const element = inputRef.current;
+    if (!element || element.disabled || dialogOpen) return;
+    // The OS can dismiss its keyboard while leaving the input focused.
+    if (document.activeElement === element) element.blur();
+    element.inputMode = "text";
+    element.focus({ preventScroll: true });
   };
   React.useEffect(() => {
     if (!roundId || busy || dialogOpen) return;
@@ -40,7 +62,7 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
     const active = document.activeElement;
     if (active && active !== document.body && active !== inputRef.current && active !== actionRef.current) return;
     if (terminal) actionRef.current?.focus({ preventScroll: true });
-    else inputRef.current?.focus({ preventScroll: true });
+    else if (!usesTouchInput()) inputRef.current?.focus({ preventScroll: true });
   },[roundId,guessCount,terminal,busy,dialogOpen]);
   const edit = (raw: string) => {
     if (loading.current || processing.current || conflict.current || !current.current) return;
@@ -75,6 +97,11 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
     ref: inputRef,
     value: draft ?? state?.round.input ?? "",
     disabled,
+    inputMode: touchInput ? "none" : undefined,
+    tabIndex: touchInput ? -1 : undefined,
+    onBlur: event => {
+      if (usesTouchInput()) event.currentTarget.inputMode = "none";
+    },
     onChange: event => {
       if ("isComposing" in event.nativeEvent && event.nativeEvent.isComposing === true && !composing.current) compositionStart();
       edit(event.currentTarget.value);
@@ -110,9 +137,14 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
   const knowledge = React.useMemo(() => keyboardKnowledge(state?.round.guesses ?? [], state?.round.rules.accuracy),[state?.round.guesses, state?.round.rules.accuracy]);
   return {
     field, letters, draft, eligibility, submit, actionRef, reset, focusInput,
-    keyboard: { knowledge, disabled: disabled || draft !== null, blockAbsentLetters: Boolean(state?.round.rules.accuracy) || state?.round.rules.guessMode === "dictionary", onKey: virtualKey, focusInput },
+    keyboard: { knowledge, disabled: disabled || draft !== null, blockAbsentLetters: Boolean(state?.round.rules.accuracy) || state?.round.rules.guessMode === "dictionary", onKey: virtualKey, focusInput, openNativeKeyboard, nativeKeyboardButtonRef },
     rememberOpener: (element: HTMLButtonElement) => { openerRef.current = element; },
     restoreFocus: () => openerRef.current?.focus({ preventScroll: true }),
-    restoreConflictFocus: () => { if (inputRef.current && !inputRef.current.disabled) focusInput(); else actionRef.current?.focus({ preventScroll: true }); },
+    restoreConflictFocus: () => {
+      if (inputRef.current && !inputRef.current.disabled) {
+        if (usesTouchInput()) nativeKeyboardButtonRef.current?.focus({ preventScroll: true });
+        else focusInput();
+      } else actionRef.current?.focus({ preventScroll: true });
+    },
   };
 }

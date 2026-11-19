@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { board, dictionary, input, submit } from "./helpers/word-game";
+import { board, dictionary, input, start, submit } from "./helpers/word-game";
 
 test("setup leads to a compact game and a finished round can select a new length", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
@@ -32,4 +32,43 @@ test("setup leads to a compact game and a finished round can select a new length
   await confirm.click();
   await expect(input(page)).toBeEnabled();
   await expect(board(page).getByRole("img")).toHaveCount(30);
+});
+
+test.describe("touch input", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 375, height: 667 } });
+
+  test("the device keyboard opens on demand and remains closed during board and game-key interactions", async ({ page }) => {
+    await dictionary(page);
+    await start(page);
+    const field = input(page);
+    const openKeyboard = page.getByRole("button", { name: "Mở bàn phím điện thoại" });
+    const gameKeyboard = page.getByRole("region", { name: "Bàn phím trên màn hình" });
+
+    await expect(field).toHaveAttribute("inputmode", "none");
+    await expect(field).not.toBeFocused();
+    await board(page).getByRole("img").first().tap();
+    await expect(field).not.toBeFocused();
+
+    await openKeyboard.tap();
+    await expect(field).toBeFocused();
+    await expect(field).toHaveAttribute("inputmode", "text");
+    await field.fill("SÔ");
+    await field.blur();
+    await expect(field).toHaveAttribute("inputmode", "none");
+
+    await gameKeyboard.getByRole("button", { name: "I", exact: true }).tap();
+    await expect(field).toHaveValue("SÔI");
+    await expect(field).not.toBeFocused();
+    await submit(page).tap();
+    await expect(board(page).locator("[data-feedback]")).toHaveCount(3);
+    await expect(field).not.toBeFocused();
+
+    await openKeyboard.tap();
+    await expect(field).toBeFocused();
+    await field.blur();
+    await gameKeyboard.getByRole("button", { name: "Dấu cho E" }).tap();
+    await page.getByRole("button", { name: "Nhập chữ È", exact: true }).tap();
+    await expect(field).toHaveValue("È");
+    await expect(field).not.toBeFocused();
+  });
 });
