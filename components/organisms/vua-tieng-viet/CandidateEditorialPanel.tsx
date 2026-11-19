@@ -60,9 +60,13 @@ function ReviewEditor({ detail, save, saving, canRetry }: { detail: Detail; save
       <fieldset className="grid gap-2"><legend className="font-medium">{t("editorial.checks")}</legend>{checkNames.map((name) => <label className="flex items-center gap-2" key={name}><input type="checkbox" checked={form.checks[name]} onChange={(event) => form.setCheck(name, event.target.checked)} />{t(`editorial.check_${name}`)}</label>)}</fieldset>
       <label htmlFor="editorial-rationale">{t("editorial.rationale")}</label><textarea id="editorial-rationale" className={selectClass} maxLength={2000} value={form.rationale} onChange={(event) => form.setRationale(event.target.value)} />
       </fieldset>
-      {form.category === "common" && /(^|[^\p{L}])(?:hiếm|cổ|địa phương)([^\p{L}]|$)/iu.test(form.definition) ? <p role="status">{t("bulk.meaning-warning")}</p> : null}
+      {form.meaningWarning ? <p role="status">{t("bulk.meaning-warning")}</p> : null}
+      {form.meaningWarning && form.answer ? <label className="flex items-center gap-2">
+        <Input type="checkbox" className="size-4 shrink-0 p-0" checked={form.warningAcknowledged} disabled={saving || canRetry} onChange={(event) => form.setWarningAcknowledged(event.target.checked)} />
+        {t("bulk.confirmMeaningWarning")}
+      </label> : null}
       {form.invalid ? <Badge variant="danger">{t("editorial.invalid")}</Badge> : null}
-      <div className="flex flex-wrap gap-2"><Button disabled={saving || canRetry} onClick={form.submit}>{t("editorial.save")}</Button>{canRetry ? <Button disabled={saving} onClick={form.retry}>{t("editorial.retry")}</Button> : null}</div>
+      <div className="flex flex-wrap gap-2"><Button disabled={saving || canRetry || form.answerNeedsAcknowledgement} onClick={form.submit}>{t("editorial.save")}</Button>{canRetry ? <Button disabled={saving} onClick={form.retry}>{t("editorial.retry")}</Button> : null}</div>
     </section>
   );
 }
@@ -94,7 +98,7 @@ export function CandidateEditorialPanel({ onUnauthorized }: Props): React.ReactE
         </div> : null}
         {bulk.resume ? <BulkEditorialReview model={bulk} openEntry={model.setSelectedEntry} /> : null}
         <ul className="grid gap-2">{model.list?.items.map((item) => <li key={item.id}>
-          {!bulk.resume ? <label className="flex items-center gap-2 py-1 text-sm"><input type="checkbox" checked={selectedTargets.has(item.id)} disabled={bulk.loading || (bulk.targets.length >= 500 && !selectedTargets.has(item.id))} onChange={() => bulk.toggle({ entryId: item.id, expectedEntryRevision: item.revisionNumber })} />{t("bulk.selectRow", { word: item.original })}</label> : null}
+          {!bulk.resume ? <label className="flex items-center gap-2 py-1 text-sm"><Input type="checkbox" className="size-4 shrink-0 p-0" checked={selectedTargets.has(item.id)} disabled={bulk.loading || (bulk.targets.length >= 500 && !selectedTargets.has(item.id))} onChange={() => bulk.toggle({ entryId: item.id, expectedEntryRevision: item.revisionNumber })} />{t("bulk.selectRow", { word: item.original })}</label> : null}
           <Button variant="outline" className="w-full justify-start" onClick={() => model.setSelectedEntry(item.id)}>{item.original} · {item.level} · {t(`editorial.${item.review}`)}{item.collision ? ` · ${t("editorial.collision")}` : ""}</Button><p className="text-sm">{item.definitionVi ?? t("editorial.noDefinition")}</p><p className="break-all text-xs text-muted-foreground">{item.sourceId} · {item.id}</p></li>)}</ul>
         <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={!model.cursor} onClick={() => model.setCursor(null)}>{t("editorial.first")}</Button><Button variant="outline" disabled={!model.list?.nextCursor} onClick={() => model.setCursor(model.list?.nextCursor ?? null)}>{t("editorial.next")}</Button></div>
         {model.detailError ? <Badge variant="danger">{t("editorial.error")}</Badge> : null}

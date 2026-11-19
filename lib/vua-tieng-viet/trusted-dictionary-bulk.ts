@@ -16,7 +16,7 @@ export async function handleBulkReview(body: object, text: string, { config, cor
   try {
     const delay = await limiter();
     if (!Number.isSafeInteger(delay) || delay < 0) throw new Error("Rate limit unavailable");
-    if (delay) return respond(429, "RATE_LIMITED", "Too many requests", request.requestId, { "Retry-After": String(delay) });
+    if (delay) return respond(429, "RATE_LIMITED", "Too many requests", request.requestId, { "Retry-After": String(delay), "Access-Control-Expose-Headers": "Retry-After" });
     const data = await config.bulkReview(request, await editorialRequestHash(request));
     return Response.json({ ok: true, requestId: request.requestId, data }, { headers: cors });
   } catch (error) {

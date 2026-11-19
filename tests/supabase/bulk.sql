@@ -31,6 +31,8 @@ set local role service_role;
 do $$
 declare
   sample jsonb;
+  list_page jsonb;
+  filters jsonb;
   next_page jsonb;
   body jsonb;
   receipt jsonb;
@@ -39,6 +41,17 @@ declare
   selection_id uuid;
   starting_filters jsonb := '{"sourceId":null,"level":3,"review":"pending","hasDefinition":null,"collisionsOnly":false}';
 begin
+  foreach filters in array array[
+    starting_filters,
+    starting_filters || '{"sourceId":"10000000-0000-4000-8000-000000000002","hasDefinition":true,"collisionsOnly":true}'::jsonb,
+    starting_filters || '{"hasDefinition":false}'::jsonb
+  ] loop
+    list_page := public.vtv_list_candidates(filters,null,null,100);
+    sample := public.vtv_bulk_create(jsonb_build_object('filters',filters,'expectedDraftRevision','0','targets',null));
+    if (select jsonb_agg(value->>'id' order by value->>'id') from jsonb_array_elements(list_page->'items'))
+       is distinct from (select jsonb_agg(value->>'entryId' order by value->>'entryId') from jsonb_array_elements(sample->'items'))
+      then raise exception 'Frozen set diverged from filtered list for %',filters; end if;
+  end loop;
   sample := public.vtv_bulk_create(jsonb_build_object('filters',starting_filters,'expectedDraftRevision','0','targets',null));
   selection_id := (sample->>'selectionId')::uuid;
   if (sample->>'count')::integer<>101 or jsonb_array_length(sample->'items')<>100

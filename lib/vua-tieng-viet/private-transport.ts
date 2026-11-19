@@ -1,7 +1,7 @@
 export type PrivateRequest = { operation: string; requestId: string; input: unknown; idempotencyKey?: string };
 export type PrivateErrorKind = "UNAUTHORIZED" | "REVISION_CONFLICT" | "IMPORT_CONFLICT" | "IDEMPOTENCY_CONFLICT" | "VALIDATION_FAILED" | "RATE_LIMITED" | "UNAVAILABLE" | "CANCELLED";
 export class PrivateRequestError extends Error {
-  constructor(readonly kind: PrivateErrorKind, readonly details?: unknown) { super(kind); this.name = "PrivateRequestError"; }
+  constructor(readonly kind: PrivateErrorKind, readonly details?: unknown, readonly retryAfterSeconds?: number) { super(kind); this.name = "PrivateRequestError"; }
 }
 export type PrivateTransportDependencies = { url: string | undefined; key: string | undefined; token: () => string | null; signal: (signal: AbortSignal) => AbortSignal; fetch: typeof fetch; unauthorized: () => void };
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -26,7 +26,8 @@ export async function privateDictionaryRequest(request: PrivateRequest, signal: 
     if (response.ok || body.ok || !record(body.error) || typeof body.error.code !== "string" || typeof body.error.message !== "string") throw new PrivateRequestError("UNAVAILABLE");
     const code = body.error.code;
     const kind: PrivateErrorKind = response.status === 409 ? (code === "IMPORT_CONFLICT" || code === "IDEMPOTENCY_CONFLICT" ? code : "REVISION_CONFLICT") : response.status === 400 || response.status === 422 ? "VALIDATION_FAILED" : response.status === 429 ? "RATE_LIMITED" : "UNAVAILABLE";
-    throw new PrivateRequestError(kind, body.error);
+    const retryAfter = Number(response.headers.get("Retry-After"));
+    throw new PrivateRequestError(kind, body.error, kind === "RATE_LIMITED" && retryAfter > 0 && retryAfter <= 60 ? retryAfter : undefined);
   } catch (error) {
     if (error instanceof PrivateRequestError) throw error;
     if (combined.aborted) throw new PrivateRequestError("CANCELLED");

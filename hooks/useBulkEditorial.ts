@@ -3,7 +3,9 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminSessionGeneration } from "@/hooks/useAdminAuth";
-import { BULK_BATCH_SIZE, parseBulkPage, parseBulkReceipt, parseBulkRequest, type BulkApply, type BulkCreate, type BulkDecision, type BulkPage, type BulkTarget } from "@/lib/vua-tieng-viet/bulk-review-contract";
+import { BULK_BATCH_SIZE, parseBulkPage, parseBulkReceipt, parseBulkRequest, type BulkApply, type BulkReceipt, type BulkCreate, type BulkDecision, type BulkPage, type BulkTarget } from "@/lib/vua-tieng-viet/bulk-review-contract";
+import { canonicalJson } from "@/lib/vua-tieng-viet/dictionary-contract";
+import { PrivateRequestError } from "@/lib/vua-tieng-viet/private-transport";
 import { requestPrivateDictionary } from "@/lib/vua-tieng-viet/private-request";
 
 const STORAGE_KEY = "vtv-editorial-bulk-v1";
@@ -20,12 +22,30 @@ function readResume(): Resume | null {
   } catch { return null; }
 }
 
+function waitForRetry(signal: AbortSignal, milliseconds: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    signal.throwIfAborted();
+    const abort = () => { clearTimeout(timer); reject(signal.reason); };
+    const timer = setTimeout(() => { signal.removeEventListener("abort", abort); resolve(); }, milliseconds);
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
+async function batchIdentity(input: Omit<BulkApply, "batchId">): Promise<{ batchId: string; idempotencyKey: string }> {
+  // Reconstruct the same identities after refresh without retaining the decision in browser storage.
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonicalJson(input)));
+  const hex = Array.from(new Uint8Array(digest), (part) => part.toString(16).padStart(2, "0")).join("");
+  const uuid = (value: string) => [value.slice(0, 8), value.slice(8, 12), value.slice(12, 16), value.slice(16, 20), value.slice(20, 32)].join("-");
+  return { batchId: uuid(hex.slice(0, 32)), idempotencyKey: uuid(hex.slice(32)) };
+}
+
 export function useBulkEditorial(onUnauthorized: () => void, enabled: boolean) {
   const client = useQueryClient();
   const [targets, setTargets] = React.useState<BulkTarget[]>([]);
   const [resume, setResume] = React.useState(readResume);
   const [offset, setOffset] = React.useState(0);
   const [error, setError] = React.useState<string | null>(null);
+  const [waitingForQuota, setWaitingForQuota] = React.useState(false);
   const [storageError, setStorageError] = React.useState(false);
   const controller = React.useRef<AbortController | null>(null);
   React.useEffect(() => () => controller.current?.abort(), []);
@@ -60,19 +80,49 @@ export function useBulkEditorial(onUnauthorized: () => void, enabled: boolean) {
       let checkpoint = selection.checkpoint;
       let draftRevision = selection.draftRevision;
       let pending = resume?.pending ?? null;
+      const send = async (operation: string, input: unknown, key?: string): Promise<unknown> => {
+        try { return await call(operation, input, abort.signal, key); }
+        catch (error) {
+          if (!(error instanceof PrivateRequestError) || error.kind !== "RATE_LIMITED") throw error;
+          setWaitingForQuota(true);
+          try { await waitForRetry(abort.signal, (error.retryAfterSeconds ?? 60) * 1000 + 100); }
+          finally { if (!abort.signal.aborted) setWaitingForQuota(false); }
+          abort.signal.throwIfAborted();
+          return call(operation, input, abort.signal, key);
+        }
+      };
+      const recover = async (): Promise<boolean> => {
+        const latest = parseBulkPage(await send("bulk-page", { selectionId: selection.selectionId, offset: 0 }));
+        if (abort.signal.aborted || session !== adminSessionGeneration()) return false;
+        if (latest.selectionHash !== selection.selectionHash || latest.checkpoint <= checkpoint || !latest.decision || canonicalJson(latest.decision) !== canonicalJson(decision)) return false;
+        checkpoint = latest.checkpoint;
+        draftRevision = latest.draftRevision;
+        pending = null;
+        persist({ selectionId: selection.selectionId, pending: null });
+        client.setQueryData([...ROOT, selection.selectionId, 0], latest);
+        return true;
+      };
       while (pending || checkpoint < selection.count) {
         if (abort.signal.aborted || session !== adminSessionGeneration()) return;
         if (!pending) {
-          const page = parseBulkPage(await call("bulk-page", { selectionId: selection.selectionId, offset: checkpoint }, abort.signal));
-          if (page.checkpoint !== checkpoint || page.draftRevision !== draftRevision || page.selectionHash !== selection.selectionHash) throw new Error("REVISION_CONFLICT");
-          pending = {
-            input: { ...decision, selectionId: page.selectionId, selectionHash: page.selectionHash, offset: checkpoint, expectedDraftRevision: draftRevision, batchId: crypto.randomUUID(), targets: page.items.map(({ entryId, expectedEntryRevision }) => ({ entryId, expectedEntryRevision })) },
-            idempotencyKey: crypto.randomUUID(),
-          };
+          const page = parseBulkPage(await send("bulk-page", { selectionId: selection.selectionId, offset: checkpoint }));
+          if (page.checkpoint !== checkpoint || page.draftRevision !== draftRevision || page.selectionHash !== selection.selectionHash) {
+            if (await recover()) continue;
+            throw new Error("REVISION_CONFLICT");
+          }
+          const input = { ...decision, selectionId: page.selectionId, selectionHash: page.selectionHash, offset: checkpoint, expectedDraftRevision: draftRevision, targets: page.items.map(({ entryId, expectedEntryRevision }) => ({ entryId, expectedEntryRevision })) };
+          const { batchId, idempotencyKey } = await batchIdentity(input);
+          if (abort.signal.aborted || session !== adminSessionGeneration()) return;
+          pending = { input: { ...input, batchId }, idempotencyKey };
           parseBulkRequest({ operation: "bulk-apply", requestId: pending.input.batchId, ...pending });
           persist({ selectionId: selection.selectionId, pending });
         }
-        const receipt = parseBulkReceipt(await call("bulk-apply", pending.input, abort.signal, pending.idempotencyKey));
+        let receipt: BulkReceipt;
+        try { receipt = parseBulkReceipt(await send("bulk-apply", pending.input, pending.idempotencyKey)); }
+        catch (error) {
+          if (error instanceof PrivateRequestError && error.kind === "REVISION_CONFLICT" && await recover()) continue;
+          throw error;
+        }
         if (abort.signal.aborted || session !== adminSessionGeneration()) return;
         if (receipt.batchId !== pending.input.batchId || receipt.checkpoint !== pending.input.offset + pending.input.targets.length) throw new Error("INVALID_RESPONSE");
         checkpoint = receipt.checkpoint;
@@ -108,11 +158,12 @@ export function useBulkEditorial(onUnauthorized: () => void, enabled: boolean) {
     } catch (error) { if (session === adminSessionGeneration()) setError(error instanceof Error ? error.message : "UNAVAILABLE"); }
   };
   const apply = async (decision: BulkDecision) => {
-    if (!pageQuery.data) return;
+    if (!pageQuery.data || pageQuery.isFetching || pageQuery.isPlaceholderData || applyMutation.isPending) return;
     const session = adminSessionGeneration();
     setError(null);
     try {
-      await applyMutation.mutateAsync({ selection: pageQuery.data, decision });
+      const { category, answerEligible, rationale, exclusionChecks } = decision;
+      await applyMutation.mutateAsync({ selection: pageQuery.data, decision: { category, answerEligible, rationale, exclusionChecks } });
     } catch (error) { if (session === adminSessionGeneration()) setError(error instanceof Error ? error.message : "UNAVAILABLE"); }
     finally { if (session === adminSessionGeneration()) await client.invalidateQueries({ queryKey: ["vtv-private", "editorial"] }); }
   };
@@ -122,5 +173,9 @@ export function useBulkEditorial(onUnauthorized: () => void, enabled: boolean) {
     setError(null);
     setOffset(0);
   };
-  return { targets, toggle, includePage, clear, start, apply, page: pageQuery.data ?? null, next: () => setOffset((current) => current + BULK_BATCH_SIZE), previous: () => setOffset((current) => Math.max(0, current - BULK_BATCH_SIZE)), loading: createMutation.isPending || pageQuery.isFetching, saving: applyMutation.isPending, error: error ?? (pageQuery.isError ? "UNAVAILABLE" : null), storageError, resume };
+  const page = pageQuery.data ?? null;
+  const canPage = page !== null && !pageQuery.isFetching && !applyMutation.isPending && page.offset === offset;
+  const canPrevious = canPage && page.offset > 0;
+  const canNext = canPage && page.offset + BULK_BATCH_SIZE < page.count;
+  return { targets, toggle, includePage, clear, start, apply, page, canNext, canPrevious, waitingForQuota, next: () => { if (canNext) setOffset(page.offset + BULK_BATCH_SIZE); }, previous: () => { if (canPrevious) setOffset(page.offset - BULK_BATCH_SIZE); }, loading: createMutation.isPending || pageQuery.isFetching, saving: applyMutation.isPending, error: error ?? (pageQuery.isError ? "UNAVAILABLE" : null), storageError, resume };
 }

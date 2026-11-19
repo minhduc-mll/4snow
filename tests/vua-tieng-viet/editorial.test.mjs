@@ -15,6 +15,13 @@ test("review requires explicit exclusions and a reviewed meaning for answer elig
   assert.throws(() => parseEditorialRequest({ ...review, input: { ...review.input, category: "technical" } }));
 });
 
+test("an answer with a meaning warning requires acknowledgment at the trusted boundary", () => {
+  const input = { ...review.input, definitionVi: "Cách dùng cổ.".normalize("NFD") };
+  assert.throws(() => parseEditorialRequest({ ...review, input }), /explicit meaning review/);
+  assert.ok(parseEditorialRequest({ ...review, input: { ...input, meaningWarningAcknowledged: true } }).input.meaningWarningAcknowledged);
+  assert.equal(parseEditorialRequest({ ...review, input: { ...input, answerEligible: false } }).operation, "review");
+});
+
 test("keyset cursors reject tampering and changed filters", async () => {
   const { encodeEditorialCursor, decodeEditorialCursor } = await import("../../lib/vua-tieng-viet/editorial-cursor.ts");
   const after = { createdAt: "2026-01-01T00:00:00.000Z", id: entryId };

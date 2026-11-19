@@ -1,8 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { parseBulkRequest, type BulkItemResult } from "../../lib/vua-tieng-viet/bulk-review-contract";
+import { parseBulkRequest, type BulkDecision, type BulkItemResult } from "../../lib/vua-tieng-viet/bulk-review-contract";
 
-test("an administrator inspects a frozen selection and resumes a batch after a lost response", async ({ page }) => {
+for (const reload of [false, true]) test(`an administrator resumes a lost bulk response ${reload ? "after reload" : "in the same tab"}`, async ({ page }) => {
   await page.route("**/api/admin/login", (route) => route.fulfill({ json: { token: "test-token", expiresAt: Date.now() + 60000 } }));
+  await page.route("**/api/admin/verify", (route) => route.fulfill({ json: { valid: true, expiresAt: Date.now() + 60000 } }));
   const sourceId = "10000000-0000-4000-8000-000000000001";
   const selectionId = "20000000-0000-4000-8000-000000000001";
   const rows = Array.from({ length: 101 }, (_, i) => ({
@@ -15,7 +16,9 @@ test("an administrator inspects a frozen selection and resumes a batch after a l
   let failed = 0;
   let firstKey: string | null = null;
   let firstInput: unknown;
+  let savedDecision: BulkDecision | null = null;
   let applyAttempts = 0;
+  let secondBatchKey: string | null = null;
   let draftRevision = "0";
   await page.route("https://test-supabase.invalid/functions/v1/vtv-dictionary", async (route) => {
     const body: unknown = route.request().postDataJSON();
@@ -32,7 +35,7 @@ test("an administrator inspects a frozen selection and resumes a batch after a l
       return reply({
         selectionId, selectionHash: "a".repeat(64), offset, count: rows.length, checkpoint, draftRevision,
         distribution: { 3: 101, 5: 0, 7: 0, 9: 0 }, totals: { applied, unchanged: 0, conflict: 0, invalid: failed },
-        items: rows.slice(offset, offset + 100), decision: null,
+        items: rows.slice(offset, offset + 100), decision: savedDecision,
       });
     }
     const request = parseBulkRequest(body);
@@ -43,6 +46,8 @@ test("an administrator inspects a frozen selection and resumes a batch after a l
     if (applyAttempts === 1) {
       firstKey = request.idempotencyKey;
       firstInput = request.input;
+      const { category, answerEligible, rationale, exclusionChecks } = request.input;
+      savedDecision = { category, answerEligible, rationale, exclusionChecks };
       checkpoint = 100;
       applied = 100;
       draftRevision = "1";
@@ -53,6 +58,11 @@ test("an administrator inspects a frozen selection and resumes a batch after a l
       expect(request.input).toEqual(firstInput);
     } else {
       expect(request.input.expectedDraftRevision).toBe("1");
+      if (secondBatchKey === null) {
+        secondBatchKey = request.idempotencyKey;
+        return route.fulfill({ status: 429, headers: { "Retry-After": "1", "Access-Control-Expose-Headers": "Retry-After" }, json: { ok: false, requestId: body.requestId, error: { code: "RATE_LIMITED", message: "Quota reached" } } });
+      }
+      expect(request.idempotencyKey).toBe(secondBatchKey);
       checkpoint = 101;
       failed = 1;
       draftRevision = "2";
@@ -78,7 +88,8 @@ test("an administrator inspects a frozen selection and resumes a batch after a l
   }
   await panel.getByRole("button", { name: /Xác nhận quyết định cho vùng chọn|Confirm decision for this selection/i }).click();
   await expect(panel.getByRole("alert")).toBeVisible();
+  if (reload) await page.reload();
   await panel.getByRole("button", { name: /Tiếp tục quyết định đã xác nhận|Resume confirmed decision/i }).click();
   await expect(panel.getByRole("status")).toContainText(/Đã xử lý 101\/101|Processed 101 of 101/i);
-  expect(applyAttempts).toBe(3);
+  expect(applyAttempts).toBe(reload ? 3 : 4);
 });
