@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { requestPrivateDictionary } from "@/lib/vua-tieng-viet/private-request";
+import { importFilesToResume, rememberImportFiles } from "@/lib/vua-tieng-viet/import-selection";
 import type { PreviewResult } from "@/lib/vua-tieng-viet/preview";
 import { preflightImport, type ImportPreflight } from "@/lib/vua-tieng-viet/import-preflight";
 
@@ -19,6 +20,7 @@ export function useDictionaryPreview(onUnauthorized: () => void) {
   const [reading, setReading] = React.useState(false);
   const [fileError, setFileError] = React.useState(false);
   const generation = React.useRef(0);
+  const selectedFiles = React.useRef<readonly File[]>([]);
   React.useEffect(() => () => { generation.current++; }, []);
   const query = useQuery({
     queryKey: ["vtv-private", "preview", job?.requestId],
@@ -35,6 +37,7 @@ export function useDictionaryPreview(onUnauthorized: () => void) {
 
   const selectFiles = React.useCallback(async (files: readonly File[]): Promise<void> => {
     const selected = ++generation.current;
+    selectedFiles.current = files;
     setLocal(null);
     setJob(null);
     setFileError(false);
@@ -55,6 +58,11 @@ export function useDictionaryPreview(onUnauthorized: () => void) {
       if (selected === generation.current) setReading(false);
     }
   }, []);
+  React.useEffect(() => {
+    const files = importFilesToResume();
+    if (files) queueMicrotask(() => void selectFiles(files));
+  }, [selectFiles]);
+  const retainSelectedFiles = () => rememberImportFiles(selectedFiles.current);
   const retry = () => { void query.refetch(); };
-  return { local, remote: query.data ?? null, checkingRemote: job !== null, loading: reading || query.isFetching, remoteError: query.isError, fileError, selectFiles, retry };
+  return { local, remote: query.data ?? null, checkingRemote: job !== null, loading: reading || query.isFetching, remoteError: query.isError, fileError, selectFiles, retainSelectedFiles, retry };
 }

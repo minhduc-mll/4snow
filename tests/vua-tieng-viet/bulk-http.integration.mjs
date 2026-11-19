@@ -47,7 +47,7 @@ const sourceId = randomUUID();
 const importId = randomUUID();
 const artifactId = randomUUID();
 const draftRevision = sql(`begin;
-  do $ begin perform id from private.vtv_draft where id=1 for update; end $;
+  do $draft$ begin perform id from private.vtv_draft where id=1 for update; end $draft$;
   insert into private.vtv_sources(id,kind,resource_revision,artifact_sha256,metadata)
     values('${sourceId}','kaikki','${artifactId}',repeat('a',64),'{"name":"Synthetic bulk HTTP verification"}');
   insert into private.vtv_imports(id,artifact_id,artifact_revision,expected_chunks,status,finalized_at)

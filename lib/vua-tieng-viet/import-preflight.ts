@@ -105,13 +105,14 @@ export async function preflightImport(files: readonly ImportFile[]): Promise<Imp
     for (const source of item.base.sources) {
       if (!record(source) || typeof source.sourceId !== "string") continue;
       const identity = canonicalJson([source.kind, source.resourceRevision, source.artifactSha256]);
-      const metadata = canonicalJson(source);
+      const { sourceId, ...fields } = source;
+      const metadata = canonicalJson(fields);
       const previous = sources.get(identity);
-      const previousReference = sourceReferences.get(source.sourceId);
+      const previousReference = sourceReferences.get(sourceId);
       if ((previous !== undefined && previous !== metadata) || (previousReference !== undefined && previousReference !== identity)) result.issues.push({ ...location, entry: null, code: "source", message: "Source metadata differs between parts", blocking: true });
       sources.set(identity, metadata);
-      sourceReferences.set(source.sourceId, identity);
-      localSources.set(source.sourceId, { identity, source });
+      sourceReferences.set(sourceId, identity);
+      localSources.set(sourceId, { identity, source });
     }
     result.entryCount += item.entries.length;
     if (item.part !== null && (item.entries.length > MAX_ENTRIES_PER_CHUNK || encoder.encode(JSON.stringify({ ...item.base, entries: item.entries, chunkIndex: item.part, chunkCount: item.count })).length > CHUNK_BYTES)) {

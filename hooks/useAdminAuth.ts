@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { rememberImportFiles } from "@/lib/vua-tieng-viet/import-selection";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 export const ADMIN_AUTH_TOKEN_KEY = "admin-auth-token";
@@ -28,7 +29,8 @@ function clearPrivate(): void {
     cache.findAll({ mutationKey: ["vtv-private"] }).forEach((mutation) => cache.remove(mutation));
   }
 }
-function invalidate(remove: boolean): void {
+function invalidate(remove: boolean, preserveImport = false): void {
+  if (!preserveImport) rememberImportFiles(null);
   generation++;
   token = null;
   if (expiryTimer) clearTimeout(expiryTimer);
@@ -40,7 +42,7 @@ function authenticate(value: string, expiresAt: number): void {
   token = value;
   publish({ status: "authenticated", expiresAt });
   const delay = Math.min(Math.max(expiresAt - Date.now(), 0), 2147483647);
-  expiryTimer = setTimeout(() => { if (Date.now() >= expiresAt) logout(); else authenticate(value, expiresAt); }, delay);
+  expiryTimer = setTimeout(() => { if (Date.now() >= expiresAt) expireAdminSession(); else authenticate(value, expiresAt); }, delay);
 }
 function record(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 async function refresh(): Promise<void> {
@@ -65,16 +67,17 @@ function start(): void {
   void refresh();
 }
 export function logout(): void { invalidate(true); }
+export function expireAdminSession(): void { invalidate(true, true); }
 export function getAdminToken(): string | null {
   if (state.status !== "authenticated" || !token) return null;
-  if (state.expiresAt <= Date.now()) { invalidate(true); return null; }
+  if (state.expiresAt <= Date.now()) { expireAdminSession(); return null; }
   if (readToken() !== token) { void refresh(); return null; }
   return token;
 }
 export function adminSessionGeneration(): number { return generation; }
 export function adminPrivateSignal(signal: AbortSignal): AbortSignal { return AbortSignal.any([signal, privateController.signal]); }
 async function login(username: string, password: string, fallback: string): Promise<boolean> {
-  invalidate(true);
+  invalidate(true, true);
   const current = generation;
   try {
     const response = await fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
@@ -91,6 +94,6 @@ async function login(username: string, password: string, fallback: string): Prom
 export function useAdminSession() {
   const client = useQueryClient();
   const snapshot = React.useSyncExternalStore(React.useCallback((listener: () => void) => { listeners.add(listener); clients.add(client); start(); return () => { listeners.delete(listener); }; }, [client]), () => state, () => serverState);
-  return { state: snapshot, login, logout };
+  return { state: snapshot, login, logout, expire: expireAdminSession };
 }
 export function useAdminAuthenticated(): boolean { return useAdminSession().state.status === "authenticated"; }

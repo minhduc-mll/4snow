@@ -8,6 +8,7 @@ import { Input } from "@/components/atoms/Input";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { useDictionaryPreview } from "@/hooks/useDictionaryPreview";
 import { useDictionaryImport } from "@/hooks/useDictionaryImport";
+import { rememberImportFiles } from "@/lib/vua-tieng-viet/import-selection";
 import type { ImportPreflight } from "@/lib/vua-tieng-viet/import-preflight";
 
 type Props = { onUnauthorized: () => void };
@@ -30,7 +31,7 @@ function downloadReport(preflight: ImportPreflight): void {
 
 export function DictionaryPreviewPanel({ onUnauthorized }: Props): React.ReactElement {
   const { t } = useAppI18n();
-  const { local, remote, checkingRemote, loading, remoteError, fileError, selectFiles, retry } = useDictionaryPreview(onUnauthorized);
+  const { local, remote, checkingRemote, loading, remoteError, fileError, selectFiles, retainSelectedFiles, retry } = useDictionaryPreview(onUnauthorized);
   const importer = useDictionaryImport(onUnauthorized);
   const importEnabled = process.env.NEXT_PUBLIC_VTV_IMPORT_ENABLED === "true";
   const ready = local !== null && local.chunks.length > 0 && !local.issues.some((issue) => issue.blocking) && (!checkingRemote || (remote?.valid && local.chunks[0]?.canonicalHash === remote.canonicalHash));
@@ -47,6 +48,7 @@ export function DictionaryPreviewPanel({ onUnauthorized }: Props): React.ReactEl
         <div className="grid gap-2">
           <label htmlFor="dictionary-preview-file" className="text-sm font-medium">{t("dictionaryImport.datasetFiles")}</label>
           <Input id="dictionary-preview-file" type="file" multiple accept=".json,application/json" disabled={importer.loading} onChange={(event) => {
+            rememberImportFiles(null);
             importer.clear();
             void selectFiles(Array.from(event.target.files ?? []));
           }} />
@@ -82,7 +84,7 @@ export function DictionaryPreviewPanel({ onUnauthorized }: Props): React.ReactEl
         </div>
         <div className="flex flex-wrap gap-2">
           {remoteError ? <Button type="button" variant="outline" onClick={retry}>{t("dictionaryImport.retry")}</Button> : null}
-          <Button type="button" disabled={!importEnabled || !ready || loading || importer.loading || status === "finalized"} onClick={() => { if (local) importer.run(local); }}>
+          <Button type="button" disabled={!importEnabled || !ready || loading || importer.loading || status === "finalized"} onClick={() => { if (local) { retainSelectedFiles(); importer.run(local); } }}>
             {t(importer.errorCode ? "dictionaryImport.retry" : "dictionaryImport.start")}
           </Button>
         </div>

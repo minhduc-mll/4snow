@@ -5,6 +5,7 @@ import { requestPrivateDictionary } from "@/lib/vua-tieng-viet/private-request";
 import { PrivateRequestError } from "@/lib/vua-tieng-viet/private-transport";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminSessionGeneration } from "@/hooks/useAdminAuth";
+import { rememberImportFiles } from "@/lib/vua-tieng-viet/import-selection";
 import type { ImportPreflight } from "@/lib/vua-tieng-viet/import-preflight";
 import type { ImportStartMutation, ImportApplyMutation, ImportFinalizeMutation } from "@/lib/vua-tieng-viet/import-contract";
 
@@ -102,6 +103,7 @@ export function useDictionaryImport(onUnauthorized: () => void) {
       queryClient.setQueryData(SESSION_KEY, session);
       if (start.status === "finalized") {
         if (receipts.size !== chunks.length) throw new Error("MISSING_CHUNKS");
+        rememberImportFiles(null);
         void queryClient.invalidateQueries({ queryKey: ["vtv-private", "editorial"] });
         return;
       }
@@ -115,6 +117,7 @@ export function useDictionaryImport(onUnauthorized: () => void) {
       }
       const finalized = finalizeResponse(await request({ operation: "import-finalize", input: { importId: start.importId, expectedDraftRevision: start.draftRevision } }));
       queryClient.setQueryData<ImportSession>(SESSION_KEY, { ...session, ...finalized, receipts: [...receipts.values()] });
+      rememberImportFiles(null);
       void queryClient.invalidateQueries({ queryKey: ["vtv-private", "editorial"] });
     },
   });

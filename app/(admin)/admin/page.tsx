@@ -17,7 +17,7 @@ import { useAppI18n } from "@/hooks/useAppI18n";
 import { PATH } from "@/lib/paths";
 export default function AdminPage(): React.ReactElement {
   const { t } = useAppI18n();
-  const { state: authState, login, logout: handleLogout } = useAdminSession();
+  const { state: authState, login, logout: handleLogout, expire: handleExpiry } = useAdminSession();
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -85,9 +85,9 @@ export default function AdminPage(): React.ReactElement {
 
         <LuckyDrawAdminPanel />
         <QuizImportPanel />
-        <DictionaryPreviewPanel onUnauthorized={handleLogout} />
-        <CandidateEditorialPanel onUnauthorized={handleLogout} />
-        <DictionaryPublicationPanel onUnauthorized={handleLogout} />
+        <DictionaryPreviewPanel onUnauthorized={handleExpiry} />
+        <CandidateEditorialPanel onUnauthorized={handleExpiry} />
+        <DictionaryPublicationPanel onUnauthorized={handleExpiry} />
       </div>
     </main>
   );
