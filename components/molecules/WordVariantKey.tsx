@@ -8,7 +8,7 @@ import { useWordVariantPicker } from "@/hooks/useWordVariantPicker";
 import type { LetterFeedback } from "@/types/vua-tieng-viet";
 import styles from "@/components/organisms/vua-tieng-viet/word-game.module.css";
 
-type Props = { base: string; variants: readonly string[]; knowledge: Map<string,LetterFeedback>; disabled: boolean; blockAbsentLetters: boolean; onSelect: (letter: string) => void; focusInput: () => void };
+type Props = { base: string; variants: readonly string[]; knowledge: Map<string,LetterFeedback>; disabled: boolean; blockAbsentLetters: boolean; onSelect: (letter: string) => void; focusInput: () => boolean };
 export function WordVariantKey({ base, variants, knowledge, disabled, blockAbsentLetters, onSelect, focusInput }: Props) {
   const { t } = useAppI18n();
   const picker = useWordVariantPicker(onSelect,focusInput);

@@ -79,7 +79,13 @@
 .key:disabled { opacity: 1; }
 .key:disabled:not([data-feedback]) { opacity: .55; }
 .key:hover:not(:disabled) { outline: 1px solid var(--vtv-primary); }
-.backspace { justify-self: center; min-height: 2.75rem; color: var(--vtv-ink); background: var(--vtv-raised); }
+.keyboardActions { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; }
+.nativeKeyboard { display: none; min-height: 2.75rem; }
+.backspace { min-height: 2.75rem; color: var(--vtv-ink); background: var(--vtv-raised); }
+@media (hover: none) and (pointer: coarse) {
+  .sharedInput { pointer-events: none; }
+  .nativeKeyboard { display: inline-flex; }
+}
 .keyboardHint { text-align: center; color: var(--vtv-muted); font-size: .75rem; margin-top: .35rem; }
 .restart { justify-self: center; color: var(--vtv-muted); }
 .result { display: grid; gap: .75rem; padding: 1rem .5rem .5rem; border-top: 1px solid var(--vtv-line); text-align: center; }
