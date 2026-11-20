@@ -2,7 +2,7 @@
 
 This guide covers local development, optional container reduction, hosted deployment, and routine maintenance for 4snow. Run commands from the repository root in PowerShell. Examples use `npx supabase`; the CLI is not currently pinned in package.json. Record `npx supabase --version` when troubleshooting, and agree on a CLI version before upgrading a shared workflow.
 
-Do not commit generated `supabase/.temp/` or `supabase/.branches/` directories. They are CLI state, and temporary runtime files can contain credentials. The current root ignore file does not explicitly exclude these directories; review staged files carefully and add appropriate ignore rules before adopting a shared CLI workflow.
+The root `.gitignore` excludes generated `supabase/.temp/` and `supabase/.branches/` directories. These directories hold CLI state and can contain credentials.
 
 ## What this repository actually provisions
 

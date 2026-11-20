@@ -22,10 +22,14 @@ test("same-round edits pause other tabs; load-saved restores exact input and foc
   await expect(dialog).toBeHidden(); await expect(input(other)).toHaveValue("M");
   await expect(input(other)).toBeFocused();
   await input(other).fill("mèo"); await submit(other).click();
+  await expect(other.getByText("Chuỗi hiện tại: 1", { exact: true })).toBeVisible();
   await expect(page.getByRole("dialog",{ name: "Ván lưu đã thay đổi ở thẻ khác" })).toBeVisible();
   await page.getByRole("button",{ name: "Tải ván đang lưu", exact: true }).click();
   await expect(page.getByText("Chúc mừng! Bạn đã tìm ra đáp án.")).toBeVisible();
+  await expect(page.getByText("Chuỗi hiện tại: 1", { exact: true })).toBeVisible();
   await expect(page.getByRole("button",{ name: "Chơi lại", exact: true })).toBeFocused();
+  await other.reload();
+  await expect(other.getByText("Chuỗi hiện tại: 1", { exact: true })).toBeVisible();
 });
 
 test("keep-this-round replaces a different round without merging its accepted history", async ({ page, context }) => {
