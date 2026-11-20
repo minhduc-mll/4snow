@@ -15,11 +15,12 @@ import { useWordRound } from "@/hooks/useWordRound";
 import { useWordOfflineShell } from "@/hooks/useWordOfflineShell";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { PATH } from "@/lib/paths";
-import type { AccentAccuracy, GuessMode, LetterFeedback, RoundSettings, WordLevel } from "@/types/vua-tieng-viet";
+import type { AccentAccuracy, GuessMode, LetterFeedback, RoundSettings, WordDifficulty, WordLevel } from "@/types/vua-tieng-viet";
 import styles from "./word-game.module.css";
 
 const levels: WordLevel[] = [3,5,7,9];
 const modes: GuessMode[] = ["dictionary","free"];
+const difficulties: WordDifficulty[] = ["easy", "hard", "expert"];
 const accuracies: AccentAccuracy[] = ["strict", "optional"];
 const feedbackStates: LetterFeedback[] = ["correct","present","absent"];
 const interactive = "a, button, input, label, select, textarea, summary, [tabindex], [contenteditable], [role=button], [role=dialog]";
@@ -32,9 +33,10 @@ export function WordGame() {
   const round = state?.round;
   const playing = round?.status === "playing";
   const { actionRef, eligibility } = input;
-  const describeSettings = ({ level, guessMode, accuracy }: RoundSettings, legacy = false) => t("wordGame.settings.summary", {
+  const describeSettings = ({ level, guessMode, accuracy, difficulty }: RoundSettings, legacy = false) => t("wordGame.settings.summary", {
     level,
     mode: t(`wordGame.settings.${guessMode}`),
+    difficulty: t(`wordGame.settings.${difficulty}`),
     accuracy: t(`wordGame.settings.${legacy ? "legacy" : accuracy}`),
   });
   const focusOnPlayArea = (event: MouseEvent<HTMLElement>) => {
@@ -114,7 +116,7 @@ export function WordGame() {
       <ul className={styles.legend} aria-label={t("wordGame.legend")}>{feedbackStates.map(feedback => <li key={feedback}><span className={styles.legendSymbol} data-feedback={feedback} aria-hidden="true" />{t(`wordGame.${feedback}`)}</li>)}</ul>
       <p>{t("wordGame.helpExample")}</p>
       <p>{t("wordGame.helpInput")}</p>
-      <p>{t(round && !round.rules.accuracy ? "wordGame.helpLegacyDictionary" : "wordGame.helpDictionary")}</p>
+      <p>{t("wordGame.helpDictionary")}</p>
       <details><summary className="cursor-pointer font-medium">{t("wordGame.helpRepeated")}</summary><p>{t("wordGame.helpRepeatedExample")}</p></details>
       {state && playing ? <WordAttributions items={state.attributions} sourceOnly /> : null}
       <DialogFooter><Button className={styles.primary} onClick={() => model.setHelpOpen(false)}>{t("wordGame.close")}</Button></DialogFooter>
@@ -127,6 +129,12 @@ export function WordGame() {
         <fieldset className={styles.levels}><legend>{t("wordGame.level")}</legend><div className={styles.levelButtons}>
           {levels.map(level => <Button key={level} variant="outline" aria-pressed={settingsDraft.level === level} className={styles.levelButton} onClick={() => model.setSettingsDraft({ ...settingsDraft, level })}>{level} {t("wordGame.letters")}</Button>)}
         </div></fieldset>
+        <fieldset className={styles.levels}>
+          <legend>{t("wordGame.settings.difficulty")} <SettingsHelp label={t("wordGame.settings.difficultyHelpLabel")} text={t("wordGame.settings.difficultyHelp")} /></legend>
+          <div className={`${styles.levelButtons} ${styles.difficultyButtons}`}>
+            {difficulties.map(difficulty => <Button key={difficulty} variant="outline" aria-pressed={settingsDraft.difficulty === difficulty} className={styles.levelButton} onClick={() => model.setSettingsDraft({ ...settingsDraft, difficulty })}>{t(`wordGame.settings.${difficulty}`)}</Button>)}
+          </div>
+        </fieldset>
         <fieldset className={styles.levels}><legend>{t("wordGame.settings.mode")} <SettingsHelp label={t("wordGame.settings.modeHelpLabel")} text={t("wordGame.helpDictionary")} /></legend><div className={`${styles.levelButtons} ${styles.modeButtons}`}>
           {modes.map(guessMode => <Button key={guessMode} variant="outline" aria-pressed={settingsDraft.guessMode === guessMode} className={styles.levelButton} onClick={() => model.setSettingsDraft({ ...settingsDraft, guessMode })}>{t(`wordGame.settings.${guessMode}`)}</Button>)}
         </div></fieldset>

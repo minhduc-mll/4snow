@@ -12,6 +12,9 @@ do $$ declare result jsonb; repeated jsonb; key uuid:=gen_random_uuid(); cfg uui
     begin perform public.vtv_configure(gen_random_uuid(),gen_random_uuid(),repeat('d',64),jsonb_build_object('attemptLimit',value,'expectedDraftRevision','1')); raise exception 'invalid attempts accepted'; exception when raise_exception then if sqlerrm<>'INVALID_INPUT' then raise; end if; end;
   end loop;
   begin perform public.vtv_configure(gen_random_uuid(),gen_random_uuid(),repeat('e',64),'{"attemptLimit":6,"expectedDraftRevision":"1","levels":[3]}'); raise exception 'rules override accepted'; exception when raise_exception then if sqlerrm<>'INVALID_INPUT' then raise; end if; end;
+  foreach value in array array['-1'::jsonb,'18'::jsonb,'1.5'::jsonb,'"5"'::jsonb,'null'::jsonb] loop
+    begin perform public.vtv_configure(gen_random_uuid(),gen_random_uuid(),repeat('d',64),jsonb_build_object('attemptLimit',6,'initialAbsentCount',value,'expectedDraftRevision','1')); raise exception 'invalid clues accepted'; exception when raise_exception then if sqlerrm<>'INVALID_INPUT' then raise; end if; end;
+  end loop;
   result:=public.vtv_configure(gen_random_uuid(),gen_random_uuid(),repeat('f',64),'{"attemptLimit":12,"expectedDraftRevision":"1"}');
   if result->'configuration'->>'attemptLimit'<>'12' or (result->'configuration'->>'configurationId')::uuid=cfg or result->>'draftRevision'<>'2' then raise exception 'new identity/revision missing'; end if;
   if not exists(select 1 from private.vtv_editorial_events where operation='configuration' and actor_role='admin' and previous_draft_revision=1 and next_draft_revision=2 and input->>'attemptLimit'='12' and output=result and configuration->>'attemptLimit'='12' and created_at is not null) then raise exception 'audit incomplete'; end if;
@@ -33,18 +36,23 @@ end $$;
 rollback;
 begin;
 -- PUBLICATION_FIXTURE
+insert into private.vtv_entries(id,source_id,external_id,source_entry_id,source_sense_id,entry_url,source_payload,import_id,current_revision_id)
+values ('30000000-0000-4000-8000-000000000005','10000000-0000-4000-8000-000000000001','5','entry-5','sense-5','https://example.invalid/entry-5','{}','20000000-0000-4000-8000-000000000001','40000000-0000-4000-8000-000000000005');
+insert into private.vtv_entry_revisions(id,entry_id,revision_number,original,normalized,level,definition_vi,review,answer_eligible,category,rationale,exclusion_checks,actor_role)
+values ('40000000-0000-4000-8000-000000000005','30000000-0000-4000-8000-000000000005',1,'soi','SOI',3,'Nghĩa cho kiểm thử.','approved',true,'rare','Classification test','{"names":true,"abbreviations":true,"offensive":true,"malformed":true,"unverified":true}','admin');
 do $$ declare old_preview jsonb; stale_preview jsonb; next_preview jsonb; old_release jsonb; next_release jsonb; old_payload jsonb; next_payload jsonb; configured jsonb; begin
   old_preview:=public.vtv_publication_preview(gen_random_uuid(),gen_random_uuid(),repeat('a',64),1);
   old_release:=public.vtv_publish(gen_random_uuid(),gen_random_uuid(),repeat('b',64),(old_preview->>'buildId')::uuid,1,null);
   select public_payload into old_payload from public.vtv_releases where id=(old_release->>'releaseId')::uuid;
+  if not ((old_payload->'levels'->'3'->'answers') @> '[{"normalized":"SOI","category":"rare"}]'::jsonb) then raise exception 'rare answer missing'; end if;
   stale_preview:=public.vtv_publication_preview(gen_random_uuid(),gen_random_uuid(),repeat('c',64),2);
-  configured:=public.vtv_configure(gen_random_uuid(),gen_random_uuid(),repeat('d',64),'{"attemptLimit":12,"expectedDraftRevision":"2"}');
+  configured:=public.vtv_configure(gen_random_uuid(),gen_random_uuid(),repeat('d',64),'{"attemptLimit":12,"initialAbsentCount":17,"expectedDraftRevision":"2"}');
   if (select release_id from public.vtv_current_release where id=1)<>(old_release->>'releaseId')::uuid or (select attempt_limit from public.vtv_releases where id=(old_release->>'releaseId')::uuid)<>6 then raise exception 'draft changed live configuration'; end if;
   begin perform public.vtv_publish(gen_random_uuid(),gen_random_uuid(),repeat('e',64),(stale_preview->>'buildId')::uuid,2,(old_release->>'releaseId')::uuid); raise exception 'stale preview published'; exception when raise_exception then if sqlerrm<>'REVISION_CONFLICT' then raise; end if; end;
   next_preview:=public.vtv_publication_preview(gen_random_uuid(),gen_random_uuid(),repeat('f',64),3);
   next_release:=public.vtv_publish(gen_random_uuid(),gen_random_uuid(),repeat('1',64),(next_preview->>'buildId')::uuid,3,(old_release->>'releaseId')::uuid);
   select public_payload into next_payload from public.vtv_releases where id=(next_release->>'releaseId')::uuid;
-  if next_payload->>'attemptLimit'<>'12' or next_payload->>'configurationId'<>configured->'configuration'->>'configurationId' or old_payload->>'configurationId'=next_payload->>'configurationId' or old_payload->'levels'<>next_payload->'levels' or old_payload->'attributions'<>next_payload->'attributions' then raise exception 'settings-only snapshot incomplete or mixed'; end if;
+  if (next_payload->>'initialAbsentCount') is distinct from '17' or (next_preview->'configuration'->>'initialAbsentCount') is distinct from '17' or (old_payload->>'initialAbsentCount') is distinct from '0' or next_payload->>'attemptLimit'<>'12' or next_payload->>'configurationId'<>configured->'configuration'->>'configurationId' or old_payload->>'configurationId'=next_payload->>'configurationId' or old_payload->'levels'<>next_payload->'levels' or old_payload->'attributions'<>next_payload->'attributions' then raise exception 'settings-only snapshot incomplete or mixed'; end if;
   if (select public_payload from public.vtv_releases where id=(old_release->>'releaseId')::uuid)<>old_payload or (select release_id from public.vtv_current_release where id=1)<>(next_release->>'releaseId')::uuid then raise exception 'old release changed or pointer not advanced'; end if;
 end $$;
 rollback;

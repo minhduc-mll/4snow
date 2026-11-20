@@ -68,7 +68,7 @@ export function parseBulkRequest(value: unknown): BulkRequest {
 
 function parseDecision(input: Record<string, unknown>): BulkDecision {
   const { category, answerEligible, rationale, exclusionChecks } = input;
-  if (!(category === "common" || category === "regional" || category === "technical" || category === "less-common") || typeof answerEligible !== "boolean" || (answerEligible && category !== "common") || typeof rationale !== "string" || !rationale.trim() || [...rationale].length > 2000 || !record(exclusionChecks) || !exact(exclusionChecks, ["names", "abbreviations", "offensive", "malformed", "unverified"]) || !Object.values(exclusionChecks).every((value) => value === true)) throw new Error("Invalid decision");
+  if (!(category === "common" || category === "regional" || category === "technical" || category === "less-common" || category === "rare") || typeof answerEligible !== "boolean" || typeof rationale !== "string" || !rationale.trim() || [...rationale].length > 2000 || !record(exclusionChecks) || !exact(exclusionChecks, ["names", "abbreviations", "offensive", "malformed", "unverified"]) || !Object.values(exclusionChecks).every((value) => value === true)) throw new Error("Invalid decision");
   return { category, answerEligible, rationale, exclusionChecks: { names: true, abbreviations: true, offensive: true, malformed: true, unverified: true } };
 }
 

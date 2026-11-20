@@ -41,14 +41,14 @@ test("keep-this-round replaces a different round without merging its accepted hi
   await page.getByRole("button",{ name: "Cài đặt", exact: true }).click();
   await page.getByRole("button",{ name: "5 chữ", exact: true }).click();
   await page.getByRole("button",{ name: "Tải ván mới", exact: true }).click();
-  await expect(page.getByText(/5 chữ · Từ điển · /)).toBeVisible();
+  await expect(page.getByText(/5 chữ · Dễ · Từ điển · /)).toBeVisible();
   await other.getByRole("button",{ name: "Giữ ván này và thay bản lưu", exact: true }).click();
   await expect(conflict(other)).toBeHidden(); await expect(input(other)).toHaveValue(""); await expect(input(other)).toBeFocused();
   const kept = decodeRoundSave(await saved(other));
   expect(kept.round.id).toBe(original.round.id); expect(kept.round.guesses).toHaveLength(0);
   await expect(conflict(page)).toBeVisible();
   await page.getByRole("button",{ name: "Tải ván đang lưu", exact: true }).click();
-  await expect(page.getByText(/3 chữ · Từ điển · /)).toBeVisible();
+  await expect(page.getByText(/3 chữ · Dễ · Từ điển · /)).toBeVisible();
   await expect(input(page)).toHaveValue("");
 });
 
@@ -106,7 +106,7 @@ test("a competing save invalidates an asynchronous replacement even after explic
   await page.getByRole("button",{ name: "Tải ván đang lưu", exact: true }).click();
   await expect(input(page)).toHaveValue("M"); await expect(input(page)).toBeFocused(); const recovered = await saved(page);
   gate.resolve(); await finished.promise;
-  await expect(page.getByText(/3 chữ · Từ điển · /)).toBeVisible();
+  await expect(page.getByText(/3 chữ · Dễ · Từ điển · /)).toBeVisible();
   expect(await saved(page)).toBe(recovered);
 });
 

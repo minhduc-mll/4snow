@@ -69,7 +69,6 @@ test("reject structural history, incomplete provenance, and incompatible version
     v => v.savedAt = "2026-11-13T00:00:00.000Z",
     v => v.round.endedAt = time,
     v => v.round.guesses.push(v.round.guesses[0]),
-    v => { v.round.guesses.push({ ...v.round.guesses[0], id: fixtureId(102) }); v.round.revision = v.revision = 4; }, // E was ruled out
     v => { v.round.input = "E"; },
   ];
   for (const mutate of mutations) {

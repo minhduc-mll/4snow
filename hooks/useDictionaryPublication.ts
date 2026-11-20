@@ -47,7 +47,7 @@ export function useDictionaryPublication(onUnauthorized: () => void) {
       pending.current = null;
       if (result.operation === "publication-preview") {
         client.setQueryData([...ROOT,"preview"],result.data);
-        client.setQueryData<DraftConfiguration>([...ROOT,"configuration"],{ draftRevision: result.data.draftRevision, configuration: { configurationId: result.data.configuration.configurationId, attemptLimit: result.data.configuration.attemptLimit, normalizerVersion: "vi-nfc-v2", levels: [3,5,7,9] } });
+        client.setQueryData<DraftConfiguration>([...ROOT,"configuration"],{ draftRevision: result.data.draftRevision, configuration: { configurationId: result.data.configuration.configurationId, attemptLimit: result.data.configuration.attemptLimit, initialAbsentCount: result.data.configuration.initialAbsentCount, normalizerVersion: "vi-nfc-v2", levels: [3,5,7,9] } });
       } else if (result.operation === "configuration") {
         client.setQueryData([...ROOT,"configuration"],result.data);
         client.removeQueries({ queryKey: [...ROOT,"preview"] });
@@ -83,9 +83,9 @@ export function useDictionaryPublication(onUnauthorized: () => void) {
     try { void execute({ operation: "publish", requestId: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), input: { buildId: preview.data.buildId, expectedDraftRevision: preview.data.draftRevision, expectedCurrentReleaseId: confirmed.expectedCurrentReleaseId, contentHash: confirmed.contentHash } }); }
     catch { setLocalError(true); }
   };
-  const configure = (attemptLimit: number) => {
+  const configure = (attemptLimit: number, initialAbsentCount: number) => {
     if (!configuration.data || pending.current || mutation.isPending || preparing.current || draft.isFetching) return;
-    try { void execute({ operation: "configuration", requestId: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), input: { expectedDraftRevision: configuration.data.draftRevision, attemptLimit } }); }
+    try { void execute({ operation: "configuration", requestId: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), input: { expectedDraftRevision: configuration.data.draftRevision, attemptLimit, initialAbsentCount } }); }
     catch { setLocalError(true); }
   };
   return { configuration: configuration.data, configure, preview: preview.data, published: published.data, refresh, publish, retry: () => { if (pending.current && !mutation.isPending) void execute(pending.current); }, canRetry, busy: mutation.isPending || draft.isFetching, error: localError || mutation.isError || draft.isError, stale: stalePreview || mutation.error?.message === "REVISION_CONFLICT" };

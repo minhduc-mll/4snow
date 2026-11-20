@@ -1,7 +1,7 @@
 import type { PlayableRound, RoundRules, WordRound } from "../../types/vua-tieng-viet.ts";
 import { isRecord, isUuid } from "./publication-contract.ts";
 import { attribution, levelData } from "./public-release.ts";
-import { commitInput, submitGuess } from "./player-engine.ts";
+import { baseLetter, commitInput, submitGuess } from "./player-engine.ts";
 import { parseStrictJson } from "./strict-json.ts";
 
 export const ROUND_SAVE_KEY = "vtv:round:v1";
@@ -80,15 +80,30 @@ function decodeRound(value: Record<string, unknown>): PlayableRound {
       roundKeys.push("rules");
       if (!isRecord(round.rules)) invalid();
       const hasAccuracy = value.schemaVersion === 3 || (value.schemaVersion === 4 && Object.hasOwn(round.rules,"accuracy"));
-      if (!exact(round.rules,hasAccuracy ? ["guessMode","accuracy"] : ["guessMode"]) || (round.rules.guessMode !== "dictionary" && round.rules.guessMode !== "free")) invalid();
+      const hasDifficulty = Object.hasOwn(round.rules,"difficulty");
+      if (!exact(round.rules,["guessMode", ...(hasAccuracy ? ["accuracy"] : []), ...(hasDifficulty ? ["difficulty"] : [])]) || (round.rules.guessMode !== "dictionary" && round.rules.guessMode !== "free")) invalid();
       const { guessMode, accuracy } = round.rules;
       if (hasAccuracy) {
         if (accuracy !== "strict" && accuracy !== "optional") invalid();
         rules = { guessMode, accuracy };
       } else rules = { guessMode };
     }
+    if (isRecord(round.rules) && Object.hasOwn(round.rules,"difficulty")) {
+      const difficulty = round.rules.difficulty;
+      if (difficulty !== "easy" && difficulty !== "hard" && difficulty !== "expert") invalid();
+      rules = { ...rules, difficulty };
+    }
+    let initialAbsentLetters: string[] | undefined;
+    if (Object.hasOwn(round,"initialAbsentLetters")) {
+      roundKeys.push("initialAbsentLetters");
+      const clues = round.initialAbsentLetters;
+      const answerBase = baseLetter(answer.normalized);
+      if (!Array.isArray(clues) || clues.length < 1 || clues.length > 17 || new Set(clues).size !== clues.length ||
+        !clues.every((letter: unknown): letter is string => typeof letter === "string" && /^[A-Z]$/.test(letter) && !answerBase.includes(letter))) invalid();
+      initialAbsentLetters = clues;
+    }
     if (!exact(round,roundKeys) || !isUuid(round.id) || round.releaseId !== snapshot.releaseId || round.configVersion !== snapshot.configurationId || round.level !== snapshot.level || round.answerId !== answer.id || round.attemptLimit !== snapshot.attemptLimit || typeof round.input !== "string" || round.input.length > 120 || !Array.isArray(round.guesses) || round.guesses.length > snapshot.attemptLimit || !["playing","won","lost"].includes(String(round.status)) || !revision(round.revision) || value.revision !== round.revision || !timestamp(round.startedAt) || !timestamp(round.updatedAt) || round.updatedAt < round.startedAt || value.savedAt < round.updatedAt || !(round.endedAt === null || timestamp(round.endedAt))) invalid();
-    let state: PlayableRound = { answer, membership: data.guesses, attributions, singleAnswerReplay: false, round: { id: round.id, releaseId: snapshot.releaseId, configVersion: snapshot.configurationId, level: snapshot.level, rules, answerId: answer.id, attemptLimit: snapshot.attemptLimit, input: "", guesses: [], status: "playing", revision: 0, startedAt: round.startedAt, updatedAt: round.startedAt, endedAt: null } };
+    let state: PlayableRound = { answer, membership: data.guesses, attributions, singleAnswerReplay: false, round: { id: round.id, releaseId: snapshot.releaseId, configVersion: snapshot.configurationId, level: snapshot.level, rules, answerId: answer.id, attemptLimit: snapshot.attemptLimit, ...(initialAbsentLetters ? { initialAbsentLetters } : {}), input: "", guesses: [], status: "playing", revision: 0, startedAt: round.startedAt, updatedAt: round.startedAt, endedAt: null } };
     const guessIds = new Set<string>();
     let previousTime = round.startedAt;
     for (const guess of round.guesses) {

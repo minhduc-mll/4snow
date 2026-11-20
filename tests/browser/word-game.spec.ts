@@ -114,7 +114,7 @@ test("level replacement confirms, restores cancellation focus and preserves a ro
   await page.getByRole("button",{ name: /Tải ván mới|Load new round/i }).click();
   await expect(page.getByRole("status")).toContainText(/Chưa tải được|Could not load/i);
   await expect(input(page)).toHaveValue("m");
-  await expect(page.getByText(/3 chữ · Từ điển · /)).toBeVisible();
+  await expect(page.getByText(/3 chữ · Dễ · Từ điển · /)).toBeVisible();
   control.fail = false;
   await page.evaluate(() => { Object.defineProperty(Crypto.prototype,"getRandomValues",{ configurable: true, value: () => { throw new Error("test random unavailable"); } }); });
   await page.getByRole("button",{ name: /Thử lại tải ván mới|Retry loading the new round/i }).click();
@@ -198,26 +198,61 @@ test("Free mode applies atomically, shows text feedback and restores its histori
   await dialog.getByRole("button",{ name: "Xem phản hồi bằng chữ" }).click();
   await dialog.getByRole("button",{ name: "Tải ván mới", exact: true }).click();
 
-  await expect(page.getByText(/3 chữ · Tự do · /)).toBeVisible();
+  await expect(page.getByText(/3 chữ · Dễ · Tự do · /)).toBeVisible();
   await expect(input(page)).toHaveValue("");
   await input(page).fill("AAA");
   await submit(page).click();
   await expect(input(page)).toBeFocused();
   await expect(board(page).getByText("1. A · Không có hoặc dư")).toBeVisible();
   await expect(board(page)).not.toContainText(/[✓↔×]/);
-  await expect(page.getByRole("button",{ name: /^A,/ })).toBeDisabled();
+  await expect(page.getByRole("button",{ name: /^A,/ })).toBeEnabled();
   await input(page).pressSequentially("a");
-  await expect(input(page)).toHaveValue("");
+  await expect(input(page)).toHaveValue("a");
+  await input(page).press("Backspace");
   await page.evaluate(() => {
     localStorage.setItem("vtv:preferences:v1", JSON.stringify({ schemaVersion: 1, preferredLevel: 9, guessMode: "dictionary" }));
   });
   control.fail = true;
   await page.reload();
-  await expect(page.getByText(/3 chữ · Tự do · /)).toBeVisible();
+  await expect(page.getByText(/3 chữ · Dễ · Tự do · /)).toBeVisible();
   await expect(input(page)).toHaveValue("");
   await expect(board(page).locator("[data-feedback]")).toHaveCount(3);
   await input(page).fill("AAA");
-  await expect(submit(page)).toBeDisabled();
+  await expect(submit(page)).toBeEnabled();
+});
+
+test("expert answers and initial absent keys survive a reload", async ({ page }) => {
+  const control = await dictionary(page);
+  const payload = playerPayload();
+  payload.initialAbsentCount = 17;
+  const common = payload.levels[3].answers[0];
+  payload.levels[3].answers.push({ ...common, id: fixtureId(34), original: "sôi", normalized: "SÔI", category: "rare" });
+  control.row = playerReleaseRow(payload);
+  await page.addInitScript(() => {
+    Object.defineProperty(Crypto.prototype, "getRandomValues", { configurable: true, value: (array: Uint32Array) => { array.fill(1); return array; } });
+  });
+  await page.goto("/vua-tieng-viet");
+  await page.getByRole("button", { name: "Cài đặt", exact: true }).click();
+  await page.getByRole("button", { name: "Siêu khó", exact: true }).click();
+  await page.getByRole("button", { name: "Áp dụng", exact: true }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "Bắt đầu ván", exact: true }).click();
+
+  const keyboard = page.getByRole("region", { name: "Bàn phím trên màn hình" });
+  const absent = keyboard.locator('button[data-feedback="absent"]');
+  await expect(absent).toHaveCount(17);
+  await expect(keyboard.getByRole("button", { name: "O", exact: true })).toBeEnabled();
+  const marked = await absent.allTextContents();
+  await absent.first().click();
+  await expect(input(page)).toHaveValue(marked[0]);
+
+  await page.reload();
+  await expect(absent).toHaveCount(17);
+  expect(await absent.allTextContents()).toEqual(marked);
+  await expect(page.getByText(/3 chữ · Siêu khó ·/)).toBeVisible();
+  await input(page).fill("sôi");
+  await submit(page).click();
+  await expect(page.getByRole("region", { name: "Kết quả ván chơi" })).toContainText("Chúc mừng!");
 });
 
 test("help exposes source credit and keeps the answer entry link for the result",async ({ page }) => {

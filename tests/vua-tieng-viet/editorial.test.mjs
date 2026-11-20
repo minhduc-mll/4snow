@@ -12,7 +12,10 @@ test("review requires explicit exclusions and a reviewed meaning for answer elig
   assert.equal(parseEditorialRequest(review).operation, "review");
   assert.throws(() => parseEditorialRequest({ ...review, input: { ...review.input, exclusionChecks: { ...checks, names: false } } }));
   assert.throws(() => parseEditorialRequest({ ...review, input: { ...review.input, definitionVi: null } }));
-  assert.throws(() => parseEditorialRequest({ ...review, input: { ...review.input, category: "technical" } }));
+  assert.throws(() => parseEditorialRequest({ ...review, input: { ...review.input, category: "excluded" } }));
+  for (const category of ["technical","less-common","regional","rare"]) {
+    assert.equal(parseEditorialRequest({ ...review, input: { ...review.input, category } }).input.category, category);
+  }
 });
 
 test("an answer with a meaning warning requires acknowledgment at the trusted boundary", () => {

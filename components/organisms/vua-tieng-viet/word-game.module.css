@@ -42,6 +42,8 @@
 .levels { border: 0; padding: 0; min-width: 0; }
 .levels legend { text-align: center; width: 100%; color: var(--vtv-muted); font-size: .875rem; margin-bottom: .6rem; }
 .levelButtons { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .5rem; }
+.difficultyButtons { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.difficultyButtons button { white-space: normal; min-height: 2.75rem; height: auto; }
 .modeButtons { grid-template-columns: repeat(2,minmax(0,1fr)); }
 .levelButton { color: var(--vtv-ink); border-color: var(--vtv-line); background: var(--vtv-surface); min-height: 2.75rem; padding-inline: .25rem; }
 .levelButton[aria-pressed=true] { color: var(--vtv-primary-ink); border-color: var(--vtv-primary); background: var(--vtv-primary); }

@@ -34,7 +34,7 @@ export function DictionaryPublicationPanel({ onUnauthorized }: Props) {
         {model.error && !model.stale ? <p role="alert">{t("publication.error")}</p> : null}
         {model.configuration ? <AttemptConfigurationForm key={`${model.configuration.configuration.configurationId}:${model.configuration.draftRevision}`} configuration={model.configuration} disabled={model.busy || model.canRetry} onSave={model.configure} /> : <p className="text-sm text-muted-foreground">{t("attemptConfiguration.load")}</p>}
         {preview ? <>
-          <p>{t("publication.attempts")}: {preview.configuration.attemptLimit} · {t("publication.sources")}: {preview.sourceCount} · {t("publication.attributions")}: {preview.attributionCount}</p>
+          <p>{t("publication.attempts")}: {preview.configuration.attemptLimit} {" · "} {t("attemptConfiguration.clues")}: {preview.configuration.initialAbsentCount ?? 0} · {t("publication.sources")}: {preview.sourceCount} · {t("publication.attributions")}: {preview.attributionCount}</p>
           <p className="break-all text-xs text-muted-foreground">{t("publication.build")}: {preview.buildId} · {preview.contentHash}</p>
           <p className="text-sm">{t("publication.payloadSize", { bytes: preview.payloadBytes.toLocaleString() })}</p>
           <p className="break-all text-sm text-muted-foreground">{preview.expectedCurrentReleaseId
