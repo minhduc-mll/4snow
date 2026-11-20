@@ -73,14 +73,14 @@ test("keyboard-only picker focus is contained; Escape and outside dismissal pres
   await expect(input(page)).toHaveValue("È");
 });
 
-test("absent letter groups and invalid pastes reject atomically",async ({ page }) => {
+test("absent letters remain usable and invalid pastes reject atomically",async ({ page }) => {
   await dictionary(page); await start(page);
   await paste(page,"SÔI"); await expect(input(page)).toHaveValue("SÔI"); await submit(page).click();
-  await expect(keyboard(page).getByRole("button",{ name: /^I,/ })).toBeDisabled();
-  await expect(expansion(page,"I")).toBeDisabled();
+  await expect(keyboard(page).getByRole("button",{ name: /^I,/ })).toBeEnabled();
+  await expect(expansion(page,"I")).toBeEnabled();
   await keyboard(page).getByRole("button",{ name: "M", exact: true }).click();
-  await paste(page,"í"); await expect(input(page)).toHaveValue("M");
-  await expect(page.getByRole("status")).toContainText(/bị loại|ruled out/i);
+  await paste(page,"í"); await expect(input(page)).toHaveValue("Mí");
+  await input(page).press("Backspace");
   await paste(page,"èo!"); await expect(input(page)).toHaveValue("M");
   await expect(page.getByRole("status")).toContainText(/Chỉ nhập chữ|supported Vietnamese letters/i);
   await expansion(page,"E").click();

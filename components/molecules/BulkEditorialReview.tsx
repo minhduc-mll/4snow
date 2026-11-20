@@ -25,7 +25,7 @@ function BulkDecisionForm({ model, page, saved }: DecisionProps): React.ReactEle
           {bulkCategories.map((value) => <option key={value} value={value}>{t(value === "less-common" ? "editorial.lessCommon" : `editorial.${value}`)}</option>)}
         </select>
       </label>
-      <label className="flex items-center gap-2"><Checkbox disabled={decision.category !== "common"} checked={decision.answerEligible} onChange={(event) => setAnswerEligible(event.target.checked)} />{t("bulk.answers")}</label>
+      <label className="flex items-center gap-2"><Checkbox checked={decision.answerEligible} onChange={(event) => setAnswerEligible(event.target.checked)} />{t("bulk.answers")}</label>
       <label className="grid gap-1">{t("editorial.rationale")}<textarea className="rounded-md border bg-background px-3 py-2" maxLength={2000} required value={decision.rationale} onChange={(event) => setRationale(event.target.value)} /></label>
       {checks.map((name) => <label className="flex items-center gap-2" key={name}><Checkbox checked={decision.exclusionChecks[name]} onChange={(event) => setCheck(name, event.target.checked)} />{t(`editorial.check_${name}`)}</label>)}
     </fieldset>

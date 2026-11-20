@@ -18,7 +18,7 @@ test("setup leads to a compact game and a finished round can select a new length
   await page.getByRole("button", { name: "Cài đặt" }).click();
   await page.getByRole("button", { name: /^5 chữ$/ }).click();
   const dialog = page.getByRole("dialog", { name: "Cài đặt" });
-  await expect(dialog.getByText("5 chữ · Từ điển · Cho phép bỏ dấu")).toBeVisible();
+  await expect(dialog.getByText("5 chữ · Dễ · Từ điển · Cho phép bỏ dấu")).toBeVisible();
   const help = dialog.getByRole("button", { name: "Giải thích độ chính xác" });
   await help.focus();
   await page.keyboard.press("Enter");

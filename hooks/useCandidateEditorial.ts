@@ -18,7 +18,7 @@ type ListPage = { items: Summary[]; nextCursor: string | null; draftRevision: st
 const ROOT = ["vtv-private", "editorial"];
 
 function rec(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
-function category(value: unknown): value is Category | null { return value === null || value === "common" || value === "regional" || value === "technical" || value === "less-common" || value === "excluded"; }
+function category(value: unknown): value is Category | null { return value === null || value === "common" || value === "regional" || value === "technical" || value === "less-common" || value === "rare" || value === "excluded"; }
 function nullableString(value: unknown): value is string | null { return value === null || typeof value === "string"; }
 function attribution(value: unknown): Attribution {
   if (!rec(value) || typeof value.id !== "string" || typeof value.sourceName !== "string" || typeof value.sourceEntryId !== "string" || !nullableString(value.sourceSenseId) || typeof value.entryUrl !== "string" || typeof value.artifactUrl !== "string" || typeof value.artifactSha256 !== "string" || typeof value.resourceRevision !== "string" || typeof value.artifactRevision !== "string" || typeof value.licenseName !== "string" || !nullableString(value.licenseVersion) || typeof value.licenseUrl !== "string" || typeof value.attributionText !== "string" || !nullableString(value.historyUrl) || typeof value.modificationsNotice !== "string") throw new Error("INVALID_RESPONSE");

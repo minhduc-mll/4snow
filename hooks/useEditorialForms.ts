@@ -18,7 +18,7 @@ export function useEditorialReviewForm(detail: Detail, save: Editorial["save"]) 
   const [checks, setChecks] = React.useState<ExclusionChecks>(detail.current.exclusionChecks ?? { names: false, abbreviations: false, offensive: false, malformed: false, unverified: false });
   const [invalid, setInvalid] = React.useState(false);
   const [warningAcknowledged, setWarningAcknowledged] = React.useState(false);
-  const meaningWarning = category === "common" && hasMeaningWarning(definition);
+  const meaningWarning = hasMeaningWarning(definition);
   const answerNeedsAcknowledgement = meaningWarning && answer && !warningAcknowledged;
   const setDefinition = (value: string) => {
     setWarningAcknowledged(false);
@@ -40,7 +40,10 @@ export function useEditorialReviewForm(detail: Detail, save: Editorial["save"]) 
     }
   };
   const changeCategory = (next: string): void => {
-    if (next === "common" || next === "regional" || next === "technical" || next === "less-common" || next === "excluded") setCategory(next);
+    if (next === "common" || next === "regional" || next === "technical" || next === "less-common" || next === "rare" || next === "excluded") {
+      setCategory(next);
+      if (next === "excluded") setAnswer(false);
+    }
   };
   const setCheck = (name: keyof ExclusionChecks, checked: boolean): void => setChecks((previous) => ({ ...previous, [name]: checked }));
   return { original, setOriginal, definition, setDefinition, review, changeReview, answer, setAnswer, category, changeCategory, rationale, setRationale, checks, setCheck, invalid, meaningWarning, warningAcknowledged, setWarningAcknowledged, answerNeedsAcknowledgement, submit, retry: () => void save(input, true) };
@@ -60,7 +63,7 @@ export function useEditorialFilters(applyFilters: (filters: Filters) => void) {
   return { spelling, setSpelling, sourceId, setSourceId, level, setLevel, review, setReview, hasDefinition, setHasDefinition, collisionsOnly, setCollisionsOnly, apply };
 }
 
-export const bulkCategories = ["common", "regional", "technical", "less-common"] as const;
+export const bulkCategories = ["common", "regional", "technical", "less-common", "rare"] as const;
 
 export function useBulkDecisionForm(saved: BulkDecision | null, error: string | null) {
   const [category, setCategory] = React.useState<BulkDecision["category"]>("common");
@@ -74,7 +77,6 @@ export function useBulkDecisionForm(saved: BulkDecision | null, error: string | 
     const selected = bulkCategories.find((category) => category === value);
     if (!selected) return;
     setCategory(selected);
-    if (selected !== "common") setAnswerEligible(false);
   };
   const setCheck = (name: keyof ExclusionChecks, checked: boolean) => setExclusionChecks((current) => ({ ...current, [name]: checked }));
   return { decision, canConfirm, changeCategory, setAnswerEligible, setRationale, setCheck };

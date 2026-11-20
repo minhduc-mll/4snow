@@ -14,7 +14,6 @@ const LEVELS: WordLevel[] = [3, 5, 7, 9];
 const errorLabels: Partial<Record<PlayerErrorCode, string>> = {
   INCOMPLETE: "publication.previewIncomplete",
   INVALID_INPUT: "publication.previewInvalid",
-  ABSENT_LETTER: "publication.previewAbsent",
   NOT_IN_DICTIONARY: "publication.previewUnknown",
 };
 

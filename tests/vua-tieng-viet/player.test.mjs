@@ -54,13 +54,29 @@ test("accent-specific rejection, canonical equality, strongest keyboard evidence
   state = submitGuess(state,state.round.revision,metadata).state;
   assert.equal(state.round.status,"playing");
   assert.equal(keyboardKnowledge(state.round.guesses).get("E"),"absent");
-  assert.equal(commitInput(state,"meo").error,"ABSENT_LETTER");
+  assert.equal(commitInput(state,"meo").error,null);
   assert.equal(commitInput(state,"mèo!").state,state);
   state = commitInput(state,"me\u0300o").state;
   state = submitGuess(state,state.round.revision,metadata).state;
   assert.equal(state.round.status,"won");
   assert.deepEqual(state.round.guesses[0],prior);
   assert.equal(state.round.guesses[2].input,"me\u0300o");
+});
+
+test("difficulty expands the answer pool without narrowing accepted guesses", () => {
+  const payload = playerPayload();
+  const level = payload.levels[3];
+  const base = level.answers[0];
+  for (const [index, category] of ["less-common","technical","regional","rare"].entries()) {
+    const normalized = ["AAE","AAF","AAG","AAH"][index];
+    level.guesses.push(normalized);
+    level.answers.push({ ...base, id: fixtureId(60 + index), original: normalized, normalized, category });
+  }
+  for (const [difficulty, count] of [["easy",1],["hard",3],["expert",5]]) {
+    const answers = Array.from({ length: count }, (_, index) => startRound(release(payload),3,undefined,() => index,metadata,"dictionary","optional",difficulty));
+    assert.deepEqual(answers.map(state => state.answer.id),level.answers.slice(0,count).map(answer => answer.id));
+    assert.deepEqual(answers[0].membership,level.guesses);
+  }
 });
 
 test("loss uses exactly the configured accepted attempts and stale/terminal transitions do nothing", () => {
@@ -131,7 +147,7 @@ test("accent-aware scoring accepts omitted marks, reserves green cells, and flag
   assert.deepEqual(evaluateGuess("ĐƠN", "DƠỜ", "optional"), ["correct","correct","absent"]);
 });
 
-test("partial accents use dictionary membership and both modes lock absent letter groups", () => {
+test("partial accents use dictionary membership and both modes accept previously absent letter groups", () => {
   const payload = playerPayload();
   const sample = payload.levels[5].answers[0];
   payload.levels[5] = {
@@ -157,6 +173,6 @@ test("partial accents use dictionary membership and both modes lock absent lette
     const round = startRound(release(playerPayload()),3,undefined,() => 0,metadata,mode,"optional");
     const { state } = commitInput(round,"AAA");
     const next = submitGuess(state,state.round.revision,metadata).state;
-    assert.equal(commitInput(next,"ấ").error,"ABSENT_LETTER");
+    assert.equal(commitInput(next,"ấ").error,null);
   }
 });

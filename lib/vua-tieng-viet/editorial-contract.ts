@@ -2,7 +2,7 @@ import { normalizeSpelling } from "./dictionary-contract.ts";
 import { isRevision } from "./publication-contract.ts";
 
 export type ReviewStatus = "pending" | "approved" | "rejected" | "withdrawn";
-export type Category = "common" | "regional" | "technical" | "less-common" | "excluded";
+export type Category = "common" | "regional" | "technical" | "less-common" | "rare" | "excluded";
 export type ExclusionChecks = { names: boolean; abbreviations: boolean; offensive: boolean; malformed: boolean; unverified: boolean };
 export type ReviewInput = { entryId: string; expectedEntryRevision: number; expectedDraftRevision: string; original: string; definitionVi: string | null; review: ReviewStatus; answerEligible: boolean; category: Category; rationale: string; exclusionChecks: ExclusionChecks; meaningWarningAcknowledged?: true };
 export type Filters = { sourceId: string | null; level: 3 | 5 | 7 | 9 | null; review: ReviewStatus | null; hasDefinition: boolean | null; collisionsOnly: boolean; spelling?: string };
@@ -26,7 +26,7 @@ function keys(value: Record<string, unknown>, expected: string[]): boolean { ret
 function uuid(value: unknown): value is string { return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value); }
 function bounded(value: unknown, limit: number): value is string { return typeof value === "string" && Array.from(value).length <= limit && new TextEncoder().encode(value).length <= limit * 4; }
 export function isReviewStatus(value: unknown): value is ReviewStatus { return value === "pending" || value === "approved" || value === "rejected" || value === "withdrawn"; }
-function category(value: unknown): value is Category { return value === "common" || value === "regional" || value === "technical" || value === "less-common" || value === "excluded"; }
+function category(value: unknown): value is Category { return value === "common" || value === "regional" || value === "technical" || value === "less-common" || value === "rare" || value === "excluded"; }
 function cursor(value: unknown): value is string | null { return value === null || (bounded(value, 512) && value.length > 0); }
 function optionalText(value: unknown, limit: number): value is string | null { return value === null || (bounded(value, limit) && value.trim().length > 0); }
 
@@ -85,7 +85,7 @@ export function parseEditorialRequest(value: unknown): EditorialRequest {
     const normalized = normalizeSpelling(input.original);
     if (![3, 5, 7, 9].includes(normalized.level)) throw new Error("Invalid level");
     if (input.review === "approved" && (!c.names || !c.abbreviations || !c.offensive || !c.malformed || !c.unverified || input.category === "excluded" || !input.rationale.trim())) throw new Error("Approval requires exclusion checks");
-    if (input.answerEligible && (input.review !== "approved" || input.category !== "common" || input.definitionVi === null || !input.rationale.trim())) throw new Error("Answer requires a reviewed meaning");
+    if (input.answerEligible && (input.review !== "approved" || input.category === "excluded" || input.definitionVi === null || !input.rationale.trim())) throw new Error("Answer requires a reviewed meaning");
     if (input.answerEligible && input.definitionVi !== null && hasMeaningWarning(input.definitionVi) && !acknowledged) throw new Error("Answer needs explicit meaning review");
     return { operation: "review", requestId: value.requestId, idempotencyKey: value.idempotencyKey, input: { entryId: input.entryId, expectedEntryRevision: input.expectedEntryRevision, expectedDraftRevision: input.expectedDraftRevision, original: input.original, definitionVi: input.definitionVi, review: input.review, answerEligible: input.answerEligible, category: input.category, rationale: input.rationale, ...(acknowledged ? { meaningWarningAcknowledged: true } : {}), exclusionChecks: { names: c.names, abbreviations: c.abbreviations, offensive: c.offensive, malformed: c.malformed, unverified: c.unverified } } };
   }

@@ -1,9 +1,13 @@
 import type { CurrentRelease, PublicAttribution, PublishedRelease, ReleaseLevel, ReleasePayload, WordAnswer, WordLevel } from "../../types/vua-tieng-viet.ts";
 import { canonicalJson, normalizeSpelling } from "./dictionary-contract.ts";
-import { isRecord, isRevision, isUuid } from "./publication-contract.ts";
+import { isInitialAbsentCount, isRecord, isRevision, isUuid } from "./publication-contract.ts";
 import { safeHttps } from "./safe-link.ts";
 import { parseStrictJson } from "./strict-json.ts";
 import { PlayerError } from "./player-engine.ts";
+
+export function isAnswerCategory(value: unknown): value is NonNullable<WordAnswer["category"]> {
+  return value === "common" || value === "less-common" || value === "technical" || value === "regional" || value === "rare";
+}
 
 const MAX_PAYLOAD = 2 * 1024 * 1024;
 function exact(value: Record<string, unknown>, keys: string[]) { return Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value,key)); }
@@ -27,19 +31,19 @@ export function levelData(value: unknown, level: WordLevel, attributionIds: Set<
   const membership = new Set(guesses);
   previous = "";
   const answers = value.answers.map((answer: unknown): WordAnswer => {
-    if (!isRecord(answer) || !exact(answer,["id","original","normalized","level","definitionVi","attributionIds"]) || !isUuid(answer.id) || answerIds.has(answer.id) || !text(answer.original,120) || !text(answer.normalized,9) || normalizeSpelling(answer.original).normalized !== answer.normalized || Array.from(answer.normalized).length !== level || answer.normalized <= previous || answer.level !== level || !membership.has(answer.normalized) || !text(answer.definitionVi,2000) || !Array.isArray(answer.attributionIds) || !answer.attributionIds.length || answer.attributionIds.length > attributionIds.size || !answer.attributionIds.every((id: unknown): id is string => isUuid(id) && attributionIds.has(id)) || new Set(answer.attributionIds).size !== answer.attributionIds.length) throw new PlayerError("INVALID_RELEASE");
+    if (!isRecord(answer) || !exact(answer,["id","original","normalized","level","definitionVi","attributionIds", ...(Object.hasOwn(answer,"category") ? ["category"] : [])]) || (Object.hasOwn(answer,"category") && !isAnswerCategory(answer.category)) || !isUuid(answer.id) || answerIds.has(answer.id) || !text(answer.original,120) || !text(answer.normalized,9) || normalizeSpelling(answer.original).normalized !== answer.normalized || Array.from(answer.normalized).length !== level || answer.normalized <= previous || answer.level !== level || !membership.has(answer.normalized) || !text(answer.definitionVi,2000) || !Array.isArray(answer.attributionIds) || !answer.attributionIds.length || answer.attributionIds.length > attributionIds.size || !answer.attributionIds.every((id: unknown): id is string => isUuid(id) && attributionIds.has(id)) || new Set(answer.attributionIds).size !== answer.attributionIds.length) throw new PlayerError("INVALID_RELEASE");
     previous = answer.normalized; answerIds.add(answer.id);
-    return { id: answer.id, original: answer.original, normalized: answer.normalized, level, definitionVi: answer.definitionVi, attributionIds: answer.attributionIds };
+    return { id: answer.id, original: answer.original, normalized: answer.normalized, level, definitionVi: answer.definitionVi, attributionIds: answer.attributionIds, ...(isAnswerCategory(answer.category) ? { category: answer.category } : {}) };
   });
   return { guesses, answers };
 }
 export function parseReleasePayload(value: unknown): ReleasePayload {
   try {
-    if (!isRecord(value) || !exact(value,["schemaVersion","normalizerVersion","releaseId","configurationId","attemptLimit","levels","attributions"]) || value.schemaVersion !== 1 || value.normalizerVersion !== "vi-nfc-v2" || !isUuid(value.releaseId) || !isUuid(value.configurationId) || typeof value.attemptLimit !== "number" || !Number.isInteger(value.attemptLimit) || value.attemptLimit < 1 || value.attemptLimit > 12 || !isRecord(value.levels) || !exact(value.levels,["3","5","7","9"]) || !Array.isArray(value.attributions) || !value.attributions.length || value.attributions.length > 80000 || new TextEncoder().encode(canonicalJson(value)).length > MAX_PAYLOAD) throw new PlayerError("INVALID_RELEASE");
+    if (!isRecord(value) || !exact(value,["schemaVersion","normalizerVersion","releaseId","configurationId","attemptLimit","levels","attributions", ...(Object.hasOwn(value,"initialAbsentCount") ? ["initialAbsentCount"] : [])]) || (Object.hasOwn(value,"initialAbsentCount") && !isInitialAbsentCount(value.initialAbsentCount)) || value.schemaVersion !== 1 || value.normalizerVersion !== "vi-nfc-v2" || !isUuid(value.releaseId) || !isUuid(value.configurationId) || typeof value.attemptLimit !== "number" || !Number.isInteger(value.attemptLimit) || value.attemptLimit < 1 || value.attemptLimit > 12 || !isRecord(value.levels) || !exact(value.levels,["3","5","7","9"]) || !Array.isArray(value.attributions) || !value.attributions.length || value.attributions.length > 80000 || new TextEncoder().encode(canonicalJson(value)).length > MAX_PAYLOAD) throw new PlayerError("INVALID_RELEASE");
     const attributions = value.attributions.map(attribution), ids = new Set(attributions.map(attr => attr.id));
     if (ids.size !== attributions.length) throw new PlayerError("INVALID_RELEASE");
     const answerIds = new Set<string>();
-    return { schemaVersion: 1, normalizerVersion: "vi-nfc-v2", releaseId: value.releaseId, configurationId: value.configurationId, attemptLimit: value.attemptLimit, levels: { 3: levelData(value.levels[3],3,ids,answerIds), 5: levelData(value.levels[5],5,ids,answerIds), 7: levelData(value.levels[7],7,ids,answerIds), 9: levelData(value.levels[9],9,ids,answerIds) }, attributions };
+    return { schemaVersion: 1, normalizerVersion: "vi-nfc-v2", releaseId: value.releaseId, configurationId: value.configurationId, attemptLimit: value.attemptLimit, ...(isInitialAbsentCount(value.initialAbsentCount) ? { initialAbsentCount: value.initialAbsentCount } : {}), levels: { 3: levelData(value.levels[3],3,ids,answerIds), 5: levelData(value.levels[5],5,ids,answerIds), 7: levelData(value.levels[7],7,ids,answerIds), 9: levelData(value.levels[9],9,ids,answerIds) }, attributions };
   } catch (error) { throw error instanceof PlayerError ? error : new PlayerError("INVALID_RELEASE"); }
 }
 export async function validateReleaseRow(value: unknown, expectedId: string): Promise<PublishedRelease> {
