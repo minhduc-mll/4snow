@@ -114,7 +114,8 @@ function ReviewEditor({ detail, save, saving, canRetry }: { detail: Detail; save
 
 export function CandidateEditorialPanel({ onUnauthorized }: Props): React.ReactElement {
   const { t } = useAppI18n();
-  const [showCreate, setShowCreate] = React.useState(false);
+  const [creation, setCreation] = React.useState<"unopened" | "open" | "closed">("unopened");
+  const showCreate = creation === "open";
   const model = useCandidateEditorial(onUnauthorized);
   const filter = useEditorialFilters(model.applyFilters);
   const enabled = process.env.NEXT_PUBLIC_VTV_IMPORT_ENABLED === "true";
@@ -126,11 +127,15 @@ export function CandidateEditorialPanel({ onUnauthorized }: Props): React.ReactE
     <Card className="w-full shadow-soft"><CardHeader><CardTitle>{t("editorial.title")}</CardTitle><CardDescription>{t("editorial.description")}</CardDescription></CardHeader><CardContent className="grid gap-4">
       {!enabled ? <p>{t("dictionaryImport.disabled")}</p> : <>
         <p className="text-sm text-muted-foreground">{t("dictionaryWorkflow.draftWarning")}</p>
-        <Button className="justify-self-start" variant={showCreate ? "outline" : "primary"} aria-expanded={showCreate} aria-controls={showCreate ? "manual-candidate-form" : undefined} onClick={() => setShowCreate(value => !value)}>
+        <Button className="justify-self-start" variant={showCreate ? "outline" : "primary"} aria-expanded={showCreate} aria-controls={creation === "unopened" ? undefined : "manual-candidate-form"} onClick={() => setCreation(value => value === "open" ? "closed" : "open")}>
           {t(showCreate ? "wordManagement.hideAdd" : "wordManagement.add")}
         </Button>
-        {showCreate ? <CandidateCreationForm draftRevision={model.list?.draftRevision} onUnauthorized={onUnauthorized} onSelect={model.setSelectedEntry}
-          disabled={bulk.saving || model.saving || model.canRetry || model.canRetryRights || model.canRetrySelection} /> : null}
+        {creation !== "unopened" ? (
+          <div hidden={!showCreate}>
+            <CandidateCreationForm draftRevision={model.list?.draftRevision} onUnauthorized={onUnauthorized} onSelect={model.setSelectedEntry}
+              disabled={bulk.saving || model.saving || model.canRetry || model.canRetryRights || model.canRetrySelection} />
+          </div>
+        ) : null}
         <form className="grid gap-3" onSubmit={event => { event.preventDefault(); filter.apply(); }}>
           <label className="grid gap-1">{t("wordManagement.search")}<Input type="search" value={filter.spelling} maxLength={120} onChange={event => filter.setSpelling(event.target.value)} /></label>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -176,8 +181,8 @@ export function CandidateEditorialPanel({ onUnauthorized }: Props): React.ReactE
           </section>
           <AnswerCollisionReview model={{ ...model, saving: model.saving || bulk.saving }} normalized={model.detail.current.normalized} level={model.detail.current.level} />
           <RightsEditor key={`${model.detail.sourceId}:${model.detail.draftRevision}`} detail={model.detail} model={{ ...model, saving: model.saving || bulk.saving }} />
-          {model.detail.current.review !== "withdrawn" ? <ReviewEditor key={model.detail.current.id} detail={model.detail} save={model.save} saving={bulk.saving || model.saving || model.canRetryRights || model.canRetrySelection} canRetry={model.canRetry} /> : null}
-          <EntryLifecycle key={model.detail.current.id} detail={model.detail} model={{ ...model, saving: model.saving || bulk.saving }} />
+          {model.detail.current.review !== "withdrawn" ? <ReviewEditor key={`review:${model.detail.current.id}`} detail={model.detail} save={model.save} saving={bulk.saving || model.saving || model.canRetryRights || model.canRetrySelection} canRetry={model.canRetry} /> : null}
+          <EntryLifecycle key={`lifecycle:${model.detail.current.id}`} detail={model.detail} model={{ ...model, saving: model.saving || bulk.saving }} />
           <section className="grid gap-2"><h3 className="font-semibold">{t("editorial.history")}</h3>
             <ul className="grid gap-2">{model.history?.items.map((item) => <li key={item.id} className="rounded-lg border p-2 text-sm"><p>#{item.revisionNumber} · {item.original} · {t(`editorial.${item.review}`)} · {item.createdAt} · {item.actorRole}</p>{item.bulkBatchId ? <p className="break-all">{t("bulk.batch", { id: item.bulkBatchId })}</p> : null}<p>{item.definitionVi}</p><p>{item.rationale}</p><p>{item.category} · {item.answerEligible ? t("editorial.answerEligible") : ""}</p>{item.exclusionChecks ? <p>{checkNames.map((name) => `${t(`editorial.check_${name}`)}: ${item.exclusionChecks?.[name] ? t("editorial.yes") : t("editorial.no")}`).join(" · ")}</p> : null}</li>)}</ul>
             {model.historyError ? <Badge variant="danger">{t("editorial.error")}</Badge> : null}

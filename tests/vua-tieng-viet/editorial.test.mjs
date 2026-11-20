@@ -94,3 +94,38 @@ test("ordinary request size is rejected before full JSON parsing", async () => {
   const invalidOperation = JSON.stringify({ operation: { padding: "x".repeat(64 * 1024) }, input: {} });
   assert.throws(() => parseStrictJson(invalidOperation, 520 * 1024, 512 * 1024, 64 * 1024), RangeError);
 });
+
+test("manual candidate creation validates accent-preserving spelling and keeps duplicate confirmation explicit", async () => {
+  const { handlePreview, ImportOperationError } = await import("../../lib/vua-tieng-viet/preview-handler.ts");
+  const { createHmac } = await import("node:crypto");
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  const unsigned = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ role: "admin", iat: 1000, exp: 1100 })}`;
+  const authorization = `Bearer ${unsigned}.${createHmac("sha256", "secret").update(unsigned).digest("base64url")}`;
+  const body = { operation: "create-candidate", requestId, idempotencyKey, input: {
+    original: " họa mi ".normalize("NFD"), definitionVi: null, sourceId: entryId, entryUrl: null, sourceEntryId: null, sourceSenseId: null,
+    allowAlternateMeaning: false, expectedDraftRevision: "5",
+  } };
+  let attempts = 0;
+  const config = {
+    secret: "secret", origins: ["https://app.example"], now: () => 1001, consumeLimit: async () => 0, consumeMutationLimit: async () => 0,
+    createCandidate: async (request, _hash, spelling) => {
+      attempts++;
+      assert.deepEqual(spelling, { normalized: "HỌAMI", level: 5 });
+      assert.equal(request.input.original, "họa mi");
+      if (!request.input.allowAlternateMeaning) throw new ImportOperationError("SPELLING_EXISTS");
+      return { entryId, review: "pending" };
+    },
+  };
+  const send = (input, authenticated = true) => handlePreview(new Request("https://example.invalid", {
+    method: "POST", headers: { "content-type": "application/json", ...(authenticated ? { authorization } : {}) }, body: JSON.stringify({ ...body, input }),
+  }), config);
+  assert.equal((await send(body.input, false)).status, 401);
+  assert.equal((await send({ ...body.input, original: "họa mi\t" })).status, 400);
+  assert.equal((await send({ ...body.input, entryUrl: "https://credential@example.com" })).status, 400);
+  assert.equal(attempts, 0);
+  const duplicate = await send(body.input);
+  assert.equal(duplicate.status, 409);
+  assert.equal((await duplicate.json()).error.code, "SPELLING_EXISTS");
+  assert.equal((await send({ ...body.input, allowAlternateMeaning: true })).status, 200);
+  assert.equal(attempts, 2);
+});

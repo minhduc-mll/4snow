@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminSessionGeneration } from "@/hooks/useAdminAuth";
 import { parseCollisionPage } from "@/lib/vua-tieng-viet/collision-response";
 import { normalizeSpelling } from "@/lib/vua-tieng-viet/dictionary-contract";
@@ -34,6 +34,7 @@ export function useCandidateCreation(draftRevision: string | undefined, onUnauth
   const [sourceSenseId, setSourceSenseId] = React.useState("");
   const [alternate, setAlternate] = React.useState(false);
   const [lookup, setLookup] = React.useState<{ normalized: string; level: number } | null>(null);
+  const [invalidSpelling, setInvalidSpelling] = React.useState(false);
   const [invalid, setInvalid] = React.useState(false);
   const [success, setSuccess] = React.useState(false);
   const [canRetry, setCanRetry] = React.useState(false);
@@ -63,6 +64,7 @@ export function useCandidateCreation(draftRevision: string | undefined, onUnauth
     getNextPageParam: (page) => page.nextCursor ?? undefined,
   });
   const matchingEntries = matches.data?.pages.flatMap(page => page.items) ?? [];
+  const spellingChecked = lookup !== null && matches.isSuccess && !matches.isFetching;
   const create = useMutation({
     mutationKey: [...ROOT, "create-candidate"], retry: false, gcTime: 0,
     mutationFn: async ({ input, idempotencyKey }: Pending) => {
@@ -73,10 +75,13 @@ export function useCandidateCreation(draftRevision: string | undefined, onUnauth
     },
   });
   const checkSpelling = () => {
+    if (!original.trim()) return;
     try {
-      const spelling = normalizeSpelling(original.trim());
-      if ([3, 5, 7, 9].includes(spelling.level)) setLookup(spelling);
-    } catch { setLookup(null); }
+      const spelling = normalizeSpelling(original);
+      if (![3, 5, 7, 9].includes(spelling.level)) throw new Error("INVALID_INPUT");
+      setInvalidSpelling(false);
+      setLookup(spelling);
+    } catch { setLookup(null); setInvalidSpelling(true); }
   };
   const execute = async (value: Pending) => {
     const session = adminSessionGeneration();
@@ -106,7 +111,7 @@ export function useCandidateCreation(draftRevision: string | undefined, onUnauth
   };
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (pending.current || !selectedSource || !draftRevision || (matchingEntries.length && !alternate)) return;
+    if (pending.current || !selectedSource || !draftRevision || !spellingChecked || (matchingEntries.length && !alternate)) return;
     const external = selectedSource.kind !== "internal-editorial";
     try {
       const body = parseEditorialRequest({
@@ -122,9 +127,9 @@ export function useCandidateCreation(draftRevision: string | undefined, onUnauth
     } catch { setInvalid(true); }
   };
   return {
-    original, setOriginal: (text: string) => { setOriginal(text); setLookup(null); setAlternate(false); setSuccess(false); create.reset(); },
+    original, setOriginal: (text: string) => { setOriginal(text); setLookup(null); setInvalidSpelling(false); setAlternate(false); setSuccess(false); create.reset(); },
     definition, setDefinition, sourceId, setSourceId, entryUrl, setEntryUrl, sourceEntryId, setSourceEntryId, sourceSenseId, setSourceSenseId,
-    alternate, setAlternate, checkSpelling, sources, sourceOptions, selectedSource, matches, matchingEntries, submit, invalid, success,
+    alternate, setAlternate, checkSpelling, spellingChecked, invalidSpelling, sources, sourceOptions, selectedSource, matches, matchingEntries, submit, invalid, success,
     error: create.error?.message, busy: create.isPending, canRetry,
     retry: () => { if (pending.current && !create.isPending) void execute(pending.current); },
   };

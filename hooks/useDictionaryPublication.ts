@@ -29,6 +29,7 @@ export function useDictionaryPublication(onUnauthorized: () => void) {
   } });
   const configuration = useQuery<DraftConfiguration>({ queryKey: [...ROOT,"configuration"], queryFn: skipToken, gcTime: 0 });
   const preview = useQuery<PublicationPreview>({ queryKey: [...ROOT, "preview"], queryFn: skipToken, gcTime: 0 });
+  const stalePreview = preview.data !== undefined && draft.data !== undefined && preview.data.draftRevision !== draft.data;
   const published = useQuery<PublishResult>({ queryKey: [...ROOT, "published"], queryFn: skipToken, gcTime: 0 });
   const mutation = useMutation({ mutationKey: ROOT, retry: false, gcTime: 0, mutationFn: async (request: PublicationMutationRequest): Promise<Result> => {
     controller.current = new AbortController();
@@ -78,7 +79,7 @@ export function useDictionaryPublication(onUnauthorized: () => void) {
     finally { preparing.current = false; }
   };
   const publish = (confirmed: PublicationPreview) => {
-    if (!preview.data?.valid || confirmed.buildId !== preview.data.buildId || confirmed.contentHash !== preview.data.contentHash || pending.current || mutation.isPending || preparing.current || draft.isFetching) return;
+    if (stalePreview || !preview.data?.valid || confirmed.buildId !== preview.data.buildId || confirmed.contentHash !== preview.data.contentHash || pending.current || mutation.isPending || preparing.current || draft.isFetching) return;
     try { void execute({ operation: "publish", requestId: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), input: { buildId: preview.data.buildId, expectedDraftRevision: preview.data.draftRevision, expectedCurrentReleaseId: confirmed.expectedCurrentReleaseId, contentHash: confirmed.contentHash } }); }
     catch { setLocalError(true); }
   };
@@ -87,5 +88,5 @@ export function useDictionaryPublication(onUnauthorized: () => void) {
     try { void execute({ operation: "configuration", requestId: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), input: { expectedDraftRevision: configuration.data.draftRevision, attemptLimit } }); }
     catch { setLocalError(true); }
   };
-  return { configuration: configuration.data, configure, preview: preview.data, published: published.data, refresh, publish, retry: () => { if (pending.current && !mutation.isPending) void execute(pending.current); }, canRetry, busy: mutation.isPending || draft.isFetching, error: localError || mutation.isError || draft.isError, stale: mutation.error?.message === "REVISION_CONFLICT" };
+  return { configuration: configuration.data, configure, preview: preview.data, published: published.data, refresh, publish, retry: () => { if (pending.current && !mutation.isPending) void execute(pending.current); }, canRetry, busy: mutation.isPending || draft.isFetching, error: localError || mutation.isError || draft.isError, stale: stalePreview || mutation.error?.message === "REVISION_CONFLICT" };
 }

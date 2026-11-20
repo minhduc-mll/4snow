@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/atoms/Button";
+import { Checkbox } from "@/components/atoms/Checkbox";
 import { Input } from "@/components/atoms/Input";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { useCandidateCreation } from "@/hooks/useCandidateCreation";
@@ -17,10 +18,14 @@ export function CandidateCreationForm({ draftRevision, onUnauthorized, onSelect,
     <form id="manual-candidate-form" aria-label={t("wordManagement.add")} onSubmit={form.submit} className="grid gap-4 rounded-lg border p-4">
       <p className="text-sm text-muted-foreground">{t("wordManagement.addHint")}</p>
       <fieldset className="grid gap-4" disabled={lock}>
-        <label className="grid gap-1">
-          {t("editorial.original")}
-          <Input required maxLength={120} value={form.original} onChange={event => form.setOriginal(event.target.value)} onBlur={form.checkSpelling} />
-        </label>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="grid min-w-40 flex-1 gap-1">
+            {t("editorial.original")}
+            <Input required maxLength={120} aria-invalid={form.invalidSpelling || undefined} aria-describedby={form.invalidSpelling ? "manual-spelling-error" : undefined} value={form.original} onChange={event => form.setOriginal(event.target.value)} onBlur={form.checkSpelling} />
+          </label>
+          <Button type="button" variant="outline" disabled={!form.original.trim() || form.matches.isFetching} onClick={form.checkSpelling}>{t("wordManagement.check")}</Button>
+        </div>
+        {form.invalidSpelling ? <p id="manual-spelling-error" role="alert">{t("wordManagement.invalidSpelling")}</p> : null}
         {form.matches.isFetching && !form.matches.isFetchingNextPage ? <p role="status">{t("wordManagement.checking")}</p> : null}
         {form.matchingEntries.length > 0 ? (
           <section className="grid gap-2 rounded-md border p-3" aria-label={t("wordManagement.matches")}>
@@ -38,7 +43,7 @@ export function CandidateCreationForm({ draftRevision, onUnauthorized, onSelect,
             </ul>
             {form.matches.hasNextPage ? <Button type="button" variant="outline" disabled={form.matches.isFetching} onClick={() => void form.matches.fetchNextPage()}>{t("wordManagement.moreMatches")}</Button> : null}
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={form.alternate} onChange={event => form.setAlternate(event.target.checked)} />
+              <Checkbox checked={form.alternate} onChange={event => form.setAlternate(event.target.checked)} />
               {t("wordManagement.alternate")}
             </label>
           </section>
@@ -68,7 +73,7 @@ export function CandidateCreationForm({ draftRevision, onUnauthorized, onSelect,
             <Input maxLength={300} value={form.sourceSenseId} onChange={event => form.setSourceSenseId(event.target.value)} />
           </label>
         </div> : null}
-        <Button className="justify-self-start" type="submit" disabled={!draftRevision || !form.selectedSource || (form.matchingEntries.length > 0 && !form.alternate)}>{t("wordManagement.saveCandidate")}</Button>
+        <Button className="justify-self-start" type="submit" disabled={!draftRevision || !form.selectedSource || !form.spellingChecked || (form.matchingEntries.length > 0 && !form.alternate)}>{t("wordManagement.saveCandidate")}</Button>
       </fieldset>
       {form.canRetry ? <Button className="justify-self-start" type="button" variant="outline" disabled={form.busy} onClick={form.retry}>{t("editorial.retry")}</Button> : null}
       {form.success || form.busy ? <p role="status">{t(form.busy ? "editorial.loading" : "wordManagement.saved")}</p> : null}

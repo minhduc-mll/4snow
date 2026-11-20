@@ -50,8 +50,8 @@ export function parseEditorialRequest(value: unknown): EditorialRequest {
       || !bounded(input.original, 120) || !optionalText(input.definitionVi, 2000) || !uuid(input.sourceId)
       || !optionalHttps(input.entryUrl) || !optionalText(input.sourceEntryId, 300) || !optionalText(input.sourceSenseId, 300)
       || typeof input.allowAlternateMeaning !== "boolean" || !isRevision(input.expectedDraftRevision)) throw new Error("Invalid candidate");
+    if (![3, 5, 7, 9].includes(normalizeSpelling(input.original).level)) throw new Error("Invalid candidate spelling");
     const original = input.original.trim().normalize("NFC");
-    if (![3, 5, 7, 9].includes(normalizeSpelling(original).level)) throw new Error("Invalid candidate spelling");
     return { operation: "create-candidate", requestId: value.requestId, idempotencyKey: value.idempotencyKey, input: {
       original, definitionVi: input.definitionVi, sourceId: input.sourceId, entryUrl: input.entryUrl,
       sourceEntryId: input.sourceEntryId, sourceSenseId: input.sourceSenseId, allowAlternateMeaning: input.allowAlternateMeaning, expectedDraftRevision: input.expectedDraftRevision,

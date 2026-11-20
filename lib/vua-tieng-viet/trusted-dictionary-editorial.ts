@@ -9,17 +9,17 @@ export async function handleEditorial(body: object, text: string, { config, cors
     const limiter = "idempotencyKey" in editorial ? config.consumeMutationLimit : config.consumeReadLimit;
     if (!limiter || (editorial.operation === "create-candidate" ? !config.createCandidate : editorial.operation === "select-answer" ? !config.selectAnswer : editorial.operation === "review" ? !config.editorialReview : editorial.operation === "rights-review" ? !config.rightsReview : !config.editorialRead)) return respond(503, "TEMPORARILY_UNAVAILABLE", "Service unavailable", editorial.requestId);
     try {
+      const delay = await limiter();
+      if (!Number.isSafeInteger(delay) || delay < 0) throw new Error("Rate limit unavailable");
+      if (delay > 0) return respond(429, "RATE_LIMITED", "Too many requests", editorial.requestId, { "Retry-After": String(delay) });
+    } catch { return respond(503, "TEMPORARILY_UNAVAILABLE", "Service unavailable", editorial.requestId); }
+    try {
       if (editorial.operation === "create-candidate") {
         if (!config.createCandidate) throw new Error("Unavailable");
         const hash = await editorialRequestHash(editorial);
         const data = await config.createCandidate(editorial, hash, normalizeSpelling(editorial.input.original));
         return Response.json({ ok: true, requestId: editorial.requestId, data }, { headers: cors });
       }
-      const delay = await limiter();
-      if (!Number.isSafeInteger(delay) || delay < 0) throw new Error("Rate limit unavailable");
-      if (delay > 0) return respond(429, "RATE_LIMITED", "Too many requests", editorial.requestId, { "Retry-After": String(delay) });
-    } catch { return respond(503, "TEMPORARILY_UNAVAILABLE", "Service unavailable", editorial.requestId); }
-    try {
       if (editorial.operation === "select-answer") {
         if (!config.selectAnswer) throw new Error("Unavailable");
         const hash = await editorialRequestHash(editorial);
