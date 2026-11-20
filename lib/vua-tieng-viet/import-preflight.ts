@@ -11,12 +11,14 @@ const encoder = new TextEncoder();
 type ImportFile = Pick<File, "name" | "size" | "arrayBuffer">;
 type ImportChunk = { document: Record<string, unknown>; canonicalHash: string };
 type IssueCode = "file" | "metadata" | "source" | "entry" | "length" | "meaning" | "identity" | "collision" | "limit";
-type ImportIssue = { file: string; part: number | null; entry: number | null; code: IssueCode; message: string; blocking: boolean };
+type ImportIssue = { file: string; part: number | null; entry: number | null; code: IssueCode; message: string; blocking: boolean; missingParts?: number[] };
+type PartSelection = { selected: number; expected: number; missing: number[] };
 export type ImportPreflight = {
   artifactId: string;
   artifactRevision: string;
   entryCount: number;
   validCount: number;
+  partSelection: PartSelection | null;
   chunks: ImportChunk[];
   issues: ImportIssue[];
 };
@@ -69,7 +71,7 @@ function splitEntries(file: ParsedFile, issues: ImportIssue[]): Record<string, u
 }
 
 export async function preflightImport(files: readonly ImportFile[]): Promise<ImportPreflight> {
-  const result: ImportPreflight = { artifactId: "", artifactRevision: "", entryCount: 0, validCount: 0, chunks: [], issues: [] };
+  const result: ImportPreflight = { artifactId: "", artifactRevision: "", entryCount: 0, validCount: 0, partSelection: null, chunks: [], issues: [] };
   if (!files.length || files.length > MAX_CHUNKS || files.reduce((bytes, file) => bytes + file.size, 0) > MAX_IMPORT_BYTES) {
     result.issues.push({ file: "", part: null, entry: null, code: "limit", message: "Selection exceeds the limits of one import session", blocking: true });
     return result;
@@ -86,12 +88,21 @@ export async function preflightImport(files: readonly ImportFile[]): Promise<Imp
   if (!first) return result;
   result.artifactId = first.base.artifactId;
   result.artifactRevision = first.base.artifactRevision;
-  const explicitParts = first.part !== null;
-  const parts = new Set(parsed.map((item) => item.part));
-  if (explicitParts
-    ? parsed.length !== first.count || parts.size !== first.count || parsed.some((item) => item.part === null || item.count !== first.count)
-    : parsed.length !== 1) {
-    result.issues.push({ file: first.file, part: null, entry: null, code: "metadata", message: "Select one complete JSON or all uniquely indexed parts of the same artifact", blocking: true });
+  const explicitParts = first.count !== null;
+  if (first.count !== null) {
+    const parts = new Set(parsed.filter((item) =>
+      item.count === first.count && item.base.artifactId === first.base.artifactId && item.base.artifactRevision === first.base.artifactRevision
+    ).map((item) => item.part));
+    const missing = Array.from({ length: first.count }, (_, index) => index).filter((index) => !parts.has(index)).map((index) => index + 1);
+    result.partSelection = { selected: parts.size, expected: first.count, missing };
+  }
+  if (result.partSelection
+    ? files.length !== result.partSelection.expected || result.partSelection.missing.length > 0
+    : files.length !== 1) {
+    result.issues.push({
+      file: first.file, part: null, entry: null, code: "metadata", message: "Select one complete JSON or all uniquely indexed parts of the same artifact", blocking: true,
+      ...(result.partSelection?.missing.length ? { missingParts: result.partSelection.missing } : {}),
+    });
   }
   const spellings = new Set<string>();
   const meanings = new Set<string>();

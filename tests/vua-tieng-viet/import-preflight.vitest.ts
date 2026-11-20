@@ -39,5 +39,15 @@ test("indexes selected parts and reports blockers across file boundaries", async
     { file: "two.json", part: 2, entry: 2, code: "length" },
     { file: "two.json", part: 2, entry: 3, code: "source" },
   ]);
-  expect((await preflightImport([first])).issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "metadata", blocking: true })]));
+  const incomplete = await preflightImport([first]);
+  expect(incomplete.partSelection).toEqual({ selected: 1, expected: 2, missing: [2] });
+  expect(incomplete.issues).toEqual(expect.arrayContaining([expect.objectContaining({ code: "metadata", blocking: true, missingParts: [2] })]));
+});
+
+test("counts only unique parts of the same artifact revision", async () => {
+  const input = file("part-1.json", { ...fixture, chunkCount: 100 });
+  const otherRevision = file("part-2-old.json", { ...fixture, artifactRevision: "other", chunkIndex: 1, chunkCount: 100 });
+  const result = await preflightImport([input, input, otherRevision]);
+  expect(result.partSelection).toEqual({ selected: 1, expected: 100, missing: Array.from({ length: 99 }, (_, index) => index + 2) });
+  expect(result.chunks).toEqual([]);
 });

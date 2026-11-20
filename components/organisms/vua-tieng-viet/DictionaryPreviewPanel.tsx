@@ -38,6 +38,10 @@ export function DictionaryPreviewPanel({ onUnauthorized }: Props): React.ReactEl
   const issueCount = (code: ImportPreflight["issues"][number]["code"]) => local?.issues.filter((issue) => issue.code === code).length ?? 0;
   const receipts = importer.session?.receipts.length ?? 0;
   const status = importer.session?.status;
+  const receivedAll = importer.session !== null && receipts === importer.session.expectedChunks;
+  const progressKey = status === "finalized" ? "finalized" : receivedAll
+    ? importer.loading ? "finalizing" : "awaitingFinalization"
+    : "staging";
   return (
     <Card className="w-full shadow-soft">
       <CardHeader>
@@ -56,13 +60,19 @@ export function DictionaryPreviewPanel({ onUnauthorized }: Props): React.ReactEl
         {local ? (
           <section aria-label={t("dictionaryPreview.local")} className="grid gap-2 rounded-lg border bg-muted/40 p-3 text-sm">
             <h3 className="font-semibold">{t("dictionaryPreview.local")}</h3>
-            <p>{t("dictionaryPreview.entries")}: {local.entryCount} · {t("dictionaryImport.validEntries")}: {local.validCount} · {t("dictionaryImport.parts")}: {local.chunks.length}</p>
+            <p>{t("dictionaryPreview.entries")}: {local.entryCount} · {t("dictionaryImport.validEntries")}: {local.validCount} · {local.partSelection
+              ? t("dictionaryImport.selectedParts", { selected: local.partSelection.selected, expected: local.partSelection.expected })
+              : `${t("dictionaryImport.parts")}: ${local.chunks.length}`}</p>
             <p>{t("dictionaryPreview.collisions")}: {issueCount("collision")} · {t("dictionaryPreview.duplicates")}: {issueCount("identity")} · {t("dictionaryImport.missingDefinitions")}: {issueCount("meaning")}</p>
             <p>{t("dictionaryImport.invalidLevels")}: {issueCount("length")} · {t("dictionaryImport.sourceIssues")}: {issueCount("source")}</p>
             {local.issues.length ? <>
               <p>{t("dictionaryImport.issues")}: {local.issues.length}</p>
               <ul className="list-disc space-y-1 pl-4">
-                {local.issues.slice(0, 10).map((issue, index) => <li key={index} className="break-words">{issueLocation(issue)} {issue.message}</li>)}
+                {local.issues.slice(0, 10).map((issue, index) => <li key={index} className="break-words">
+                  {issueLocation(issue)} {issue.missingParts
+                    ? t("dictionaryImport.missingParts", { count: issue.missingParts.length, parts: issue.missingParts.join(", ") })
+                    : issue.message}
+                </li>)}
               </ul>
               <Button type="button" variant="outline" className="w-fit" onClick={() => downloadReport(local)}>{t("dictionaryImport.report")}</Button>
             </> : null}
@@ -76,10 +86,10 @@ export function DictionaryPreviewPanel({ onUnauthorized }: Props): React.ReactEl
             <p>{remote.valid && ready ? t("dictionaryImport.firstPartVerified") : t("dictionaryPreview.invalid")}</p>
           </section> : null}
           {remoteError ? <Badge variant="danger">{t("dictionaryPreview.remoteError")}</Badge> : null}
-          {importer.session ? <p>{t("dictionaryImport.progress")}: {receipts}/{importer.session.expectedChunks} · {t(status === "finalized" ? "dictionaryImport.finalized" : "dictionaryImport.staging")}</p> : null}
+          {importer.session ? <p>{t("dictionaryImport.progress")}: {receipts}/{importer.session.expectedChunks} · {t(`dictionaryImport.${progressKey}`)}</p> : null}
           {importer.session?.createdCount != null ? <p>{t("dictionaryImport.created")}: {importer.session.createdCount} · {t("dictionaryImport.noop")}: {importer.session.noOpCount}</p> : null}
           {importer.waitingForQuota ? <p>{t("dictionaryImport.waitingForQuota")}</p> : null}
-          {importer.errorCode ? <Badge variant="danger">{t("dictionaryImport.error")} ({importer.errorCode})</Badge> : null}
+          {importer.errorCode ? <Badge variant="danger">{t(receivedAll ? "dictionaryImport.finalizationError" : "dictionaryImport.error")} ({importer.errorCode})</Badge> : null}
           {!importEnabled ? <p>{t("dictionaryImport.disabled")}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
