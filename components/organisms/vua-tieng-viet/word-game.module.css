@@ -48,7 +48,8 @@
 .playArea { display: grid; gap: 1rem; padding: 1.25rem .75rem; background: var(--vtv-surface); border: 1px solid var(--vtv-line); border-radius: 1.25rem; }
 .boardMeta { color: var(--vtv-muted); font-size: .75rem; font-weight: 600; padding: 0 .3rem; font-variant-numeric: tabular-nums; }
 .boardMeta > :last-child { white-space: nowrap; }
-.board { --vtv-cell-size: clamp(1.75rem, calc((100dvh - 27rem) / var(--vtv-rows) - var(--vtv-gap)), 3.25rem); display: grid; gap: var(--vtv-gap); margin: 0 auto; padding: 0; list-style: none; width: min(100%,calc(var(--vtv-columns) * var(--vtv-cell-size) + (var(--vtv-columns) - 1) * var(--vtv-gap))); }
+.streakMeta { flex-wrap: wrap; row-gap: .125rem; }
+.board { --vtv-cell-size: clamp(1.75rem, calc((100dvh - 28.5rem) / var(--vtv-rows) - var(--vtv-gap)), 3.25rem); display: grid; gap: var(--vtv-gap); margin: 0 auto; padding: 0; list-style: none; width: min(100%,calc(var(--vtv-columns) * var(--vtv-cell-size) + (var(--vtv-columns) - 1) * var(--vtv-gap))); }
 .row { display: grid; grid-template-columns: repeat(var(--vtv-columns),minmax(0,1fr)); gap: var(--vtv-gap); position: relative; border-radius: .4rem; }
 .editing:focus-within { outline: 2px solid var(--vtv-primary); outline-offset: 3px; }
 .cell { position: relative; aspect-ratio: 1; display: grid; place-items: center; min-width: 0; border: 1px solid var(--vtv-line); border-radius: .5rem; background: var(--vtv-raised); color: var(--vtv-ink); font-size: clamp(.85rem,4vw,1.5rem); font-weight: 700; }
@@ -87,7 +88,8 @@
   .nativeKeyboard { display: inline-flex; }
 }
 .keyboardHint { text-align: center; color: var(--vtv-muted); font-size: .75rem; margin-top: .35rem; }
-.restart { justify-self: center; color: var(--vtv-muted); }
+.roundActions { width: min(100%, 22rem); justify-self: center; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; }
+.restart { color: var(--vtv-muted); min-height: 2.75rem; }
 .result { display: grid; gap: .75rem; padding: 1rem .5rem .5rem; border-top: 1px solid var(--vtv-line); text-align: center; }
 .result h2 { font-size: 1.1rem; font-weight: 650; }
 .answer { font-size: 1.75rem; font-weight: 700; color: var(--vtv-primary); }

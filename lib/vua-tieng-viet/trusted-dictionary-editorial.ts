@@ -6,14 +6,20 @@ import { editorialRequestHash, type WorkflowContext } from "./trusted-dictionary
 export async function handleEditorial(body: object, text: string, { config, cors, respond }: WorkflowContext): Promise<Response> {
     if (new TextEncoder().encode(text).length > 64 * 1024) return respond(413, "PAYLOAD_TOO_LARGE", "Request is too large");
     const editorial = parseEditorialRequest(body);
-    const limiter = editorial.operation === "review" || editorial.operation === "rights-review" || editorial.operation === "select-answer" ? config.consumeMutationLimit : config.consumeReadLimit;
-    if (!limiter || (editorial.operation === "select-answer" ? !config.selectAnswer : editorial.operation === "review" ? !config.editorialReview : editorial.operation === "rights-review" ? !config.rightsReview : !config.editorialRead)) return respond(503, "TEMPORARILY_UNAVAILABLE", "Service unavailable", editorial.requestId);
+    const limiter = "idempotencyKey" in editorial ? config.consumeMutationLimit : config.consumeReadLimit;
+    if (!limiter || (editorial.operation === "create-candidate" ? !config.createCandidate : editorial.operation === "select-answer" ? !config.selectAnswer : editorial.operation === "review" ? !config.editorialReview : editorial.operation === "rights-review" ? !config.rightsReview : !config.editorialRead)) return respond(503, "TEMPORARILY_UNAVAILABLE", "Service unavailable", editorial.requestId);
     try {
       const delay = await limiter();
       if (!Number.isSafeInteger(delay) || delay < 0) throw new Error("Rate limit unavailable");
       if (delay > 0) return respond(429, "RATE_LIMITED", "Too many requests", editorial.requestId, { "Retry-After": String(delay) });
     } catch { return respond(503, "TEMPORARILY_UNAVAILABLE", "Service unavailable", editorial.requestId); }
     try {
+      if (editorial.operation === "create-candidate") {
+        if (!config.createCandidate) throw new Error("Unavailable");
+        const hash = await editorialRequestHash(editorial);
+        const data = await config.createCandidate(editorial, hash, normalizeSpelling(editorial.input.original));
+        return Response.json({ ok: true, requestId: editorial.requestId, data }, { headers: cors });
+      }
       if (editorial.operation === "select-answer") {
         if (!config.selectAnswer) throw new Error("Unavailable");
         const hash = await editorialRequestHash(editorial);
@@ -33,7 +39,7 @@ export async function handleEditorial(body: object, text: string, { config, cors
         return Response.json({ ok: true, requestId: editorial.requestId, data }, { headers: cors });
       }
       if (!config.editorialRead) throw new Error("Unavailable");
-      const scope = editorial.operation === "collision" ? canonicalJson({ operation: "collision", normalized: editorial.input.normalized, level: editorial.input.level }) : editorial.operation === "list" ? canonicalJson({ operation: "list", filters: editorial.input.filters }) : canonicalJson({ operation: "list-history", entryId: editorial.input.entryId });
+      const scope = editorial.operation === "collision" ? canonicalJson({ operation: "collision", normalized: editorial.input.normalized, level: editorial.input.level }) : editorial.operation === "list" ? canonicalJson({ operation: "list", filters: editorial.input.filters }) : editorial.operation === "candidate-sources" ? "candidate-sources" : canonicalJson({ operation: "list-history", entryId: editorial.input.entryId });
       let position: CursorPosition | null = null;
       if (editorial.operation !== "detail" && editorial.input.cursor) {
         try { position = await decodeEditorialCursor(config.secret, scope, editorial.input.cursor); }

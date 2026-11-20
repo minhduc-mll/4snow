@@ -49,9 +49,10 @@ export function WordGame() {
     : !eligibility.canSubmit && eligibility.reason === "incomplete"
       ? t("wordGame.requiredLength",{ level: settings.level }) : t("wordGame.typeHint");
   const message = model.busy ? t("wordGame.loading")
-    : model.recovery === "invalid" || model.recovery === "incompatible" ? t(`wordGame.recovery.${model.recovery}`)
-    : input.draft !== null ? t("wordGame.composing")
     : model.error ? t(`wordGame.errors.${model.error}`)
+    : model.damagedSave ? t(`wordGame.recovery.${model.recovery}`)
+    : input.draft !== null ? t("wordGame.composing")
+    : playing && model.restoredRoundId ? t("wordGame.recovery.resumed")
     : state?.singleAnswerReplay && round?.guesses.length === 0 && round.input === "" ? t("wordGame.singleAnswer")
     : !round ? t("wordGame.startHint") : playing ? eligibilityMessage : "";
 
@@ -72,6 +73,10 @@ export function WordGame() {
         </Link>
       </header> : null}
       <section className={styles.playArea} aria-label={t("wordGame.playArea")}>
+        <div className={`${styles.boardMeta} ${styles.streakMeta}`} aria-live="polite" aria-atomic="true">
+          <span>{t("wordGame.streak.current",{ count: model.streak.current })}</span>
+          <span>{t("wordGame.streak.longest",{ count: model.streak.longest })}</span>
+        </div>
         <div className={styles.boardMeta}>
           <span>{describeSettings(settings, Boolean(round && !round.rules.accuracy))}</span>
           {round ? <span aria-live="polite" aria-atomic="true">{t("wordGame.attempts",{ used: round.guesses.length, limit: round.attemptLimit })}</span> : null}
@@ -80,7 +85,6 @@ export function WordGame() {
         <div id="vtv-message" role="status" aria-atomic="true" className={styles.message}>{message}</div>
         {model.storageWarning ? <p role="alert" className={styles.instruction}>{t("wordGame.recovery.warning")}</p> : null}
         {model.retry ? <Button variant="outline" onClick={model.retry} disabled={model.busy}>{t("wordGame.settings.retry")}</Button> : null}
-        {model.recovery === "invalid" || model.recovery === "incompatible" ? <Button variant="outline" onClick={model.resetSave}>{t("wordGame.recovery.reset")}</Button> : null}
         {state && round && !playing ? <section className={styles.result} aria-label={t("wordGame.result")}>
           <h2 id="vtv-result-title">{t(round.status === "won" ? "wordGame.won" : "wordGame.lost")}</h2>
           <p id="vtv-result-answer" className={styles.answer}>{state.answer.original}</p><p>{state.answer.definitionVi}</p>
@@ -88,10 +92,14 @@ export function WordGame() {
           <Button ref={actionRef} aria-describedby="vtv-result-title vtv-result-answer" disabled={model.busy} onClick={model.start} className={styles.primary}>{t("wordGame.replay")}</Button>
           <WordAttributions items={state.attributions} />
         </section> : null}
-        {!round ? <Button ref={actionRef} disabled={model.busy || model.recoveryBlocked} onClick={model.start} className={styles.submit} size="lg">{t("wordGame.start")}</Button> : null}
+        {!round ? <Button ref={actionRef} disabled={model.busy} aria-describedby={model.damagedSave ? "vtv-recovery-impact" : undefined} onClick={model.start} className={styles.submit} size="lg">{t(model.damagedSave ? "wordGame.recovery.startNew" : "wordGame.start")}</Button> : null}
+        {model.damagedSave ? <p id="vtv-recovery-impact" className={styles.instruction}>{t("wordGame.recovery.impact")}</p> : null}
       </section>
       <p id="vtv-instructions" className={styles.srOnly}>{t("wordGame.instruction")}</p>
-      {playing ? <><WordKeyboard {...input.keyboard} /><Button disabled={!eligibility.canSubmit} onClick={input.submit} className={styles.submit} size="lg">{t("wordGame.submit")}</Button></> : null}
+      {playing ? <><WordKeyboard {...input.keyboard} /><div className={styles.roundActions}>
+        <Button disabled={!eligibility.canSubmit} onClick={input.submit} className={styles.submit} size="lg">{t("wordGame.submit")}</Button>
+        <Button variant="outline" onClick={model.openSettings} className={styles.restart} disabled={model.busy}>{t("wordGame.recovery.startNew")}</Button>
+      </div></> : null}
       {!round ? <LanguageControl inline /> : null}
       <p aria-live="polite" className={round ? styles.srOnly : styles.instruction}>{t(`wordGame.recovery.${offlineShell}`)}</p>
     </div>

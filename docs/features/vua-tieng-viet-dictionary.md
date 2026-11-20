@@ -140,3 +140,43 @@ Retain release provenance and publication audit history. The initial admin scope
 Product decisions for this scope are settled. Implementation planning must specify concrete SQL schemas/RLS policies, the versioned JSON import schema, request/response contracts, bounded import operations, revision/idempotency handling, and authorization tests before feature code is written.
 
 Acquiring source artifacts, selecting the specific Underthesea lexical resource, and verifying their provenance and redistribution terms are implementation prerequisites. Source names alone do not establish a verified initial dataset. No source ingestion, license clearance, database deployment, or Edge Function deployment has been performed by this documentation work.
+
+## Nguồn nội bộ cho mục nhập thủ công
+
+Màn **Thêm từ** hiển thị nguồn tự biên soạn khi quyết định quyền mới nhất của nguồn là `cleared`. Trước khi mở nguồn cho admin sử dụng, người vận hành có quyền cơ sở dữ liệu cần lưu hồ sơ tự biên soạn có thông tin ghi công, điều khoản sử dụng và bằng chứng phân phối. Nguồn bên ngoài vẫn đi qua quy trình nhập dữ liệu hiện có. Khi admin thêm mục từ từ nguồn bên ngoài, biểu mẫu yêu cầu liên kết HTTPS và mã mục từ ở nguồn.
+
+Chạy đoạn SQL dưới đây trong một phiên `psql` có quyền vận hành đã được cấp trên môi trường đích. Truyền các biến bằng `--set` hoặc khai báo trong phiên. Dùng URL HTTPS của hồ sơ nguồn và điều khoản thực tế, mã SHA-256 của hồ sơ đã lưu, và bằng chứng đã kiểm tra. Mỗi lần đăng ký phải dùng cặp phiên bản và SHA-256 tương ứng với đúng hồ sơ. Chỉ chạy bước ghi quyết định sau khi người có thẩm quyền đã xác nhận quyền phân phối.
+
+```sql
+begin;
+with supplied as (select gen_random_uuid() as source_id)
+insert into private.vtv_sources (id, kind, resource_revision, artifact_sha256, metadata)
+select source_id, 'internal-editorial', :'resource_revision', :'artifact_sha256',
+  jsonb_build_object(
+    'sourceId', source_id, 'kind', 'internal-editorial', 'name', :'source_name',
+    'resourceRevision', :'resource_revision', 'artifactSha256', :'artifact_sha256',
+    'artifactUrl', :'artifact_url', 'originDump', null, 'retrievedAt', now(),
+    'rights', jsonb_build_object(
+      'licenseName', :'license_name', 'licenseVersion', null, 'licenseUrl', :'license_url',
+      'attributionText', :'attribution_text', 'historyUrl', null,
+      'redistributionNote', :'redistribution_note', 'modificationsNotice', :'modifications_notice'
+    )
+  )
+from supplied
+returning id as internal_source_id
+\gset
+
+with request as (
+  select jsonb_build_object(
+    'sourceId', :'internal_source_id', 'expectedDraftRevision', revision::text,
+    'decision', 'cleared', 'evidence', :'rights_evidence', 'obligations', :'rights_obligations'
+  ) as input
+  from private.vtv_draft where id = 1
+)
+select public.vtv_review_rights(
+  gen_random_uuid(), gen_random_uuid(), private.vtv_payload_hash(input), input
+) from request;
+commit;
+```
+
+Sau khi hoàn tất, mở lại biểu mẫu và kiểm tra tên nguồn cùng nhãn **Đã cho phép**. Mục tạo từ nguồn này vẫn chờ duyệt và chỉ có hiệu lực sau khi phát hành.

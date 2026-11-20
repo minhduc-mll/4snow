@@ -72,9 +72,18 @@ export function createDictionaryAdapter(url: string, serviceKey: string): Omit<P
     },
     consumeReadLimit: () => limit("vtv_consume_read_limit"),
     editorialRead: async (operation, position) => {
+      if (operation.operation === "candidate-sources") {
+        return call("vtv_candidate_sources", JSON.stringify({ p_after_time: position?.createdAt ?? null, p_after_id: position?.id ?? null }), ["INVALID_INPUT"], "Sources unavailable");
+      }
       const name = operation.operation === "collision" ? "vtv_collision" : operation.operation === "list" ? "vtv_list_candidates" : operation.operation === "detail" ? "vtv_candidate_detail" : "vtv_candidate_history";
       const parameters = operation.operation === "collision" ? { p_normalized: operation.input.normalized, p_level: operation.input.level, p_after_time: position?.createdAt ?? null, p_after_id: position?.id ?? null, p_limit: operation.input.limit } : operation.operation === "list" ? { p_filters: operation.input.filters, p_after_time: position?.createdAt ?? null, p_after_id: position?.id ?? null, p_limit: operation.input.limit } : operation.operation === "detail" ? { p_entry_id: operation.input.entryId } : { p_entry_id: operation.input.entryId, p_after_time: position?.createdAt ?? null, p_after_id: position?.id ?? null, p_limit: operation.input.limit };
       return call(name, JSON.stringify(parameters), ["NOT_FOUND", "INVALID_INPUT"], "Read unavailable");
+    },
+    createCandidate: async (operation, requestHash, spelling) => {
+      return call("vtv_create_candidate", JSON.stringify({
+        p_request_id: operation.requestId, p_idempotency_key: operation.idempotencyKey, p_request_hash: requestHash,
+        p_input: operation.input, p_normalized: spelling.normalized, p_level: spelling.level,
+      }), ["INVALID_INPUT", "NOT_FOUND", "IDEMPOTENCY_CONFLICT", "REVISION_CONFLICT", "SPELLING_EXISTS"], "Candidate creation unavailable");
     },
     selectAnswer: async (operation, requestHash) => {
       return call("vtv_select_answer", JSON.stringify({ p_request_id: operation.requestId, p_idempotency_key: operation.idempotencyKey, p_request_hash: requestHash, p_input: operation.input }), ["INVALID_INPUT", "NOT_FOUND", "IDEMPOTENCY_CONFLICT", "REVISION_CONFLICT"], "Selection unavailable");

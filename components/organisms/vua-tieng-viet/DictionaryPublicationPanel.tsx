@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { AttemptConfigurationForm } from "@/components/molecules/AttemptConfigurationForm";
 import { DictionaryPreviewRound } from "@/components/molecules/DictionaryPreviewRound";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/atoms/Dialog";
-import type { PublicationPreview } from "@/lib/vua-tieng-viet/publication-response";
+import { spellingChangeKinds, type PublicationPreview } from "@/lib/vua-tieng-viet/publication-response";
 import { Button } from "@/components/atoms/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/atoms/Card";
 import { useDictionaryPublication } from "@/hooks/useDictionaryPublication";
@@ -23,15 +23,15 @@ export function DictionaryPublicationPanel({ onUnauthorized }: Props) {
   return <Card><CardHeader><CardTitle>{t("publication.title")}</CardTitle><CardDescription>{t("publication.description")}</CardDescription></CardHeader>
     <CardContent className="grid gap-4">
       {process.env.NEXT_PUBLIC_VTV_IMPORT_ENABLED !== "true" ? <p>{t("dictionaryImport.disabled")}</p> : <>
-        <div role="status" aria-atomic="true" className="rounded-lg border bg-muted/40 p-3 text-sm">{model.busy ? t("publication.busy") : model.published ? `${t("publication.published")} ${model.published.releaseId}` : preview ? preview.valid ? t("publication.ready") : t("publication.blocked") : t("publication.start")}</div>
+        <div role={model.stale && !model.busy ? "alert" : "status"} aria-atomic="true" className="rounded-lg border bg-muted/40 p-3 text-sm">{model.busy ? t("publication.busy") : model.stale ? t("publication.stale") : model.published ? `${t("publication.published")} ${model.published.releaseId}` : preview ? preview.valid ? t("publication.ready") : t("publication.blocked") : t("publication.start")}</div>
         {preview && !preview.valid ? <a href="#dictionary/review" className="w-fit rounded-sm text-sm font-medium text-primary underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{t("publication.reviewAction")}</a> : null}
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" disabled={model.busy || model.canRetry} onClick={() => void model.refresh()}>{t("publication.preview")}</Button>
-          <Button ref={publishButton} disabled={model.busy || model.canRetry || !preview?.valid || !!model.published} onClick={() => { if (preview?.valid) setConfirmation(preview); }}>{t("publication.publish")}</Button>
+          <Button ref={publishButton} disabled={model.busy || model.canRetry || model.stale || !preview?.valid || !!model.published} onClick={() => { if (preview?.valid) setConfirmation(preview); }}>{t("publication.publish")}</Button>
           {preview?.valid ? <Button ref={practiceButton} variant="outline" disabled={model.busy} onClick={() => setPractice(preview)}>{t("publication.testRound")}</Button> : null}
           {model.canRetry ? <Button disabled={model.busy} onClick={model.retry}>{t("editorial.retry")}</Button> : null}
         </div>
-        {model.error ? <p role="alert">{model.stale ? t("publication.stale") : t("publication.error")}</p> : null}
+        {model.error && !model.stale ? <p role="alert">{t("publication.error")}</p> : null}
         {model.configuration ? <AttemptConfigurationForm key={`${model.configuration.configuration.configurationId}:${model.configuration.draftRevision}`} configuration={model.configuration} disabled={model.busy || model.canRetry} onSave={model.configure} /> : <p className="text-sm text-muted-foreground">{t("attemptConfiguration.load")}</p>}
         {preview ? <>
           <p>{t("publication.attempts")}: {preview.configuration.attemptLimit} · {t("publication.sources")}: {preview.sourceCount} · {t("publication.attributions")}: {preview.attributionCount}</p>
@@ -48,6 +48,21 @@ export function DictionaryPublicationPanel({ onUnauthorized }: Props) {
               <span>{t("publication.answers")}: {preview.coverage[level]?.answers} ({t("publication.delta", delta.answers)})</span>
             </li>;
           })}</ul>
+          {preview.spellingChanges ? <section aria-label={t("publication.spellingChanges")} className="grid gap-2">
+            <h3 className="font-semibold">{t("publication.spellingChanges")}</h3>
+            {spellingChangeKinds.every(kind => !preview.spellingChanges?.[kind]) ? <p className="text-sm text-muted-foreground">{t("publication.noSpellingChanges")}</p> : null}
+            {spellingChangeKinds.map(kind => {
+              const group = preview.spellingChanges?.[kind];
+              if (!group) return null;
+              return <details key={kind} className="rounded-lg border p-3 text-sm">
+                <summary className="cursor-pointer font-medium">{t(`publication.spellingChange.${kind}`)} ({group.total})</summary>
+                <ul className="mt-2 flex flex-wrap gap-2">{group.items.map(item => <li key={item.normalized} className="rounded bg-muted px-2 py-1">
+                  {item.normalized} · {item.level} {t("publication.letters")}
+                </li>)}</ul>
+                {group.total > group.items.length ? <p className="mt-2 text-muted-foreground">{t("publication.moreSpellings")}</p> : null}
+              </details>;
+            })}
+          </section> : null}
           {preview.sources.length ? <details className="grid gap-2 rounded-lg border p-3 text-sm">
             <summary className="cursor-pointer font-medium">{t("publication.sources")} ({preview.sourceCount})</summary>
             <ul className="mt-2 grid gap-1">{preview.sources.map(source => <li className="break-words" key={source.id}>{source.name} · {source.revision}</li>)}</ul>
@@ -86,7 +101,7 @@ export function DictionaryPublicationPanel({ onUnauthorized }: Props) {
             <p className="break-all text-sm">{t("publication.confirmRevision", { revision: confirmation.draftRevision, hash: confirmation.contentHash })}</p>
             <DialogFooter>
               <Button variant="outline" onClick={() => setConfirmation(null)}>{t("publication.cancel")}</Button>
-              <Button disabled={model.busy || model.canRetry || preview?.buildId !== confirmation.buildId || preview.contentHash !== confirmation.contentHash} onClick={() => {
+              <Button disabled={model.busy || model.canRetry || model.stale || preview?.buildId !== confirmation.buildId || preview.contentHash !== confirmation.contentHash} onClick={() => {
                 model.publish(confirmation);
                 setConfirmation(null);
               }}>{t("publication.confirmAction")}</Button>

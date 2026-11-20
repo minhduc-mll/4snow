@@ -13,6 +13,7 @@ type Options = {
   conflict: React.RefObject<boolean>;
   busy: boolean;
   dialogOpen: boolean;
+  restoredRoundId: string | null;
   replace: (next: PlayableRound) => void;
   setError: (error: PlayerErrorCode | null) => void;
 };
@@ -28,7 +29,7 @@ function subscribeToTouchInput(onChange: () => void) {
 }
 
 /** Adapts browser input and focus to the same committed game transitions. */
-export function useWordInput({ state, current, loading, conflict, busy, dialogOpen, replace, setError }: Options) {
+export function useWordInput({ state, current, loading, conflict, busy, dialogOpen, restoredRoundId, replace, setError }: Options) {
   const touchInput = React.useSyncExternalStore(subscribeToTouchInput, usesTouchInput, desktopServerSnapshot);
   const [draft,setDraft] = React.useState<string | null>(null);
   const composing = React.useRef(false), suppressEnter = React.useRef(false), processing = React.useRef(false);
@@ -59,11 +60,12 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
     const transition = `${roundId}:${guessCount}`;
     if (focusedTransition.current === transition) return;
     focusedTransition.current = transition;
+    if (roundId === restoredRoundId) return;
     const active = document.activeElement;
     if (active && active !== document.body && active !== inputRef.current && active !== actionRef.current) return;
     if (terminal) actionRef.current?.focus({ preventScroll: true });
     else if (!usesTouchInput()) inputRef.current?.focus({ preventScroll: true });
-  },[roundId,guessCount,terminal,busy,dialogOpen]);
+  },[roundId,guessCount,terminal,busy,dialogOpen,restoredRoundId]);
   const edit = (raw: string) => {
     if (loading.current || processing.current || conflict.current || !current.current) return;
     if (composing.current) { setDraft(raw); return; }

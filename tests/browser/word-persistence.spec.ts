@@ -71,7 +71,7 @@ test("publication changes cannot replace the saved answer or configuration; repl
   await expect(page.getByText("Nghĩa mới sau xuất bản.")).toBeVisible();
 });
 
-test("unreadable saves stay untouched until explicit feature-only reset", async ({ page }) => {
+test("an incompatible save is replaced only when one-click recovery starts a new round", async ({ page }) => {
   await dictionary(page);
   await page.addInitScript(() => {
     localStorage.setItem("vtv:round:v1",'{"schemaVersion":1,"normalizerVersion":"vi-latin-v1"}');
@@ -79,13 +79,11 @@ test("unreadable saves stay untouched until explicit feature-only reset", async 
   });
   await page.goto("/vua-tieng-viet");
   await expect(page.getByRole("status")).toContainText(/phiên bản/);
-  await expect(page.getByRole("button",{ name: /Bắt đầu ván/ })).toBeDisabled();
   expect(await page.evaluate(() => localStorage.getItem("vtv:round:v1"))).toContain("vi-latin-v1");
-  await page.getByRole("button",{ name: "Xóa bản lưu và bắt đầu lại", exact: true }).click();
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("vtv:round:v1"))).toBeNull();
-  expect(await page.evaluate(() => localStorage.getItem("unrelated"))).toBe("keep");
-  await page.getByRole("button",{ name: /Bắt đầu ván/ }).click();
+  await page.getByRole("button",{ name: "Chơi ván mới", exact: true }).click();
   await expect(input(page)).toBeEnabled();
+  expect(await page.evaluate(() => localStorage.getItem("vtv:round:v1"))).toContain("vi-nfc-v2");
+  expect(await page.evaluate(() => localStorage.getItem("unrelated"))).toBe("keep");
 });
 
 test("quota failure keeps in-memory gameplay with a persistent recovery warning", async ({ page }) => {
@@ -115,16 +113,56 @@ test("denied storage access permits in-memory play without hiding the warning", 
   await expect(page.getByText(/Không thể lưu ván/)).toBeVisible();
 });
 
-test("corrupt saves are not overwritten by starting or selecting a level", async ({ page }) => {
+test("selecting a level or failing to load a new round preserves the damaged save and recoverable streak", async ({ page }) => {
   const remote = await dictionary(page);
   await page.goto("/vua-tieng-viet");
-  await page.evaluate(() => localStorage.setItem("vtv:round:v1","broken"));
+  const damaged = JSON.stringify({ schemaVersion: 4, normalizerVersion: "vi-nfc-v2", streak: { current: 11, longest: 21, countable: true } });
+  await page.evaluate(value => localStorage.setItem("vtv:round:v1",value), damaged);
   await page.reload();
   await expect(page.getByRole("status")).toContainText(/Bản lưu ván chơi bị lỗi/);
   await page.getByRole("button",{ name: "Cài đặt", exact: true }).click();
   await page.getByRole("button",{ name: "9 chữ", exact: true }).click();
   await page.getByRole("button",{ name: "Áp dụng", exact: true }).click();
-  await expect(page.getByRole("button",{ name: /Bắt đầu ván/ })).toBeDisabled();
   expect(remote.pointers).toBe(0);
-  expect(await page.evaluate(() => localStorage.getItem("vtv:round:v1"))).toBe("broken");
+  await expect(page.getByText("Chuỗi hiện tại: 11")).toBeVisible();
+  remote.fail = true;
+  const play = page.getByRole("button",{ name: "Chơi ván mới", exact: true });
+  await play.click();
+  await expect(page.getByRole("status")).toContainText(/Chưa tải được/);
+  expect(await page.evaluate(() => localStorage.getItem("vtv:round:v1"))).toBe(damaged);
+  remote.fail = false;
+  await play.click();
+  await expect(input(page)).toBeEnabled();
+  await expect(page.getByText("Chuỗi hiện tại: 0")).toBeVisible();
+  await expect(page.getByText("Chuỗi dài nhất: 21")).toBeVisible();
+});
+
+test("a streak resumes without stealing focus, spans levels, and resets on loss or replacement", async ({ page }) => {
+  await dictionary(page,1); await start(page);
+  await input(page).fill("mèo"); await submit(page).click();
+  await expect(page.getByText("Chuỗi hiện tại: 1")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("Chuỗi hiện tại: 1")).toBeVisible();
+  await page.getByRole("button",{ name: "Cài đặt", exact: true }).click();
+  await page.getByRole("button",{ name: "5 chữ", exact: true }).click();
+  await page.getByRole("button",{ name: "Tải ván mới", exact: true }).click();
+  await expect(input(page)).toBeEnabled();
+  await page.reload();
+  await expect(page.getByRole("status")).toContainText("Đã tiếp tục ván trước.");
+  await expect(input(page)).not.toBeFocused();
+  await input(page).fill("hoa hồ"); await submit(page).click();
+  await expect(page.getByText("Chuỗi hiện tại: 2")).toBeVisible();
+  await page.getByRole("button",{ name: "Chơi lại", exact: true }).click();
+  await input(page).fill("AAAAA"); await submit(page).click();
+  await expect(page.getByText("Chuỗi hiện tại: 0")).toBeVisible();
+  await page.getByRole("button",{ name: "Chơi lại", exact: true }).click();
+  await input(page).fill("hoa hồ"); await submit(page).click();
+  await expect(page.getByText("Chuỗi hiện tại: 1")).toBeVisible();
+  await page.getByRole("button",{ name: "Chơi lại", exact: true }).click();
+  await page.getByRole("button",{ name: "Chơi ván mới", exact: true }).click();
+  await page.getByRole("button",{ name: "7 chữ", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("chuỗi hiện tại sẽ về 0");
+  await page.getByRole("button",{ name: "Tải ván mới", exact: true }).click();
+  await expect(page.getByText("Chuỗi hiện tại: 0")).toBeVisible();
+  await expect(page.getByText("Chuỗi dài nhất: 2")).toBeVisible();
 });

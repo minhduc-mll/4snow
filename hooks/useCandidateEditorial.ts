@@ -4,7 +4,7 @@ import * as React from "react";
 import { requestPrivateDictionary } from "@/lib/vua-tieng-viet/private-request";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminSessionGeneration } from "@/hooks/useAdminAuth";
-import { parseEditorialRequest, type Category, type ExclusionChecks, type Filters, type ReviewInput, type ReviewStatus, type RightsDecision, type RightsReviewInput, type SelectAnswerInput } from "@/lib/vua-tieng-viet/editorial-contract";
+import { isReviewStatus, parseEditorialRequest, type Category, type ExclusionChecks, type Filters, type ReviewInput, type ReviewStatus, type RightsDecision, type RightsReviewInput, type SelectAnswerInput } from "@/lib/vua-tieng-viet/editorial-contract";
 
 import { parseCollisionPage } from "@/lib/vua-tieng-viet/collision-response";
 
@@ -18,7 +18,6 @@ type ListPage = { items: Summary[]; nextCursor: string | null; draftRevision: st
 const ROOT = ["vtv-private", "editorial"];
 
 function rec(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
-function status(value: unknown): value is ReviewStatus { return value === "pending" || value === "approved" || value === "rejected"; }
 function category(value: unknown): value is Category | null { return value === null || value === "common" || value === "regional" || value === "technical" || value === "less-common" || value === "excluded"; }
 function nullableString(value: unknown): value is string | null { return value === null || typeof value === "string"; }
 function attribution(value: unknown): Attribution {
@@ -32,7 +31,7 @@ function rightsReview(value: unknown): RightsReview | null {
 }
 function checks(value: unknown): value is ExclusionChecks | null { return value === null || (rec(value) && typeof value.names === "boolean" && typeof value.abbreviations === "boolean" && typeof value.offensive === "boolean" && typeof value.malformed === "boolean" && typeof value.unverified === "boolean"); }
 function revision(value: unknown): Revision {
-  if (!rec(value) || typeof value.id !== "string" || typeof value.revisionNumber !== "number" || typeof value.original !== "string" || typeof value.normalized !== "string" || typeof value.level !== "number" || !nullableString(value.definitionVi) || !status(value.review) || typeof value.answerEligible !== "boolean" || !category(value.category) || !nullableString(value.rationale) || !checks(value.exclusionChecks)) throw new Error("INVALID_RESPONSE");
+  if (!rec(value) || typeof value.id !== "string" || typeof value.revisionNumber !== "number" || typeof value.original !== "string" || typeof value.normalized !== "string" || typeof value.level !== "number" || !nullableString(value.definitionVi) || !isReviewStatus(value.review) || typeof value.answerEligible !== "boolean" || !category(value.category) || !nullableString(value.rationale) || !checks(value.exclusionChecks)) throw new Error("INVALID_RESPONSE");
   return { id: value.id, revisionNumber: value.revisionNumber, original: value.original, normalized: value.normalized, level: value.level, definitionVi: value.definitionVi, review: value.review, answerEligible: value.answerEligible, category: value.category, rationale: value.rationale, exclusionChecks: value.exclusionChecks, createdAt: typeof value.createdAt === "string" ? value.createdAt : null, actorRole: typeof value.actorRole === "string" ? value.actorRole : null, bulkBatchId: typeof value.bulkBatchId === "string" ? value.bulkBatchId : null };
 }
 function history(value: unknown): HistoryPage {
@@ -42,7 +41,7 @@ function history(value: unknown): HistoryPage {
 function list(value: unknown): ListPage {
   if (!rec(value) || !Array.isArray(value.items) || value.items.length > 100 || !nullableString(value.nextCursor) || typeof value.draftRevision !== "string") throw new Error("INVALID_RESPONSE");
   const items = value.items.map((item: unknown): Summary => {
-    if (!rec(item) || typeof item.id !== "string" || typeof item.sourceId !== "string" || typeof item.original !== "string" || typeof item.normalized !== "string" || typeof item.level !== "number" || !nullableString(item.definitionVi) || !status(item.review) || typeof item.collision !== "boolean" || typeof item.revisionNumber !== "number") throw new Error("INVALID_RESPONSE");
+    if (!rec(item) || typeof item.id !== "string" || typeof item.sourceId !== "string" || typeof item.original !== "string" || typeof item.normalized !== "string" || typeof item.level !== "number" || !nullableString(item.definitionVi) || !isReviewStatus(item.review) || typeof item.collision !== "boolean" || typeof item.revisionNumber !== "number") throw new Error("INVALID_RESPONSE");
     return { id: item.id, sourceId: item.sourceId, original: item.original, normalized: item.normalized, level: item.level, definitionVi: item.definitionVi, review: item.review, collision: item.collision, revisionNumber: item.revisionNumber };
   });
   return { items, nextCursor: value.nextCursor, draftRevision: value.draftRevision };
@@ -123,6 +122,7 @@ export function useCandidateEditorial(onUnauthorized: () => void) {
       if (!active.current || session !== adminSessionGeneration()) return;
       pending.current = null;
       await client.invalidateQueries({ queryKey: ROOT });
+      await client.invalidateQueries({ queryKey: ["vtv-private", "publication", "draft"] });
     } catch (error) {
       if (!active.current || session !== adminSessionGeneration()) return;
       if (error instanceof Error && error.message === "REVISION_CONFLICT") { pending.current = null; await client.invalidateQueries({ queryKey: ROOT }); }
@@ -130,6 +130,7 @@ export function useCandidateEditorial(onUnauthorized: () => void) {
       else pending.current = null;
     }
   }, [client, mutation]);
+  const retryReview = React.useCallback(() => { if (pending.current) void save(pending.current.input, true); }, [save]);
   const saveSelection = React.useCallback(async (input: SelectAnswerInput, retry: boolean): Promise<void> => {
     const session = adminSessionGeneration();
     try {
@@ -149,5 +150,5 @@ export function useCandidateEditorial(onUnauthorized: () => void) {
   const retrySelection = React.useCallback(() => { if (pendingSelection.current) void saveSelection(pendingSelection.current.input, true); }, [saveSelection]);
   const setSelectedEntry = React.useCallback((id: string | null) => { if (pending.current || pendingRights.current || pendingSelection.current) return; setHistoryCursor(null); setCollisionCursor(null); setSelected(id); }, []);
   const applyFilters = React.useCallback((next: Filters) => { if (pending.current || pendingRights.current || pendingSelection.current) return; setCursor(null); setSelectedEntry(null); setFilters(next); }, [setSelectedEntry]);
-  return { collision: collisionQuery.data ?? null, collisionLoading: collisionQuery.isFetching, collisionError: collisionQuery.isError, collisionCursor, setCollisionCursor, retrySelection, saveSelection, canRetrySelection, selectionError: selectionMutation.isError, filters, applyFilters, cursor, setCursor, selected, setSelectedEntry, list: listQuery.data ?? null, listLoading: listQuery.isFetching, listError: listQuery.isError, retryList: listQuery.refetch, detail: detailQuery.data ?? null, detailLoading: detailQuery.isFetching, detailError: detailQuery.isError, retryDetail: detailQuery.refetch, history: historyCursor ? historyQuery.data ?? null : detailQuery.data?.history ?? null, setHistoryCursor, historyError: historyQuery.isError, save, saving: mutation.isPending || rightsMutation.isPending || selectionMutation.isPending, saveError: mutation.isError || rightsMutation.isError, canRetry, saveRights, canRetryRights };
+  return { collision: collisionQuery.data ?? null, collisionLoading: collisionQuery.isFetching, collisionError: collisionQuery.isError, collisionCursor, setCollisionCursor, retrySelection, saveSelection, canRetrySelection, selectionError: selectionMutation.isError, filters, applyFilters, cursor, setCursor, selected, setSelectedEntry, list: listQuery.data ?? null, listLoading: listQuery.isFetching, listError: listQuery.isError, retryList: listQuery.refetch, detail: detailQuery.data ?? null, detailLoading: detailQuery.isFetching, detailError: detailQuery.isError, retryDetail: detailQuery.refetch, history: historyCursor ? historyQuery.data ?? null : detailQuery.data?.history ?? null, setHistoryCursor, historyError: historyQuery.isError, save, retryReview, saving: mutation.isPending || rightsMutation.isPending || selectionMutation.isPending, saveError: mutation.isError || rightsMutation.isError, canRetry, saveRights, canRetryRights };
 }
