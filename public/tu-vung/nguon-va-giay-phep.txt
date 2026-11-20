@@ -1,0 +1,45 @@
+Danh mục từ vựng Vua Tiếng Việt
+Vietnamese vocabulary catalog
+
+Bản dữ liệu công khai ngày 20/11/2026. Tệp TSV giữ cách viết, cụm từ và cờ
+nguồn. Danh mục đã bỏ khoảng trắng ở hai đầu, chuẩn hóa Unicode NFC, gộp
+các dòng giống nhau và sắp xếp. Tệp này không chứa định nghĩa, ghi chú
+biên tập hay trạng thái duyệt trong trò chơi.
+
+The public TSV retains spellings, phrases and source flags. Its rows were
+trimmed, normalized to Unicode NFC, deduplicated, and sorted. The file
+contains no definitions, editorial notes, or game approval status.
+
+kaikki_viwiktionary = 1
+Wiktionary contributors, extracted by Kaikki.org using Wiktextract.
+Nguồn: bản trích 03/11/2026 từ dump Wiktionary tiếng Việt viwiktionary-20261002.
+Bản gzip có SHA-256:
+1f0abd21982660b5fc2eff5eb3fbacbed2d9fe8f476af794dbed0d927ffb8187
+Wiktextract 19f9a30; Wikitextprocessor 6f96ddf.
+https://kaikki.org/viwiktionary/rawdata.html
+
+Nội dung thuộc phần Wiktionary được ghi công theo CC BY-SA 4.0 trong
+phạm vi áp dụng theo chính sách nguồn. Bản chuyển thể phần đó trong
+danh mục được chia sẻ theo cùng giấy phép. Mở liên kết Wiktionary ở
+mỗi hàng và xem lịch sử trang để biết các tác giả đóng góp.
+The Wiktionary portion and its adaptations are available under CC BY-SA
+4.0 as applicable under the source policy. The Wiktionary link on each
+row leads to the source page and its revision history.
+https://creativecommons.org/licenses/by-sa/4.0/
+https://vi.wiktionary.org/wiki/Wiktionary:Quy%E1%BB%81n_t%C3%A1c_gi%E1%BA%A3
+
+ho_ngoc_duc = 1
+Hồ Ngọc Đức. Vietnamese word lists Viet11K, Viet22K, Viet39K and Viet74K.
+Lấy từ bản sao của Duyet ở phiên bản 688b0953c8cdb21ee090ce80b83cefdb052fe2cd.
+https://github.com/duyet/vietnamese-wordlist/tree/688b0953c8cdb21ee090ce80b83cefdb052fe2cd
+
+Phần danh sách Hồ Ngọc Đức, gồm phần đã chuyển đổi và gộp, được phân
+phối theo GNU General Public License v2. Văn bản giấy phép kèm theo
+tại GPL-2.0.txt trong cùng thư mục công khai. Tệp nguồn nguyên bản
+có tại liên kết phiên bản ở trên.
+The Hồ Ngọc Đức portion, including its transformed and deduplicated
+form, is distributed under GNU GPL v2. Its license text is included as
+GPL-2.0.txt. The original source files are available at the pinned link.
+
+Các cột nguồn đánh dấu các bộ dữ liệu thành phần và điều khoản tương ứng.
+The source columns identify the constituent datasets and their terms.

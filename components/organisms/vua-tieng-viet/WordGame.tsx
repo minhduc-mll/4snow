@@ -64,7 +64,13 @@ export function WordGame() {
           <Button variant="ghost" onClick={model.openSettings} className={styles.help} disabled={model.busy}>{t("wordGame.settings.title")}</Button>
         </div>
       </nav>
-      {!round ? <header className={styles.header}><h1>Vua tiếng Việt</h1><p>{t("wordGame.tagline")}</p></header> : null}
+      {!round ? <header className={styles.header}>
+        <h1>Vua tiếng Việt</h1>
+        <p>{t("wordGame.tagline")}</p>
+        <Link href={PATH.vietnameseVocabulary} className="mx-auto inline-flex min-h-11 items-center rounded-md text-sm font-medium underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring">
+          {t("vocabularyCatalog.title")}
+        </Link>
+      </header> : null}
       <section className={styles.playArea} aria-label={t("wordGame.playArea")}>
         <div className={styles.boardMeta}>
           <span>{describeSettings(settings, Boolean(round && !round.rules.accuracy))}</span>

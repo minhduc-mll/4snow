@@ -4,5 +4,6 @@ export const PATH = {
   luckyDraw: "/lucky-draw",
   quiz: "/quiz",
   vuaTiengViet: "/vua-tieng-viet",
+  vietnameseVocabulary: "/vua-tieng-viet/tu-vung",
   leaderboard: "/leaderboard",
 } as const;
