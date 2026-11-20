@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { AttemptConfigurationForm } from "@/components/molecules/AttemptConfigurationForm";
 import { DictionaryPreviewRound } from "@/components/molecules/DictionaryPreviewRound";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/atoms/Dialog";
-import type { PublicationPreview } from "@/lib/vua-tieng-viet/publication-response";
+import { spellingChangeKinds, type PublicationPreview } from "@/lib/vua-tieng-viet/publication-response";
 import { Button } from "@/components/atoms/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/atoms/Card";
 import { useDictionaryPublication } from "@/hooks/useDictionaryPublication";
@@ -48,6 +48,21 @@ export function DictionaryPublicationPanel({ onUnauthorized }: Props) {
               <span>{t("publication.answers")}: {preview.coverage[level]?.answers} ({t("publication.delta", delta.answers)})</span>
             </li>;
           })}</ul>
+          {preview.spellingChanges ? <section aria-label={t("publication.spellingChanges")} className="grid gap-2">
+            <h3 className="font-semibold">{t("publication.spellingChanges")}</h3>
+            {spellingChangeKinds.every(kind => !preview.spellingChanges?.[kind]) ? <p className="text-sm text-muted-foreground">{t("publication.noSpellingChanges")}</p> : null}
+            {spellingChangeKinds.map(kind => {
+              const group = preview.spellingChanges?.[kind];
+              if (!group) return null;
+              return <details key={kind} className="rounded-lg border p-3 text-sm">
+                <summary className="cursor-pointer font-medium">{t(`publication.spellingChange.${kind}`)} ({group.total})</summary>
+                <ul className="mt-2 flex flex-wrap gap-2">{group.items.map(item => <li key={item.normalized} className="rounded bg-muted px-2 py-1">
+                  {item.normalized} · {item.level} {t("publication.letters")}
+                </li>)}</ul>
+                {group.total > group.items.length ? <p className="mt-2 text-muted-foreground">{t("publication.moreSpellings")}</p> : null}
+              </details>;
+            })}
+          </section> : null}
           {preview.sources.length ? <details className="grid gap-2 rounded-lg border p-3 text-sm">
             <summary className="cursor-pointer font-medium">{t("publication.sources")} ({preview.sourceCount})</summary>
             <ul className="mt-2 grid gap-1">{preview.sources.map(source => <li className="break-words" key={source.id}>{source.name} · {source.revision}</li>)}</ul>

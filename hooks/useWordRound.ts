@@ -5,7 +5,7 @@ import type { PlayableRound, RoundSettings } from "@/types/vua-tieng-viet";
 import { PlayerError, startRound, type PlayerErrorCode } from "@/lib/vua-tieng-viet/player-engine";
 import { useWordInput } from "@/hooks/useWordInput";
 import { usePublishedDictionary } from "@/hooks/usePublishedDictionary";
-import { createRoundStorage, ROUND_SAVE_KEY, type RoundRecovery } from "@/lib/vua-tieng-viet/round-save";
+import { advanceStreak, createRoundStorage, EMPTY_STREAK, ROUND_SAVE_KEY, type RoundRecovery } from "@/lib/vua-tieng-viet/round-save";
 
 import { DEFAULT_PLAYER_SETTINGS, readPlayerPreferences, writePlayerPreferences } from "@/lib/vua-tieng-viet/player-preferences";
 
@@ -15,6 +15,8 @@ export function useWordRound() {
   const current = React.useRef<PlayableRound | null>(null);
   const [storage] = React.useState(() => createRoundStorage(() => window.localStorage));
   const [recovery,setRecovery] = React.useState<RoundRecovery["kind"] | "loading">("loading");
+  const [restoredRoundId,setRestoredRoundId] = React.useState<string | null>(null);
+  const [streak,setStreak] = React.useState(EMPTY_STREAK);
   const [storageWarning,setStorageWarning] = React.useState(false);
   const [conflict,setConflict] = React.useState(false);
   const conflictRef = React.useRef(false), operation = React.useRef(0);
@@ -33,7 +35,7 @@ export function useWordRound() {
   const [helpOpen,setHelpOpen] = React.useState(false);
   const controller = React.useRef<AbortController | null>(null);
   const active = React.useRef(true);
-  const input = useWordInput({ state, current, loading, conflict: conflictRef, busy: busy || recovery === "loading" || conflict, dialogOpen: settingsDraft !== null || helpOpen, replace, setError });
+  const input = useWordInput({ state, current, loading, conflict: conflictRef, busy: busy || recovery === "loading" || conflict, dialogOpen: settingsDraft !== null || helpOpen, restoredRoundId, replace, setError });
   const resetInput = input.reset;
   const showConflict = React.useCallback(() => {
     storage.pause();
@@ -51,7 +53,12 @@ export function useWordRound() {
       if (!active.current) return;
       setRecovery(result.kind);
       setPreferences(storedPreferences);
-      if (result.kind === "restored") { current.current = result.state; setState(result.state); }
+      setStreak(storage.streak());
+      if (result.kind === "restored") {
+        current.current = result.state;
+        setState(result.state);
+        setRestoredRoundId(result.state.round.id);
+      }
       if (result.kind === "unavailable") setStorageWarning(true);
     });
   },[storage]);
@@ -66,19 +73,29 @@ export function useWordRound() {
     window.addEventListener("storage",changed);
     return () => window.removeEventListener("storage",changed);
   },[storage,showConflict]);
-  const recoveryBlocked = recovery === "loading" || recovery === "invalid" || recovery === "incompatible";
+  const damagedSave = recovery === "invalid" || recovery === "incompatible";
+  const syncStreak = () => {
+    const saved = storage.streak();
+    setStreak(value => value.current === saved.current && value.longest === saved.longest ? value : saved);
+  };
   function replace(next: PlayableRound) {
-    if (next === current.current) return;
+    const previous = current.current;
+    if (next === previous) return;
     current.current = next; setState(next);
-    void storage.write(next).then(result => {
+    setRestoredRoundId(null);
+    void storage.write(next,false,previous).then(result => {
       if (!active.current) return;
       if (result === "conflict") showConflict();
-      if (result === "unavailable") setStorageWarning(true);
+      if (result === "saved") syncStreak();
+      if (result === "unavailable") {
+        setStorageWarning(true);
+        setStreak(value => advanceStreak(value, previous, next));
+      }
     });
   }
   const begin = async (nextSettings: RoundSettings) => {
     const { level: nextLevel, guessMode, accuracy } = nextSettings;
-    if (loading.current || recoveryBlocked || conflictRef.current) return;
+    if (loading.current || recovery === "loading" || conflictRef.current) return;
     const token = operation.current;
     loading.current = true; setBusy(true); setError(null); setRetrySettings(null);
     try {
@@ -92,17 +109,20 @@ export function useWordRound() {
         if (number === undefined) throw new PlayerError("RANDOM_FAILED");
         return number;
       },() => ({ id: crypto.randomUUID(), timestamp: new Date().toISOString() }),guessMode,accuracy);
-      const written = await storage.write(next,true);
+      const written = await storage.write(next,true,current.current);
       if (!active.current || token !== operation.current || conflictRef.current) return;
       if (written === "conflict") { showConflict(); return; }
       if (written === "superseded") return;
       if (written === "unavailable") {
         setStorageWarning(true);
+        if (damagedSave) return;
         if (current.current) {
           setRetrySettings(nextSettings);
           return;
         }
-      }
+      } else { syncStreak(); setStorageWarning(false); }
+      setRecovery("restored");
+      setRestoredRoundId(null);
       current.current = next; setState(next); setPreferences(nextSettings); setSetupSettings(null); resetInput();
       try {
         if (!writePlayerPreferences(window.localStorage,nextSettings)) setStorageWarning(true);
@@ -110,7 +130,7 @@ export function useWordRound() {
     } catch (failure) {
       if (active.current && token === operation.current) {
         setError(failure instanceof PlayerError ? failure.code : "LOAD_FAILED");
-        setRetrySettings(nextSettings);
+        if (!damagedSave) setRetrySettings(nextSettings);
       }
     }
     finally { if (token === operation.current) { loading.current = false; if (active.current) setBusy(false); } }
@@ -126,13 +146,6 @@ export function useWordRound() {
     if (current.current) void begin(next);
     else { setSetupSettings(next); setError(null); setRetrySettings(null); }
   };
-  const resetSave = async () => {
-    const result = await storage.reset();
-    if (!active.current) return;
-    if (result === "saved") { setRecovery("empty"); setStorageWarning(false); }
-    else if (result === "conflict") showConflict();
-    else if (result === "unavailable") setStorageWarning(true);
-  };
   const resolveConflict = async (choice: "load" | "keep") => {
     if (resolving.current || !conflictRef.current || (choice === "keep" && !current.current)) return;
     resolving.current = true; setResolutionBusy(true); setResolutionError(null);
@@ -141,6 +154,7 @@ export function useWordRound() {
       if (result.kind === "restored" || result.kind === "empty") {
         const next = result.kind === "restored" ? result.state : null;
         current.current = next; setState(next); setSetupSettings(null);
+        syncStreak(); setRestoredRoundId(null);
         setRecovery(result.kind); setError(null); resetInput();
         conflictRef.current = false; setConflict(false);
       } else if (result.kind !== "superseded") {
@@ -151,8 +165,8 @@ export function useWordRound() {
     resolving.current = false;
   };
   return {
-    state, settings, busy: busy || recovery === "loading" || conflict, conflict, resolutionBusy,
-    resolutionError, resolveConflict, recovery, recoveryBlocked, storageWarning, resetSave, error,
+    state, settings, streak, busy: busy || recovery === "loading" || conflict, conflict, resolutionBusy,
+    resolutionError, resolveConflict, recovery, damagedSave, restoredRoundId, storageWarning, error,
     settingsDraft, setSettingsDraft, openSettings, applySettings, showTextFeedback, setShowTextFeedback,
     retry: retrySettings ? () => void begin(retrySettings) : null,
     input, helpOpen, setHelpOpen, start: () => void begin(settings),

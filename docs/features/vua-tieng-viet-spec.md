@@ -257,3 +257,66 @@ Player accounts, competition integrity, secret answers, rooms, multiplayer, scor
 - Required deployment inputs: existing Supabase browser URL/key; matching private admin JWT verification secret and privileged DB credentials in Edge configuration; approved CORS origins; function gateway configuration; applied migrations/RLS/grants. Never copy private values into public environment variables or repository fixtures.
 - Required release evidence: pinned source ledger/rights decisions, reviewed coverage for all levels, import receipts, publication validation, authorization/RLS test results, lint/build/test results, and accessible browser checks.
 - The configured issue tracker is local Markdown. Retain this authoritative specification and link to it from the existing implementation tickets instead of duplicating the spec. A ready-for-agent ticket may still have unresolved dependencies. This revision starts no implementation work and marks no implementation ticket resolved.
+
+## Bổ sung — Quản lý mục từ và chuỗi thắng
+
+Phần bổ sung này quy định hành vi cho đợt nâng cấp tiếp theo. Các quy tắc phát hành, nguồn và quyền sử dụng hiện hành tiếp tục áp dụng.
+
+### Problem Statement
+
+Admin cần tìm và chỉnh sửa một mục từ mà không phải chuẩn bị tệp nhập hàng loạt, đồng thời cần gỡ mục sai và khôi phục khi cần. Người chơi muốn biết mình đã thắng liên tiếp bao nhiêu ván và giữ được tiến độ khi quay lại trình duyệt.
+
+### Solution
+
+Mở rộng màn biên tập từ điển để tìm, thêm, sửa, gỡ và khôi phục từng mục. Cho admin xem trước tác động đến bản phát hành. Hiển thị chuỗi thắng hiện tại và chuỗi thắng dài nhất trên màn chơi, đồng thời tự động nối lại ván đã lưu.
+
+### User Stories
+
+1. Là admin, tôi muốn tìm theo chính tả và kết hợp các bộ lọc hiện có để tìm đúng mục từ.
+2. Là admin, tôi muốn thấy mục đã gỡ trong kết quả tìm kiếm để có thể xem lịch sử hoặc khôi phục.
+3. Là admin, tôi muốn thêm một từ hoặc cụm từ để bổ sung từ điển mà không cần tệp JSON.
+4. Là admin, tôi muốn lưu mục mới ở trạng thái chờ duyệt để có thể bổ sung định nghĩa sau.
+5. Là admin, tôi muốn chọn nguồn tự biên soạn đã xác nhận quyền sử dụng hoặc nguồn bên ngoài tương ứng để giữ thông tin xuất xứ.
+6. Là admin, tôi muốn thấy các mục có cùng chính tả chuẩn hóa trước khi thêm để có thể sửa mục cũ, khôi phục mục đã gỡ hoặc chủ động thêm nghĩa khác.
+7. Là admin, tôi muốn sửa chính tả và định nghĩa, rồi xem các phiên bản trước để kiểm tra thay đổi.
+8. Là admin, tôi muốn tắt quyền làm đáp án của một mục mà vẫn giữ từ đó trong danh sách được phép đoán.
+9. Là admin, tôi muốn gỡ mục khỏi cả danh sách được phép đoán và danh sách đáp án ở lần phát hành tiếp theo.
+10. Là admin, tôi muốn khôi phục một mục đã gỡ về trạng thái chờ duyệt để kiểm tra lại trước khi phát hành.
+11. Là admin, tôi muốn xem trước thay đổi giữa bản đang dùng và bản dự kiến phát hành để phát hiện từ bị gỡ hoặc mức chơi bị thiếu đáp án.
+12. Là admin, tôi muốn tiếp tục nhập hàng loạt để xử lý các bộ từ lớn theo quy trình hiện có.
+13. Là người chơi, tôi muốn ván đang chơi tiếp tục dùng bản từ điển lúc bắt đầu để các lượt đã đoán vẫn nhất quán.
+14. Là người chơi, tôi muốn thấy chuỗi thắng hiện tại và chuỗi dài nhất tính chung cho cả bốn độ dài để theo dõi thành tích.
+15. Là người chơi, tôi muốn tự động quay lại đúng ván sau khi tải lại, rời trang hoặc đóng trình duyệt để tiếp tục giữ chuỗi.
+16. Là người chơi, tôi muốn mỗi ván thắng chỉ cộng một lần để tải lại trang hoặc mở thêm tab không làm sai thành tích.
+17. Là người chơi, tôi muốn biết trước khi một ván mới thay thế ván đang chơi rằng chuỗi hiện tại sẽ về 0.
+18. Là người chơi, tôi muốn ván và chuỗi đang có được giữ nếu quá trình mở ván khác thất bại.
+19. Là người chơi, tôi muốn được thông báo ngay cạnh nút chơi khi bản lưu lỗi để có thể bắt đầu ván mới bằng một thao tác và giữ kỷ lục còn đọc được.
+
+### Implementation Decisions
+
+- Tận dụng luồng biên tập, kiểm tra nguồn, duyệt, xem trước và phát hành hiện có. Các thao tác riêng tư dùng Supabase Edge Function xác thực admin, kiểm tra dữ liệu đầu vào và ghi lịch sử chỉnh sửa. Giữ các bản phát hành bất biến.
+- Bắt buộc có chính tả hợp lệ ở độ dài 3, 5, 7 hoặc 9 chữ và thông tin nguồn hợp lệ. Định nghĩa có thể để trống khi tạo mục chờ duyệt. Mục được chọn làm đáp án phải có định nghĩa tiếng Việt đã duyệt.
+- Dùng chính tả chuẩn hóa giữ dấu để tìm mục trùng. Nếu có nhiều nghĩa, bản phát hành có tối đa một mục đáp án cho mỗi chính tả. Khi gỡ một mục có nhiều nghĩa, phần xem trước phải cho biết chính tả đó còn được phép đoán qua mục khác hay không. Để gỡ toàn bộ chính tả, admin gỡ các mục còn đủ điều kiện mang chính tả đó.
+- Tách hành vi gỡ mục khỏi hành vi tắt quyền làm đáp án. Khi khôi phục, mục quay lại chờ duyệt. Trạng thái và thay đổi chỉ ảnh hưởng tới ván mới sau khi bản phát hành được công bố thành công.
+- Phần xem trước đối chiếu bản dự kiến với bản đang dùng, thể hiện từ được thêm hoặc gỡ khỏi danh sách đoán, thay đổi ở đáp án và độ phủ từng mức. Nếu kiểm tra hoặc phát hành thất bại, bản đang dùng vẫn phục vụ ván mới.
+- Chuỗi lưu cục bộ theo trình duyệt và dùng chung bốn độ dài. Thắng cộng một vào chuỗi hiện tại và cập nhật kỷ lục nếu vượt. Thua hoặc bỏ ván đưa chuỗi hiện tại về 0. Việc bỏ ván áp dụng cả trước lượt đoán đầu tiên.
+- Tự khôi phục ván hợp lệ trong quá trình tải, gồm bản từ điển của ván, độ dài và tiến độ đã lưu. Báo nhẹ cạnh bàn chơi, giữ tiêu điểm và tránh hộp thoại. Mở ván khác khi một ván hợp lệ đang diễn ra vẫn dùng xác nhận hiện có. Chỉ ghi nhận bỏ ván khi ván thay thế bắt đầu thành công.
+- Với bản lưu lỗi, tự thử khôi phục. Nếu thất bại, hiển thị lý do và tác động đến chuỗi cạnh nút **Chơi ván mới**. Bấm nút là đủ để thay bản lưu nếu mở ván thành công. Đặt lại chuỗi hiện tại và giữ kỷ lục còn đọc được.
+- Chỉ dùng lịch sử cũ để tính chuỗi khi có thể xác định đúng kết quả và thứ tự. Khi thiếu dữ liệu để tính, bắt đầu từ 0. Dùng cơ chế đồng bộ lưu ván giữa các tab để áp dụng mỗi kết quả đúng một lần và tránh ghi đè thành tích khi xảy ra xung đột.
+
+### Testing Decisions
+
+- Kiểm tra qua hai điểm vào hiện có là giao diện admin và giao diện chơi. Các bài kiểm thử khẳng định hành vi nhìn thấy được như trạng thái, kết quả tìm kiếm, bản phát hành và chỉ số sau khi tải lại.
+- Mở rộng Playwright dựa trên bài kiểm thử biên tập, phát hành và gameplay. Bao phủ thêm mục hợp lệ, trùng chính tả, khác nghĩa, gỡ, khôi phục, bản xem trước, phát hành và việc ván đang chơi giữ bản cũ.
+- Dùng bộ kiểm thử HTTP và SQL từ điển hiện có để kiểm tra quyền admin, kiểm tra dữ liệu, lịch sử, tính nhất quán khi thao tác đồng thời và việc bản đang dùng vẫn hoạt động nếu phát hành thất bại.
+- Dùng bộ kiểm thử lưu ván và nhiều tab hiện có để bao phủ chuỗi qua các độ dài, thắng hoặc thua, bỏ ván trước lượt đoán đầu tiên, tải lại, bản lưu lỗi, mở ván mới thất bại, dữ liệu cũ và kết quả được ghi đúng một lần. Kiểm tra trên giao diện rằng khôi phục tự động không lấy tiêu điểm và thông báo lỗi có bước tiếp theo.
+
+### Out of Scope
+
+- Thay đổi Quiz và Lucky Draw, tài khoản người chơi, đồng bộ thành tích giữa thiết bị, thử thách hằng ngày, xếp hạng và nhiều người chơi.
+- Xóa vĩnh viễn lịch sử biên tập, xóa bản phát hành đã công bố và thay đổi yêu cầu xác nhận quyền đối với dữ liệu có thật.
+
+### Further Notes
+
+- Ví dụ, từ chuỗi hiện tại 11 và dài nhất 21, khôi phục ván giữ 11 và 21, thắng ván đó cho 12 và 21, còn thua hoặc bỏ ván cho 0 và 21.
+- Bản bổ sung mô tả công việc triển khai và điều kiện nghiệm thu. Chưa ghi nhận kết quả kiểm thử cho các chức năng mới.

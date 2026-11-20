@@ -5,10 +5,12 @@ import { Badge } from "@/components/atoms/Badge";
 import { Button } from "@/components/atoms/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/atoms/Card";
 import { Checkbox } from "@/components/atoms/Checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/atoms/Dialog";
 import { Input } from "@/components/atoms/Input";
 import { BulkEditorialReview } from "@/components/molecules/BulkEditorialReview";
 import { useBulkEditorial } from "@/hooks/useBulkEditorial";
 import { AnswerCollisionReview } from "@/components/molecules/AnswerCollisionReview";
+import { CandidateCreationForm } from "@/components/molecules/CandidateCreationForm";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { useCandidateEditorial, useRightsReviewForm } from "@/hooks/useCandidateEditorial";
 import { useEditorialFilters, useEditorialReviewForm } from "@/hooks/useEditorialForms";
@@ -20,6 +22,44 @@ type Editorial = ReturnType<typeof useCandidateEditorial>;
 type Detail = NonNullable<Editorial["detail"]>;
 const checkNames: (keyof ExclusionChecks)[] = ["names", "abbreviations", "offensive", "malformed", "unverified"];
 const selectClass = "w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground";
+
+function EntryLifecycle({ detail, model }: { detail: Detail; model: Editorial }) {
+  const { t } = useAppI18n();
+  const [confirming, setConfirming] = React.useState(false);
+  const current = detail.current;
+  const withdrawn = current.review === "withdrawn";
+  const locked = model.saving || model.canRetry || model.canRetryRights || model.canRetrySelection;
+  const changeStatus = () => {
+    setConfirming(false);
+    void model.save({
+      entryId: detail.id, expectedEntryRevision: current.revisionNumber, expectedDraftRevision: detail.draftRevision,
+      original: current.original, definitionVi: current.definitionVi, review: withdrawn ? "pending" : "withdrawn",
+      answerEligible: false, category: current.category ?? "common", rationale: current.rationale ?? "",
+      exclusionChecks: current.exclusionChecks ?? { names: false, abbreviations: false, offensive: false, malformed: false, unverified: false },
+    }, false);
+  };
+  return (
+    <section className="grid gap-2 rounded-lg border p-4">
+      <p className="text-sm text-muted-foreground">{t(withdrawn ? "wordManagement.restoreHint" : "wordManagement.withdrawHint")}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" disabled={locked} onClick={withdrawn ? changeStatus : () => setConfirming(true)}>{t(withdrawn ? "wordManagement.restore" : "wordManagement.withdraw")}</Button>
+        {withdrawn && model.canRetry ? <Button variant="outline" disabled={model.saving} onClick={model.retryReview}>{t("editorial.retry")}</Button> : null}
+      </div>
+      <Dialog open={confirming} onOpenChange={setConfirming}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("wordManagement.confirmWithdraw", { spelling: current.original })}</DialogTitle>
+            <DialogDescription>{t("wordManagement.withdrawHint")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" autoFocus onClick={() => setConfirming(false)}>{t("wordManagement.cancel")}</Button>
+            <Button variant="danger" disabled={locked} onClick={changeStatus}>{t("wordManagement.withdraw")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </section>
+  );
+}
 
 function RightsEditor({ detail, model }: { detail: Detail; model: Editorial }): React.ReactElement {
   const { t } = useAppI18n();
@@ -74,20 +114,36 @@ function ReviewEditor({ detail, save, saving, canRetry }: { detail: Detail; save
 
 export function CandidateEditorialPanel({ onUnauthorized }: Props): React.ReactElement {
   const { t } = useAppI18n();
+  const [showCreate, setShowCreate] = React.useState(false);
   const model = useCandidateEditorial(onUnauthorized);
   const filter = useEditorialFilters(model.applyFilters);
   const enabled = process.env.NEXT_PUBLIC_VTV_IMPORT_ENABLED === "true";
   const bulk = useBulkEditorial(onUnauthorized, enabled);
   const selectedTargets = new Set(bulk.targets.map((item) => item.entryId));
-  const pageTargets = model.list?.items.map(({ id, revisionNumber }) => ({ entryId: id, expectedEntryRevision: revisionNumber })) ?? [];
+  const pageTargets = model.list?.items.filter(item => item.review !== 'withdrawn').map(({ id, revisionNumber }) => ({ entryId: id, expectedEntryRevision: revisionNumber })) ?? [];
   const newPageTargets = pageTargets.filter((item) => !selectedTargets.has(item.entryId)).length;
   return (
     <Card className="w-full shadow-soft"><CardHeader><CardTitle>{t("editorial.title")}</CardTitle><CardDescription>{t("editorial.description")}</CardDescription></CardHeader><CardContent className="grid gap-4">
       {!enabled ? <p>{t("dictionaryImport.disabled")}</p> : <>
         <p className="text-sm text-muted-foreground">{t("dictionaryWorkflow.draftWarning")}</p>
-        <div className="grid gap-3 sm:grid-cols-2"><label className="grid gap-1">{t("editorial.source")}<Input value={filter.sourceId} onChange={(event) => filter.setSourceId(event.target.value)} /></label><label className="grid gap-1">{t("editorial.level")}<select className={selectClass} value={filter.level} onChange={(event) => filter.setLevel(event.target.value)}><option value="">{t("editorial.all")}</option>{[3,5,7,9].map((n) => <option key={n} value={n}>{n}</option>)}</select></label><label className="grid gap-1">{t("editorial.review")}<select className={selectClass} value={filter.review} onChange={(event) => filter.setReview(event.target.value)}><option value="">{t("editorial.all")}</option><option value="pending">{t("editorial.pending")}</option><option value="approved">{t("editorial.approved")}</option><option value="rejected">{t("editorial.rejected")}</option></select></label><label className="grid gap-1">{t("editorial.definition")}<select className={selectClass} value={filter.hasDefinition} onChange={(event) => filter.setHasDefinition(event.target.value)}><option value="">{t("editorial.all")}</option><option value="yes">{t("editorial.yes")}</option><option value="no">{t("editorial.no")}</option></select></label></div>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={filter.collisionsOnly} onChange={(event) => filter.setCollisionsOnly(event.target.checked)} />{t("editorial.collisionsOnly")}</label><Button onClick={filter.apply}>{t("editorial.filter")}</Button>
+        <Button className="justify-self-start" variant={showCreate ? "outline" : "primary"} aria-expanded={showCreate} aria-controls={showCreate ? "manual-candidate-form" : undefined} onClick={() => setShowCreate(value => !value)}>
+          {t(showCreate ? "wordManagement.hideAdd" : "wordManagement.add")}
+        </Button>
+        {showCreate ? <CandidateCreationForm draftRevision={model.list?.draftRevision} onUnauthorized={onUnauthorized} onSelect={model.setSelectedEntry}
+          disabled={bulk.saving || model.saving || model.canRetry || model.canRetryRights || model.canRetrySelection} /> : null}
+        <form className="grid gap-3" onSubmit={event => { event.preventDefault(); filter.apply(); }}>
+          <label className="grid gap-1">{t("wordManagement.search")}<Input type="search" value={filter.spelling} maxLength={120} onChange={event => filter.setSpelling(event.target.value)} /></label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1">{t("editorial.source")}<Input value={filter.sourceId} onChange={(event) => filter.setSourceId(event.target.value)} /></label>
+            <label className="grid gap-1">{t("editorial.level")}<select className={selectClass} value={filter.level} onChange={(event) => filter.setLevel(event.target.value)}><option value="">{t("editorial.all")}</option>{[3,5,7,9].map((n) => <option key={n} value={n}>{n}</option>)}</select></label>
+            <label className="grid gap-1">{t("editorial.review")}<select className={selectClass} value={filter.review} onChange={(event) => filter.setReview(event.target.value)}><option value="">{t("editorial.all")}</option><option value="pending">{t("editorial.pending")}</option><option value="approved">{t("editorial.approved")}</option><option value="rejected">{t("editorial.rejected")}</option><option value="withdrawn">{t("editorial.withdrawn")}</option></select></label>
+            <label className="grid gap-1">{t("editorial.definition")}<select className={selectClass} value={filter.hasDefinition} onChange={(event) => filter.setHasDefinition(event.target.value)}><option value="">{t("editorial.all")}</option><option value="yes">{t("editorial.yes")}</option><option value="no">{t("editorial.no")}</option></select></label>
+          </div>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={filter.collisionsOnly} onChange={(event) => filter.setCollisionsOnly(event.target.checked)} />{t("editorial.collisionsOnly")}</label>
+          <Button className="justify-self-start" type="submit">{t("editorial.filter")}</Button>
+        </form>
         <div aria-live="polite">{model.listLoading ? <p>{t("editorial.loading")}</p> : null}{model.listError ? <div className="flex flex-wrap items-center gap-2"><Badge variant="danger">{t("editorial.error")}</Badge><Button variant="outline" onClick={() => void model.retryList()}>{t("editorial.retry")}</Button></div> : null}</div>
+        {model.list?.items.length === 0 && !model.listLoading ? <p role="status">{t("wordManagement.noResults")}</p> : null}
         {!bulk.resume && model.list ? <div className="grid gap-2 rounded-lg border p-3">
           <p aria-live="polite">{t("bulk.selected", { count: bulk.targets.length })}</p>
           <div className="flex flex-wrap gap-2">
@@ -100,7 +156,7 @@ export function CandidateEditorialPanel({ onUnauthorized }: Props): React.ReactE
         </div> : null}
         {bulk.resume ? <BulkEditorialReview model={bulk} openEntry={model.setSelectedEntry} /> : null}
         <ul className="grid gap-2">{model.list?.items.map((item) => <li key={item.id}>
-          {!bulk.resume ? <label className="flex items-center gap-2 py-1 text-sm"><Checkbox checked={selectedTargets.has(item.id)} disabled={bulk.loading || (bulk.targets.length >= 500 && !selectedTargets.has(item.id))} onChange={() => bulk.toggle({ entryId: item.id, expectedEntryRevision: item.revisionNumber })} />{t("bulk.selectRow", { word: item.original })}</label> : null}
+          {!bulk.resume && item.review !== 'withdrawn' ? <label className="flex items-center gap-2 py-1 text-sm"><Checkbox checked={selectedTargets.has(item.id)} disabled={bulk.loading || (bulk.targets.length >= 500 && !selectedTargets.has(item.id))} onChange={() => bulk.toggle({ entryId: item.id, expectedEntryRevision: item.revisionNumber })} />{t("bulk.selectRow", { word: item.original })}</label> : null}
           <Button variant="outline" className="w-full justify-start" onClick={() => model.setSelectedEntry(item.id)}>{item.original} · {item.level} · {t(`editorial.${item.review}`)}{item.collision ? ` · ${t("editorial.collision")}` : ""}</Button><p className="text-sm">{item.definitionVi ?? t("editorial.noDefinition")}</p><p className="break-all text-xs text-muted-foreground">{item.sourceId} · {item.id}</p></li>)}</ul>
         <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={!model.cursor} onClick={() => model.setCursor(null)}>{t("editorial.first")}</Button><Button variant="outline" disabled={!model.list?.nextCursor} onClick={() => model.setCursor(model.list?.nextCursor ?? null)}>{t("editorial.next")}</Button></div>
         {model.detailLoading ? <p role="status">{t("editorial.loading")}</p> : null}
@@ -120,7 +176,8 @@ export function CandidateEditorialPanel({ onUnauthorized }: Props): React.ReactE
           </section>
           <AnswerCollisionReview model={{ ...model, saving: model.saving || bulk.saving }} normalized={model.detail.current.normalized} level={model.detail.current.level} />
           <RightsEditor key={`${model.detail.sourceId}:${model.detail.draftRevision}`} detail={model.detail} model={{ ...model, saving: model.saving || bulk.saving }} />
-          <ReviewEditor key={model.detail.current.id} detail={model.detail} save={model.save} saving={bulk.saving || model.saving || model.canRetryRights || model.canRetrySelection} canRetry={model.canRetry} />
+          {model.detail.current.review !== "withdrawn" ? <ReviewEditor key={model.detail.current.id} detail={model.detail} save={model.save} saving={bulk.saving || model.saving || model.canRetryRights || model.canRetrySelection} canRetry={model.canRetry} /> : null}
+          <EntryLifecycle key={model.detail.current.id} detail={model.detail} model={{ ...model, saving: model.saving || bulk.saving }} />
           <section className="grid gap-2"><h3 className="font-semibold">{t("editorial.history")}</h3>
             <ul className="grid gap-2">{model.history?.items.map((item) => <li key={item.id} className="rounded-lg border p-2 text-sm"><p>#{item.revisionNumber} · {item.original} · {t(`editorial.${item.review}`)} · {item.createdAt} · {item.actorRole}</p>{item.bulkBatchId ? <p className="break-all">{t("bulk.batch", { id: item.bulkBatchId })}</p> : null}<p>{item.definitionVi}</p><p>{item.rationale}</p><p>{item.category} · {item.answerEligible ? t("editorial.answerEligible") : ""}</p>{item.exclusionChecks ? <p>{checkNames.map((name) => `${t(`editorial.check_${name}`)}: ${item.exclusionChecks?.[name] ? t("editorial.yes") : t("editorial.no")}`).join(" · ")}</p> : null}</li>)}</ul>
             {model.historyError ? <Badge variant="danger">{t("editorial.error")}</Badge> : null}

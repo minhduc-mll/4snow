@@ -22,3 +22,15 @@ A published collection of approved guesses, eligible answers, and their required
 
 **Round**:
 One solo game with a selected letter count, a selected answer entry, and a limited number of accepted guesses.
+
+**Withdrawn dictionary entry**:
+A dictionary entry removed from both guess acceptance and answer selection in subsequent releases while retaining its editorial history and remaining eligible for restoration.
+
+**Current win streak**:
+The number of consecutive rounds won across all letter counts since the last loss or abandonment. A round that can still be resumed is ongoing.
+
+**Longest win streak**:
+The highest number of consecutive rounds the player has ever won in a streak.
+
+**Abandoned round**:
+A started, unfinished round that the player discards or replaces with a different round.

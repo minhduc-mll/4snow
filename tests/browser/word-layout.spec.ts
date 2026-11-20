@@ -10,6 +10,9 @@ test("setup leads to a compact game and a finished round can select a new length
   await expect(input(page)).toBeEnabled();
   await expect(page.getByRole("button", { name: /^5 chữ$/ })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
+  await page.getByRole("button", { name: "Chơi ván mới", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("chuỗi hiện tại sẽ về 0");
+  await page.getByRole("button", { name: "Hủy", exact: true }).click();
   await input(page).fill("mèo");
   await submit(page).click();
   await page.getByRole("button", { name: "Cài đặt" }).click();

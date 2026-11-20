@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRoundStorage, decodeRoundSave, ROUND_SAVE_KEY } from "../../lib/vua-tieng-viet/round-save.ts";
-import { startRound, commitInput } from "../../lib/vua-tieng-viet/player-engine.ts";
+import { createRoundStorage, decodeRoundSave, encodeRoundSave, ROUND_SAVE_KEY } from "../../lib/vua-tieng-viet/round-save.ts";
+import { startRound, commitInput, submitGuess } from "../../lib/vua-tieng-viet/player-engine.ts";
 import { playerPayload, fixtureId } from "./player-fixture.ts";
 const time = "2026-11-14T01:00:00.000Z";
 function round(id = 100) { return startRound({ payload: playerPayload(), payloadHash: "a".repeat(64), publishedAt: time },3,undefined,() => 0,() => ({ id: fixtureId(id), timestamp: time })); }
@@ -79,4 +79,51 @@ test("explicit reset invalidates pending writers and never clears a changed fore
   d.values.set(ROUND_SAVE_KEY,"broken"); b.read();
   await a.loadSaved(); const next = await a.keep(round(200)); assert.equal(next.kind,"restored");
   assert.equal(await b.reset(),"conflict"); assert.equal(decodeRoundSave(d.values.get(ROUND_SAVE_KEY)).round.id,fixtureId(200));
+});
+
+test("concurrent wins of the same round settle the streak only once", async () => {
+  const d = device(), a = d.tab(), b = d.tab();
+  a.read();
+  const draft = commitInput(round(), "mèo").state;
+  await a.write(draft);
+  b.read();
+  const won = id => submitGuess(draft, draft.round.revision, () => ({ id: fixtureId(id), timestamp: time })).state;
+  assert.equal(await a.write(won(101)), "saved");
+  assert.equal(await b.write(won(102)), "conflict");
+  assert.equal((await b.keep(won(102))).state.round.guesses[0].id, fixtureId(101));
+  assert.deepEqual(b.streak(), { current: 1, longest: 1 });
+  const restored = d.tab();
+  assert.equal(restored.read().state.round.status, "won");
+  assert.deepEqual(restored.streak(), { current: 1, longest: 1 });
+  assert.equal(JSON.parse(d.values.get(ROUND_SAVE_KEY)).schemaVersion, 4);
+});
+
+test("corrupt round metadata and legacy saves recover independently of streak counters", async () => {
+  const d = device(), a = d.tab(), active = round();
+  const key = ROUND_SAVE_KEY;
+  d.values.set(key, encodeRoundSave(active, time));
+  assert.deepEqual(a.read().state.round.rules, active.round.rules);
+  assert.deepEqual(a.streak(), { current: 0, longest: 0 });
+  d.values.set(key, JSON.stringify({ schemaVersion: 4, normalizerVersion: "vi-nfc-v2", streak: { current: 11, longest: 21, countable: true } }));
+  assert.equal(a.read().kind, "invalid");
+  assert.deepEqual(a.streak(), { current: 11, longest: 21 });
+  assert.equal(await a.write(round(200), true), "saved");
+  assert.deepEqual(a.streak(), { current: 0, longest: 21 });
+});
+
+test("replay settles a pending win atomically after a temporary storage failure", async () => {
+  const d = device(), a = d.tab();
+  a.read();
+  const draft = commitInput(round(), "mèo").state;
+  await a.write(draft);
+  const won = submitGuess(draft, draft.round.revision, () => ({ id: fixtureId(101), timestamp: time })).state;
+  const set = d.port.setItem;
+  d.port.setItem = () => { throw Error("quota"); };
+  assert.equal(await a.write(won), "unavailable");
+  assert.deepEqual(a.streak(), { current: 0, longest: 0 });
+  d.port.setItem = set;
+  assert.equal(await a.write(round(200), true, won), "saved");
+  const restored = d.tab();
+  assert.equal(restored.read().state.round.id, fixtureId(200));
+  assert.deepEqual(restored.streak(), { current: 1, longest: 1 });
 });

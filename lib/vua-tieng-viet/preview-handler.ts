@@ -49,7 +49,7 @@ export async function handlePreview(request: Request, config: PreviewDependencie
     const context = { config, cors, respond };
     if (body.operation === "bulk-create" || body.operation === "bulk-page" || body.operation === "bulk-apply") return await handleBulkReview(body, text, context);
     if (body.operation === "publication-game" || body.operation === "publication-preview" || body.operation === "publish" || body.operation === "configuration") return await handlePublication(body, context);
-    if (body.operation === "list" || body.operation === "detail" || body.operation === "list-history" || body.operation === "review" || body.operation === "rights-review" || body.operation === "select-answer" || body.operation === "collision") return await handleEditorial(body, text, context);
+    if (body.operation === "list" || body.operation === "detail" || body.operation === "list-history" || body.operation === "review" || body.operation === "rights-review" || body.operation === "select-answer" || body.operation === "collision" || body.operation === "candidate-sources" || body.operation === "create-candidate") return await handleEditorial(body, text, context);
     return await handleImport(body, text, context);
   } catch (error) {
     if (error instanceof RangeError) return respond(413, "PAYLOAD_TOO_LARGE", "Request is too large");

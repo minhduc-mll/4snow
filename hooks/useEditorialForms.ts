@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { hasMeaningWarning, parseEditorialRequest, type Category, type ExclusionChecks, type Filters, type ReviewInput, type ReviewStatus } from "@/lib/vua-tieng-viet/editorial-contract";
+import { hasMeaningWarning, isReviewStatus, parseEditorialRequest, type Category, type ExclusionChecks, type Filters, type ReviewInput, type ReviewStatus } from "@/lib/vua-tieng-viet/editorial-contract";
 import type { BulkDecision } from "@/lib/vua-tieng-viet/bulk-review-contract";
 import type { useCandidateEditorial } from "@/hooks/useCandidateEditorial";
 
@@ -47,6 +47,7 @@ export function useEditorialReviewForm(detail: Detail, save: Editorial["save"]) 
 }
 
 export function useEditorialFilters(applyFilters: (filters: Filters) => void) {
+  const [spelling, setSpelling] = React.useState("");
   const [sourceId, setSourceId] = React.useState("");
   const [level, setLevel] = React.useState("");
   const [review, setReview] = React.useState("");
@@ -54,10 +55,9 @@ export function useEditorialFilters(applyFilters: (filters: Filters) => void) {
   const [collisionsOnly, setCollisionsOnly] = React.useState(false);
   const apply = (): void => {
     const selectedLevel = level === "3" ? 3 : level === "5" ? 5 : level === "7" ? 7 : level === "9" ? 9 : null;
-    const selectedReview = review === "pending" || review === "approved" || review === "rejected" ? review : null;
-    applyFilters({ sourceId: sourceId.trim() || null, level: selectedLevel, review: selectedReview, hasDefinition: hasDefinition === "yes" ? true : hasDefinition === "no" ? false : null, collisionsOnly });
+    applyFilters({ sourceId: sourceId.trim() || null, level: selectedLevel, review: isReviewStatus(review) ? review : null, hasDefinition: hasDefinition === "yes" ? true : hasDefinition === "no" ? false : null, collisionsOnly, ...(spelling.trim() ? { spelling: spelling.trim() } : {}) });
   };
-  return { sourceId, setSourceId, level, setLevel, review, setReview, hasDefinition, setHasDefinition, collisionsOnly, setCollisionsOnly, apply };
+  return { spelling, setSpelling, sourceId, setSourceId, level, setLevel, review, setReview, hasDefinition, setHasDefinition, collisionsOnly, setCollisionsOnly, apply };
 }
 
 export const bulkCategories = ["common", "regional", "technical", "less-common"] as const;
