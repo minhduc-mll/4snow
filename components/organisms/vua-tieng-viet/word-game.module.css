@@ -32,7 +32,10 @@
 .shell { min-height: 100dvh; padding: 1rem .75rem 2rem; background: var(--vtv-bg); }
 .container { width: 100%; max-width: 34rem; margin: 0 auto; display: grid; gap: 1.25rem; }
 .topbar, .boardMeta { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.topbar { flex-wrap: wrap; gap: .25rem; }
 .home { display: inline-flex; gap: .5rem; align-items: center; min-height: 2.75rem; color: var(--vtv-muted); font-size: .875rem; }
+.lookup { display: inline-flex; min-width: 2.75rem; min-height: 2.75rem; align-items: center; gap: .35rem; padding-inline: .45rem; color: var(--vtv-primary); font-size: .875rem; font-weight: 650; border-radius: .35rem; }
+.lookup:hover { text-decoration: underline; }
 .help { color: var(--vtv-muted); min-height: 2.75rem; padding-inline: .45rem; }
 .topActions { display: flex; flex-wrap: wrap; justify-content: flex-end; }
 .settingsGroups { display: grid; gap: .75rem; }
@@ -51,10 +54,11 @@
 .boardMeta { color: var(--vtv-muted); font-size: .75rem; font-weight: 600; padding: 0 .3rem; font-variant-numeric: tabular-nums; }
 .boardMeta > :last-child { white-space: nowrap; }
 .streakMeta { flex-wrap: wrap; row-gap: .125rem; }
-.board { --vtv-cell-size: clamp(1.75rem, calc((100dvh - 28.5rem) / var(--vtv-rows) - var(--vtv-gap)), 3.25rem); display: grid; gap: var(--vtv-gap); margin: 0 auto; padding: 0; list-style: none; width: min(100%,calc(var(--vtv-columns) * var(--vtv-cell-size) + (var(--vtv-columns) - 1) * var(--vtv-gap))); }
+.board { --vtv-cell-size: clamp(1.75rem, calc((100dvh - 30rem) / var(--vtv-rows) - var(--vtv-gap)), 3.25rem); display: grid; gap: var(--vtv-gap); margin: 0 auto; padding: 0; list-style: none; width: min(100%,calc(var(--vtv-columns) * var(--vtv-cell-size) + (var(--vtv-columns) - 1) * var(--vtv-gap))); }
 .row { display: grid; grid-template-columns: repeat(var(--vtv-columns),minmax(0,1fr)); gap: var(--vtv-gap); position: relative; border-radius: .4rem; }
 .editing:focus-within { outline: 2px solid var(--vtv-primary); outline-offset: 3px; }
 .cell { position: relative; aspect-ratio: 1; display: grid; place-items: center; min-width: 0; border: 1px solid var(--vtv-line); border-radius: .5rem; background: var(--vtv-raised); color: var(--vtv-ink); font-size: clamp(.85rem,4vw,1.5rem); font-weight: 700; }
+.cell[data-rejected], .row[data-rejected] { outline: 2px dashed #a82828; outline-offset: -2px; }
 .textFeedback { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .15rem .75rem; padding: .2rem 0 .45rem; color: var(--vtv-muted); font-size: .75rem; }
 .sharedInput { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; caret-color: transparent; font-size: 1rem; cursor: text; }
 .message { min-height: 3rem; display: grid; place-items: center; text-align: center; font-size: .875rem; color: var(--vtv-muted); padding: 0 .25rem; }
@@ -69,16 +73,17 @@
 .keyRow { display: flex; justify-content: center; gap: .25rem; }
 .keyColumn { flex: 1 1 0; min-width: 0; max-width: 3rem; display: flex; flex-direction: column; gap: .15rem; }
 .key { width: 100%; min-width: 0; min-height: 2.75rem; padding: .1rem; background: var(--vtv-raised); border-color: var(--vtv-line); color: var(--vtv-ink); position: relative; font-size: .875rem; }
-.variantRow { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .25rem; }
+.variantRow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; }
+@media (min-width: 22.5rem) { .variantRow { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
 .expandKey { width: 100%; min-width: 0; min-height: 2.75rem; padding: 0; gap: 0; background: var(--vtv-surface); color: var(--vtv-primary); border-color: var(--vtv-line); font-weight: 700; }
 .variantDialog { width: min(20rem,var(--radix-popover-content-available-width),calc(100vw - 1.5rem)); max-height: min(22rem,var(--radix-popover-content-available-height)); overflow: auto; background: var(--vtv-surface); border-color: var(--vtv-line); }
 .variantTitle { color: var(--vtv-muted); font-weight: 600; margin-bottom: .75rem; }
-.variantGrid { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: .35rem; }
+.variantGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(2.75rem, 1fr)); gap: .35rem; }
 .variantChoice { min-width: 0; min-height: 2.75rem; padding: .2rem; position: relative; color: var(--vtv-ink); background: var(--vtv-raised); border-color: var(--vtv-line); font-size: 1rem; }
 .variantChoice:disabled { opacity: 1; }
 .key, .variantChoice { transition: none; }
 .variantChoice:hover:not(:disabled) { outline: 1px solid var(--vtv-primary); }
-.variantClose { color: var(--vtv-muted); width: 100%; margin-top: .6rem; }
+.variantClose { color: var(--vtv-muted); width: 100%; min-height: 2.75rem; margin-top: .6rem; }
 .key:disabled { opacity: 1; }
 .key:disabled:not([data-feedback]) { opacity: .55; }
 .key:hover:not(:disabled) { outline: 1px solid var(--vtv-primary); }
@@ -107,6 +112,7 @@
 .activeShell .container { gap: .4rem; }
 .activeShell .playArea { gap: .35rem; padding: .5rem; border: 0; background: transparent; }
 .activeShell .message { min-height: 1.5rem; }
+.activeShell .keyboardHint { margin-top: 0; }
 .activeShell .submit { min-height: 2.75rem; }
 .activeShell .topbar { min-height: 2.75rem; }
 .shell [data-feedback=correct], .variantDialog [data-feedback=correct], .dialog [data-feedback=correct], .shell [data-feedback=absent], .variantDialog [data-feedback=absent], .dialog [data-feedback=absent] { color: #fff; }
@@ -117,6 +123,7 @@
 @media (prefers-reduced-motion: reduce) { .shell *, .dialog *, .variantDialog * { animation: none !important; transition: none !important; } }
 
 .settingsSummary { color: var(--vtv-muted); font-size: .875rem; }
+.accuracyDetail { margin-top: .5rem; color: var(--vtv-muted); font-size: .875rem; }
 .settingsActions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .5rem; }
 .settingsActions > button { width: 100%; min-height: 2.75rem; height: 100%; white-space: normal; }
 .settingsHelp { min-width: 2.75rem; min-height: 2.75rem; padding: 0; color: var(--vtv-primary); vertical-align: middle; }

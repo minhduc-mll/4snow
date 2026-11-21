@@ -3,6 +3,35 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { canonicalJson } from "../../lib/vua-tieng-viet/dictionary-contract";
 
+test("blocks malformed JSON and incomplete part sets before contacting the server", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.route("**/api/admin/login", route => route.fulfill({ json: { token: "test-token", expiresAt: Date.now() + 60000 } }));
+  let previewCalls = 0;
+  await page.route("https://test-supabase.invalid/functions/v1/vtv-dictionary", async (route) => {
+    const body: unknown = route.request().postDataJSON();
+    if (typeof body === "object" && body !== null && "operation" in body && body.operation === "import-preview") previewCalls++;
+    await route.fulfill({ status: 503 });
+  });
+  await page.goto("/admin#dictionary/import");
+  await page.getByLabel(/Tài khoản|Username/i).fill("admin");
+  await page.getByLabel(/Mật khẩu|Password/i).fill("password");
+  await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
+  const input = page.locator("#dictionary-preview-file");
+  const begin = page.getByRole("button", { name: /Bắt đầu hoặc tiếp tục|Start or resume/i });
+  await input.setInputFiles({ name: "invalid.json", mimeType: "application/json", buffer: Buffer.from('{\n  "entries": [') });
+  await expect(page.getByText(/invalid\.json.*(?:Dòng 2|Line 2).*JSON/i)).toBeVisible();
+  await expect(begin).toBeDisabled();
+  await page.getByRole("combobox", { name: /Ngôn ngữ|Language/i }).selectOption("en");
+  await expect(page.getByText(/invalid\.json.*Line 2.*Invalid JSON syntax/i)).toBeVisible();
+  const fixture: unknown = JSON.parse(readFileSync("tests/vua-tieng-viet/fixtures/synthetic.json", "utf8"));
+  if (typeof fixture !== "object" || fixture === null) throw new Error("Invalid fixture");
+  await input.setInputFiles({ name: "part-1.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ ...fixture, chunkCount: 2 })) });
+  await expect(page.getByText(/Còn thiếu 1 phần|Missing 1 parts/i)).toBeVisible();
+  await expect(begin).toBeDisabled();
+  expect(previewCalls).toBe(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+});
+
 test("administrator previews a chunk and logout clears the preview", async ({ page }) => {
   await page.route("**/api/admin/login", async (route) => route.fulfill({ json: { token: "test-token", expiresAt: Date.now() + 60000 } }));
   await page.route("https://test-supabase.invalid/functions/v1/vtv-dictionary", async (route) => {
@@ -143,6 +172,7 @@ test("an administrator reviews an answer with explicit exclusion checks", async 
   await page.getByLabel(/Mật khẩu|Password/i).fill("password");
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
   await page.getByRole("link", { name: /Duyệt|Review/i }).click();
+  await page.locator("summary").filter({ hasText: /Bộ lọc khác|More filters/i }).click();
   await page.getByLabel(/Số chữ|Letter count/i).selectOption("3");
   await page.getByLabel(/Chỉ mục trùng cách viết|Only matching spellings/i).check();
   await page.getByRole("button", { name: /Áp dụng bộ lọc|Apply filters/i }).click();
@@ -158,6 +188,7 @@ test("an administrator reviews an answer with explicit exclusion checks", async 
   await page.locator("#editorial-rationale").fill("Đã kiểm tra nghĩa và độ thông dụng.");
   await page.getByRole("button", { name: /Lưu duyệt|Save review/i }).click();
   await expect(page.getByRole("button", { name: /mèo · 3 · Đã duyệt|mèo · 3 · Approved/i })).toBeVisible();
+  await page.locator("summary").filter({ hasText: /Duyệt quyền nguồn|Review source rights/i }).click();
   await page.locator("#rights-decision").selectOption("cleared");
   await page.locator("#rights-evidence").fill("private evidence");
   await page.locator("#rights-obligations").fill("private obligations");

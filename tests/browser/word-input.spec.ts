@@ -82,7 +82,7 @@ test("absent letters remain usable and invalid pastes reject atomically",async (
   await paste(page,"í"); await expect(input(page)).toHaveValue("Mí");
   await input(page).press("Backspace");
   await paste(page,"èo!"); await expect(input(page)).toHaveValue("M");
-  await expect(page.getByRole("status")).toContainText(/Chỉ nhập chữ|supported Vietnamese letters/i);
+  await expect(page.getByRole("status")).toContainText(/Chữ “!” ở ô 4|“!” in cell 4/i);
   await expansion(page,"E").click();
   await expect(picker(page,"E").getByRole("button",{ name: /Nhập chữ Ê$|Enter letter Ê$/i })).toBeEnabled();
   await picker(page,"E").getByRole("button",{ name: /Nhập chữ È$|Enter letter È$/i }).click();

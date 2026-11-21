@@ -20,11 +20,12 @@ export function useDictionaryPreview(onUnauthorized: () => void) {
   const [reading, setReading] = React.useState(false);
   const [fileError, setFileError] = React.useState(false);
   const generation = React.useRef(0);
-  const selectedFiles = React.useRef<readonly File[]>([]);
+  const [selectedFiles, setSelectedFiles] = React.useState<readonly File[]>([]);
   React.useEffect(() => () => { generation.current++; }, []);
   const query = useQuery({
     queryKey: ["vtv-private", "preview", job?.requestId],
     enabled: job !== null,
+    networkMode: "always",
     retry: false,
     gcTime: 0,
     queryFn: async ({ signal }): Promise<PreviewResult> => {
@@ -37,7 +38,7 @@ export function useDictionaryPreview(onUnauthorized: () => void) {
 
   const selectFiles = React.useCallback(async (files: readonly File[]): Promise<void> => {
     const selected = ++generation.current;
-    selectedFiles.current = files;
+    setSelectedFiles(files);
     setLocal(null);
     setJob(null);
     setFileError(false);
@@ -62,7 +63,7 @@ export function useDictionaryPreview(onUnauthorized: () => void) {
     const files = importFilesToResume();
     if (files) queueMicrotask(() => void selectFiles(files));
   }, [selectFiles]);
-  const retainSelectedFiles = () => rememberImportFiles(selectedFiles.current);
+  const retainSelectedFiles = () => rememberImportFiles(selectedFiles);
   const retry = () => { void query.refetch(); };
-  return { local, remote: query.data ?? null, checkingRemote: job !== null, loading: reading || query.isFetching, remoteError: query.isError, fileError, selectFiles, retainSelectedFiles, retry };
+  return { local, remote: query.data ?? null, checkingRemote: job !== null, reading, verifying: query.isFetching, remoteError: query.isError, fileError, selectedFiles, selectFiles, retainSelectedFiles, retry };
 }

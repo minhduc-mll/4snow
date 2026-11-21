@@ -21,7 +21,8 @@ export function WordKeyboard({ knowledge, disabled, onKey, focusInput, openNativ
         </div>;
       })}
     </div>)}
-    <div className={styles.variantRow}>
+    <p id="vtv-accent-picker-hint" className={styles.keyboardHint}>{t("wordGame.chooseAccent")}</p>
+    <div className={styles.variantRow} role="group" aria-labelledby="vtv-accent-picker-hint">
       {Array.from("AEIOUYD").map(letter => <WordVariantKey key={letter} base={letter} variants={variantsFor(letter)} knowledge={knowledge} disabled={disabled} onSelect={variant => onKey(variant,false)} focusInput={focusInput} />)}
     </div>
     <div className={styles.keyboardActions}>

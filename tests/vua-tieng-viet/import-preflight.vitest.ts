@@ -7,6 +7,15 @@ const fixture: ImportDocument = JSON.parse(readFileSync("tests/vua-tieng-viet/fi
 const file = (name: string, document: unknown) => new File([JSON.stringify(document)], name);
 const dataset = { ...fixture, chunkIndex: undefined, chunkCount: undefined };
 
+test("reports the file and location of invalid JSON", async () => {
+  const invalid = new File(['{\n  "entries": ['], "invalid.json");
+  const { issues, chunks } = await preflightImport([invalid]);
+  expect(issues).toEqual([expect.objectContaining({
+    file: "invalid.json", code: "json", position: { line: 2, column: 15 }, blocking: true,
+  })]);
+  expect(chunks).toHaveLength(0);
+});
+
 test("preflights 10,000 candidates into bounded deterministic chunks", async () => {
   const entries = Array.from({ length: 10000 }, (_, index) => ({ ...fixture.entries[0], externalId: `candidate-${index}` }));
   const input = file("dataset.json", { ...dataset, entries });

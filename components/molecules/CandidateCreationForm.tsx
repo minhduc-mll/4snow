@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/atoms/Checkbox";
 import { Input } from "@/components/atoms/Input";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { useCandidateCreation } from "@/hooks/useCandidateCreation";
+import { useDictionaryDraft } from "@/hooks/useDictionaryDraft";
 
 type Props = { draftRevision: string | undefined; onUnauthorized: () => void; onSelect: (id: string) => void; disabled: boolean };
 const fieldClass = "w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground";
@@ -12,6 +13,7 @@ const fieldClass = "w-full rounded-md border bg-background px-3 py-2 text-sm tex
 export function CandidateCreationForm({ draftRevision, onUnauthorized, onSelect, disabled }: Props) {
   const { t } = useAppI18n();
   const form = useCandidateCreation(draftRevision, onUnauthorized, onSelect);
+  useDictionaryDraft({ dirty: form.dirty, busy: form.busy, save: () => form.save(false), discard: form.discard });
   const external = form.selectedSource && form.selectedSource.kind !== "internal-editorial";
   const lock = disabled || form.busy || form.canRetry;
   return (

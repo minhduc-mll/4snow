@@ -29,6 +29,7 @@ export function useCandidateCreation(draftRevision: string | undefined, onUnauth
   const [original, setOriginal] = React.useState("");
   const [definition, setDefinition] = React.useState("");
   const [sourceId, setSourceId] = React.useState("");
+  const [savedSourceId, setSavedSourceId] = React.useState("");
   const [entryUrl, setEntryUrl] = React.useState("");
   const [sourceEntryId, setSourceEntryId] = React.useState("");
   const [sourceSenseId, setSourceSenseId] = React.useState("");
@@ -37,10 +38,13 @@ export function useCandidateCreation(draftRevision: string | undefined, onUnauth
   const [invalidSpelling, setInvalidSpelling] = React.useState(false);
   const [invalid, setInvalid] = React.useState(false);
   const [success, setSuccess] = React.useState(false);
+  const [createdEntry, setCreatedEntry] = React.useState<string | null>(null);
   const [canRetry, setCanRetry] = React.useState(false);
   const pending = React.useRef<Pending | null>(null);
   const request = React.useRef<AbortController | null>(null);
   React.useEffect(() => () => { request.current?.abort(); }, []);
+  const openCreatedEntry = React.useEffectEvent(onCreated);
+  React.useEffect(() => { if (createdEntry) openCreatedEntry(createdEntry); }, [createdEntry]);
 
   const sources = useInfiniteQuery({
     queryKey: [...ROOT, "manual-sources"], initialPageParam: null as string | null,
@@ -83,21 +87,23 @@ export function useCandidateCreation(draftRevision: string | undefined, onUnauth
       setLookup(spelling);
     } catch { setLookup(null); setInvalidSpelling(true); }
   };
-  const execute = async (value: Pending) => {
+  const execute = async (value: Pending, openEntry: boolean): Promise<boolean> => {
     const session = adminSessionGeneration();
     pending.current = value;
     setCanRetry(false);
     try {
       const id = await create.mutateAsync(value);
-      if (session !== adminSessionGeneration()) return;
+      if (session !== adminSessionGeneration()) return false;
       pending.current = null;
       setOriginal(""); setDefinition(""); setEntryUrl(""); setSourceEntryId(""); setSourceSenseId("");
+      setSavedSourceId(sourceId);
       setAlternate(false); setLookup(null); setSuccess(true);
-      onCreated(id);
+      if (openEntry) setCreatedEntry(id);
       await client.invalidateQueries({ queryKey: ROOT });
       await client.invalidateQueries({ queryKey: ["vtv-private", "publication", "draft"] });
+      return true;
     } catch (error) {
-      if (session !== adminSessionGeneration()) return;
+      if (session !== adminSessionGeneration()) return false;
       if (error instanceof Error && (error.message === "UNAVAILABLE" || error.message === "RATE_LIMITED")) setCanRetry(true);
       else {
         pending.current = null;
@@ -107,11 +113,14 @@ export function useCandidateCreation(draftRevision: string | undefined, onUnauth
         }
         if (error instanceof Error && error.message === "REVISION_CONFLICT") await client.invalidateQueries({ queryKey: ROOT });
       }
+      return false;
     }
   };
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (pending.current || !selectedSource || !draftRevision || !spellingChecked || (matchingEntries.length && !alternate)) return;
+  const save = async (openEntry: boolean): Promise<boolean> => {
+    if (pending.current) {
+      return canRetry && !create.isPending ? execute(pending.current, openEntry) : false;
+    }
+    if (!selectedSource || !draftRevision || !spellingChecked || (matchingEntries.length && !alternate)) return false;
     const external = selectedSource.kind !== "internal-editorial";
     try {
       const body = parseEditorialRequest({
@@ -123,14 +132,26 @@ export function useCandidateCreation(draftRevision: string | undefined, onUnauth
       if (body.operation !== "create-candidate" || (external && (!body.input.entryUrl || !body.input.sourceEntryId))) throw new Error("INVALID_INPUT");
       setInvalid(false);
       setSuccess(false);
-      void execute(body);
-    } catch { setInvalid(true); }
+      return await execute(body, openEntry);
+    } catch { setInvalid(true); return false; }
+  };
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void save(true);
+  };
+  const dirty = Boolean(original || definition || entryUrl || sourceEntryId || sourceSenseId || alternate || sourceId !== savedSourceId);
+  const discard = () => {
+    pending.current = null;
+    create.reset();
+    setCanRetry(false); setInvalid(false); setInvalidSpelling(false); setSuccess(false);
+    setOriginal(""); setDefinition(""); setSourceId(savedSourceId); setEntryUrl(""); setSourceEntryId(""); setSourceSenseId("");
+    setAlternate(false); setLookup(null);
   };
   return {
     original, setOriginal: (text: string) => { setOriginal(text); setLookup(null); setInvalidSpelling(false); setAlternate(false); setSuccess(false); create.reset(); },
     definition, setDefinition, sourceId, setSourceId, entryUrl, setEntryUrl, sourceEntryId, setSourceEntryId, sourceSenseId, setSourceSenseId,
     alternate, setAlternate, checkSpelling, spellingChecked, invalidSpelling, sources, sourceOptions, selectedSource, matches, matchingEntries, submit, invalid, success,
-    error: create.error?.message, busy: create.isPending, canRetry,
-    retry: () => { if (pending.current && !create.isPending) void execute(pending.current); },
+    error: create.error?.message, busy: create.isPending, canRetry, dirty, discard, save,
+    retry: () => void save(true),
   };
 }

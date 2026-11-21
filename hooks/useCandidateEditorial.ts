@@ -52,22 +52,29 @@ function detail(value: unknown): Detail {
   return { id: value.id, sourceId: value.sourceId, rightsReview: rightsReview(value.rightsReview), attributionPreview: attribution(value.attributionPreview), entryUrl: value.entryUrl, sourceEntryId: value.sourceEntryId, sourceSenseId: value.sourceSenseId, sourceNotes: value.sourceNotes, source: { name: value.source.name, artifactUrl: value.source.artifactUrl, artifactSha256: value.source.artifactSha256, resourceRevision: value.source.resourceRevision, originDump: value.source.originDump, retrievedAt: value.source.retrievedAt, rights: { licenseName: value.source.rights.licenseName, licenseVersion: value.source.rights.licenseVersion, licenseUrl: value.source.rights.licenseUrl, attributionText: value.source.rights.attributionText, historyUrl: value.source.rights.historyUrl, redistributionNote: value.source.rights.redistributionNote, modificationsNotice: value.source.rights.modificationsNotice } }, current: revision(value.current), draftRevision: value.draftRevision, history: history(value.history) };
 }
 
-export function useRightsReviewForm(sourceId: string, draftRevision: string, current: RightsReview | null, save: (input: RightsReviewInput, retry: boolean) => Promise<void>) {
+export function useRightsReviewForm(sourceId: string, draftRevision: string, current: RightsReview | null, save: (input: RightsReviewInput, retry: boolean) => Promise<boolean>) {
   const [decision, setDecision] = React.useState<RightsDecision>(current?.decision ?? "unresolved");
   const [evidence, setEvidence] = React.useState(current?.evidence ?? "");
   const [obligations, setObligations] = React.useState(current?.obligations ?? "");
   const [invalid, setInvalid] = React.useState(false);
+  const [baseline, setBaseline] = React.useState(current);
+  const changed = decision !== (baseline?.decision ?? "unresolved") || evidence !== (baseline?.evidence ?? "") || obligations !== (baseline?.obligations ?? "");
+  const stale = changed && (baseline?.id ?? null) !== (current?.id ?? null);
+  const reset = () => {
+    setBaseline(current); setDecision(current?.decision ?? "unresolved"); setEvidence(current?.evidence ?? ""); setObligations(current?.obligations ?? ""); setInvalid(false);
+  };
+  if (!changed && (baseline?.id ?? null) !== (current?.id ?? null)) reset();
   const input: RightsReviewInput = { sourceId, expectedDraftRevision: draftRevision, decision, evidence, obligations };
-  const submit = (): void => {
+  const submit = async (): Promise<boolean> => {
+    if (stale) return false;
     try {
       parseEditorialRequest({ operation: "rights-review", requestId: "00000000-0000-4000-8000-000000000001", idempotencyKey: "00000000-0000-4000-8000-000000000002", input });
       setInvalid(false);
-      void save(input, false);
-    } catch { setInvalid(true); }
+      return await save(input, false);
+    } catch { setInvalid(true); return false; }
   };
   const changeDecision = (next: string): void => { if (next === "cleared" || next === "unresolved" || next === "rejected") setDecision(next); };
-  const reset = () => { setDecision(current?.decision ?? "unresolved"); setEvidence(current?.evidence ?? ""); setObligations(current?.obligations ?? ""); setInvalid(false); };
-  return { decision, changeDecision, evidence, setEvidence, obligations, setObligations, invalid, submit, reset, retry: () => void save(input, true) };
+  return { decision, changeDecision, evidence, setEvidence, obligations, setObligations, dirty: changed, stale, invalid, submit, reset, retry: () => save(input, true) };
 }
 
 export function useCandidateEditorial(onUnauthorized: () => void) {
@@ -83,6 +90,8 @@ export function useCandidateEditorial(onUnauthorized: () => void) {
   const pendingRights = React.useRef<{ input: RightsReviewInput; idempotencyKey: string } | null>(null);
   const [canRetry, setCanRetry] = React.useState(false);
   const [canRetryRights, setCanRetryRights] = React.useState(false);
+  const [reviewSaves, setReviewSaves] = React.useState(0);
+  const [rightsSaves, setRightsSaves] = React.useState(0);
   const active = React.useRef(true);
   const controller = React.useRef<AbortController | null>(null);
   React.useEffect(() => { active.current = true; return () => { active.current = false; controller.current?.abort(); pending.current = null; pendingRights.current = null; pendingSelection.current = null; }; }, []);
@@ -97,40 +106,49 @@ export function useCandidateEditorial(onUnauthorized: () => void) {
   const selectionMutation = useMutation({ mutationKey: [...ROOT, "select-answer"], retry: false, gcTime: 0, mutationFn: async (value: { input: SelectAnswerInput; idempotencyKey: string }) => { controller.current = new AbortController(); return call("select-answer", value.input, controller.current.signal, value.idempotencyKey); } });
   const mutation = useMutation({ mutationKey: [...ROOT, "review"], retry: false, gcTime: 0, mutationFn: async (value: { input: ReviewInput; idempotencyKey: string }) => { controller.current = new AbortController(); return call("review", value.input, controller.current.signal, value.idempotencyKey); } });
   const rightsMutation = useMutation({ mutationKey: [...ROOT, "rights-review"], retry: false, gcTime: 0, mutationFn: async (value: { input: RightsReviewInput; idempotencyKey: string }) => { controller.current = new AbortController(); return call("rights-review", value.input, controller.current.signal, value.idempotencyKey); } });
-  const saveRights = React.useCallback(async (input: RightsReviewInput, retry: boolean): Promise<void> => {
+  const saveRights = React.useCallback(async (input: RightsReviewInput, retry: boolean): Promise<boolean> => {
     const session = adminSessionGeneration();
     try {
       const value = retry && pendingRights.current ? pendingRights.current : { input, idempotencyKey: crypto.randomUUID() };
       pendingRights.current = value; setCanRetryRights(false);
       await rightsMutation.mutateAsync(value);
-      if (!active.current || session !== adminSessionGeneration()) return;
+      if (!active.current || session !== adminSessionGeneration()) return false;
       pendingRights.current = null;
       await client.invalidateQueries({ queryKey: ROOT });
+      await client.invalidateQueries({ queryKey: ["vtv-private", "publication", "draft"] });
+      setRightsSaves(count => count + 1);
+      return true;
     } catch (error) {
-      if (!active.current || session !== adminSessionGeneration()) return;
+      if (!active.current || session !== adminSessionGeneration()) return false;
       if (error instanceof Error && error.message === "REVISION_CONFLICT") { pendingRights.current = null; await client.invalidateQueries({ queryKey: ROOT }); }
       else if (error instanceof Error && (error.message === "UNAVAILABLE" || error.message === "RATE_LIMITED")) setCanRetryRights(true);
       else pendingRights.current = null;
+      return false;
     }
   }, [client, rightsMutation]);
-  const save = React.useCallback(async (input: ReviewInput, retry: boolean): Promise<void> => {
+  const save = React.useCallback(async (input: ReviewInput, retry: boolean): Promise<boolean> => {
     const session = adminSessionGeneration();
     try {
       const value = retry && pending.current ? pending.current : { input, idempotencyKey: crypto.randomUUID() };
       pending.current = value; setCanRetry(false);
       await mutation.mutateAsync(value);
-      if (!active.current || session !== adminSessionGeneration()) return;
+      if (!active.current || session !== adminSessionGeneration()) return false;
       pending.current = null;
       await client.invalidateQueries({ queryKey: ROOT });
       await client.invalidateQueries({ queryKey: ["vtv-private", "publication", "draft"] });
+      setReviewSaves(count => count + 1);
+      return true;
     } catch (error) {
-      if (!active.current || session !== adminSessionGeneration()) return;
+      if (!active.current || session !== adminSessionGeneration()) return false;
       if (error instanceof Error && error.message === "REVISION_CONFLICT") { pending.current = null; await client.invalidateQueries({ queryKey: ROOT }); }
       else if (error instanceof Error && (error.message === "UNAVAILABLE" || error.message === "RATE_LIMITED")) setCanRetry(true);
       else pending.current = null;
+      return false;
     }
   }, [client, mutation]);
   const retryReview = React.useCallback(() => { if (pending.current) void save(pending.current.input, true); }, [save]);
+  const discardReview = () => { pending.current = null; setCanRetry(false); mutation.reset(); };
+  const discardRights = () => { pendingRights.current = null; setCanRetryRights(false); rightsMutation.reset(); };
   const saveSelection = React.useCallback(async (input: SelectAnswerInput, retry: boolean): Promise<void> => {
     const session = adminSessionGeneration();
     try {
@@ -140,6 +158,7 @@ export function useCandidateEditorial(onUnauthorized: () => void) {
       if (!active.current || session !== adminSessionGeneration()) return;
       pendingSelection.current = null;
       await client.invalidateQueries({ queryKey: ROOT });
+      await client.invalidateQueries({ queryKey: ["vtv-private", "publication", "draft"] });
     } catch (error) {
       if (!active.current || session !== adminSessionGeneration()) return;
       if (error instanceof Error && error.message === "REVISION_CONFLICT") { pendingSelection.current = null; await client.invalidateQueries({ queryKey: ROOT }); }
@@ -150,5 +169,6 @@ export function useCandidateEditorial(onUnauthorized: () => void) {
   const retrySelection = React.useCallback(() => { if (pendingSelection.current) void saveSelection(pendingSelection.current.input, true); }, [saveSelection]);
   const setSelectedEntry = React.useCallback((id: string | null) => { if (pending.current || pendingRights.current || pendingSelection.current) return; setHistoryCursor(null); setCollisionCursor(null); setSelected(id); }, []);
   const applyFilters = React.useCallback((next: Filters) => { if (pending.current || pendingRights.current || pendingSelection.current) return; setCursor(null); setSelectedEntry(null); setFilters(next); }, [setSelectedEntry]);
-  return { collision: collisionQuery.data ?? null, collisionLoading: collisionQuery.isFetching, collisionError: collisionQuery.isError, collisionCursor, setCollisionCursor, retrySelection, saveSelection, canRetrySelection, selectionError: selectionMutation.isError, filters, applyFilters, cursor, setCursor, selected, setSelectedEntry, list: listQuery.data ?? null, listLoading: listQuery.isFetching, listError: listQuery.isError, retryList: listQuery.refetch, detail: detailQuery.data ?? null, detailLoading: detailQuery.isFetching, detailError: detailQuery.isError, retryDetail: detailQuery.refetch, history: historyCursor ? historyQuery.data ?? null : detailQuery.data?.history ?? null, setHistoryCursor, historyError: historyQuery.isError, save, retryReview, saving: mutation.isPending || rightsMutation.isPending || selectionMutation.isPending, saveError: mutation.isError || rightsMutation.isError, canRetry, saveRights, canRetryRights };
+  const latestDetail = (id: string) => client.getQueryData<Detail>([...ROOT, "detail", id]);
+  return { collision: collisionQuery.data ?? null, collisionLoading: collisionQuery.isFetching, collisionError: collisionQuery.isError, collisionCursor, setCollisionCursor, retrySelection, saveSelection, canRetrySelection, selectionError: selectionMutation.isError, filters, applyFilters, cursor, setCursor, selected, setSelectedEntry, list: listQuery.data ?? null, listLoading: listQuery.isFetching, listError: listQuery.isError, retryList: listQuery.refetch, detail: detailQuery.data ?? null, latestDetail, detailLoading: detailQuery.isFetching, detailError: detailQuery.isError, retryDetail: detailQuery.refetch, history: historyCursor ? historyQuery.data ?? null : detailQuery.data?.history ?? null, setHistoryCursor, historyError: historyQuery.isError, save, retryReview, reviewSaves, rightsSaves, discardReview, saving: mutation.isPending || rightsMutation.isPending || selectionMutation.isPending, saveError: mutation.isError || rightsMutation.isError, canRetry, saveRights, canRetryRights, discardRights };
 }

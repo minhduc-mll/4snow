@@ -45,6 +45,7 @@ test("administrator selects an exact collision meaning with conflict and lost-re
   await page.getByLabel(/Mật khẩu|Password/i).fill("password");
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
   await page.getByRole("button", { name: /mèo · 3/i }).click();
+  await page.locator("summary").filter({ hasText: /Rà nghĩa trùng|Review duplicate meanings/i }).click();
   const panel = page.getByRole("region", { name: /Chọn nghĩa đáp án|Answer meaning selection/i });
   await expect(panel).toContainText("sense-2");
   await expect(panel).toContainText("Nghĩa khác đã duyệt.");

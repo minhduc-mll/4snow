@@ -5,6 +5,9 @@ import { useAppI18n } from "@/hooks/useAppI18n";
 import { DictionaryPreviewPanel } from "./DictionaryPreviewPanel";
 import { CandidateEditorialPanel } from "./CandidateEditorialPanel";
 import { DictionaryPublicationPanel } from "./DictionaryPublicationPanel";
+import { Button } from "@/components/atoms/Button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/atoms/Dialog";
+import { DictionaryDraftContext, useDictionaryDraftNavigation } from "@/hooks/useDictionaryDraft";
 
 type Step = "import" | "review" | "publish";
 type Props = { onUnauthorized: () => void };
@@ -25,8 +28,9 @@ function serverStep(): Step { return "import"; }
 export function DictionaryWorkflow({ onUnauthorized }: Props): React.ReactElement {
   const { t } = useAppI18n();
   const step = React.useSyncExternalStore(subscribe, readStep, serverStep);
+  const guard = useDictionaryDraftNavigation();
   const enabled = process.env.NEXT_PUBLIC_VTV_IMPORT_ENABLED === "true";
-  return <section className="grid min-w-0 gap-4" aria-labelledby="dictionary-workflow-heading">
+  return <DictionaryDraftContext.Provider value={guard.context}><section className="grid min-w-0 gap-4" aria-labelledby="dictionary-workflow-heading">
     <div>
       <h2 id="dictionary-workflow-heading" className="text-2xl font-semibold">{t("dictionaryWorkflow.title")}</h2>
       <p className="text-sm text-muted-foreground">{t("dictionaryWorkflow.description")}</p>
@@ -41,5 +45,20 @@ export function DictionaryWorkflow({ onUnauthorized }: Props): React.ReactElemen
       <div hidden={step !== "review"}><CandidateEditorialPanel onUnauthorized={onUnauthorized} /></div>
       <div hidden={step !== "publish"}><DictionaryPublicationPanel onUnauthorized={onUnauthorized} /></div>
     </> : step !== "import" ? <p role="status" className="rounded-lg border bg-card p-4">{t("dictionaryImport.disabled")} {t("dictionaryWorkflow.disabledHelp")}</p> : null}
-  </section>;
+    <Dialog open={guard.open} onOpenChange={open => { if (!open) guard.continueEditing(); }}>
+      <DialogContent showCloseButton={false} onCloseAutoFocus={guard.restoreFocus}>
+        <DialogHeader>
+          <DialogTitle>{t("dictionaryDraft.title")}</DialogTitle>
+          <DialogDescription>{t("dictionaryDraft.description")}</DialogDescription>
+        </DialogHeader>
+        {guard.failed ? <p role="alert" className="text-destructive">{t("dictionaryDraft.failed")}</p> : null}
+        {guard.saving ? <p role="status">{t("dictionaryDraft.saving")}</p> : null}
+        <DialogFooter>
+          <Button variant="outline" autoFocus disabled={guard.saving} onClick={guard.continueEditing}>{t("dictionaryDraft.continue")}</Button>
+          <Button variant="danger" disabled={guard.saving} onClick={guard.discard}>{t("dictionaryDraft.discard")}</Button>
+          <Button disabled={guard.saving} onClick={() => void guard.save()}>{t("dictionaryDraft.save")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </section></DictionaryDraftContext.Provider>;
 }

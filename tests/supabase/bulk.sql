@@ -13,9 +13,11 @@ insert into private.vtv_entries(id,source_id,external_id,source_entry_id,entry_u
     ('10000000-0000-4000-8000-'||lpad(case when n=2 then '2' else '1' end,12,'0'))::uuid,
     n::text,n::text,'https://example.invalid/'||n,'{}','20000000-0000-4000-8000-000000000001',
     ('40000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid
-  from generate_series(1,101) n;
+  from generate_series(1,102) n;
 insert into private.vtv_entry_revisions(id,entry_id,revision_number,original,normalized,level,definition_vi,actor_role)
-  select current_revision_id,id,1,'mèo','MÈO',3,case when external_id='3' then 'Cách dùng cổ.' when external_id='4' then null else 'Một con vật.' end,'import'
+  select current_revision_id,id,1,case when external_id='102' then 'nhẹ' else 'mèo' end,
+    case when external_id='102' then 'NHẸ' else 'MÈO' end,
+    3,case when external_id='3' then 'Cách dùng cổ.' when external_id='4' then null else 'Một con vật.' end,'import'
   from private.vtv_entries;
 
 do $$
@@ -39,19 +41,38 @@ declare
   entry_id uuid := '30000000-0000-4000-8000-000000000001';
   key uuid := gen_random_uuid();
   selection_id uuid;
-  starting_filters jsonb := '{"sourceId":null,"level":3,"review":"pending","hasDefinition":null,"collisionsOnly":false}';
+  list_rows jsonb;
+  frozen_rows jsonb;
+  list_position jsonb;
+  starting_filters jsonb := '{"sourceId":null,"level":3,"review":"pending","hasDefinition":null,"collisionsOnly":false,"spelling":"ÈO"}';
 begin
   foreach filters in array array[
     starting_filters,
     starting_filters || '{"sourceId":"10000000-0000-4000-8000-000000000002","hasDefinition":true,"collisionsOnly":true}'::jsonb,
     starting_filters || '{"hasDefinition":false}'::jsonb
   ] loop
-    list_page := public.vtv_list_candidates(filters,null,null,100);
+    list_rows := '[]'::jsonb;
+    list_position := null;
+    loop
+      list_page := public.vtv_list_candidates(filters,(list_position->>'createdAt')::timestamptz,(list_position->>'id')::uuid,13);
+      list_rows := list_rows || (list_page->'items');
+      list_position := list_page->'nextPosition';
+      exit when list_position='null'::jsonb;
+    end loop;
     sample := public.vtv_bulk_create(jsonb_build_object('filters',filters,'expectedDraftRevision','0','targets',null));
-    if (select jsonb_agg(value->>'id' order by value->>'id') from jsonb_array_elements(list_page->'items'))
-       is distinct from (select jsonb_agg(value->>'entryId' order by value->>'entryId') from jsonb_array_elements(sample->'items'))
+    frozen_rows := sample->'items';
+    if (sample->>'count')::integer>100 then
+      next_page := public.vtv_bulk_page(jsonb_build_object('selectionId',sample->>'selectionId','offset',100));
+      frozen_rows := frozen_rows || (next_page->'items');
+    end if;
+    if (select jsonb_agg(value->>'id' order by value->>'id') from jsonb_array_elements(list_rows))
+       is distinct from (select jsonb_agg(value->>'entryId' order by value->>'entryId') from jsonb_array_elements(frozen_rows))
       then raise exception 'Frozen set diverged from filtered list for %',filters; end if;
   end loop;
+  sample := public.vtv_bulk_create(jsonb_build_object('filters',starting_filters,'expectedDraftRevision','0',
+    'targets','[{"entryId":"30000000-0000-4000-8000-000000000102","expectedEntryRevision":1}]'::jsonb));
+  if (sample->>'count')::integer<>1 or sample->'items'->0->>'entryId'<>'30000000-0000-4000-8000-000000000102'
+    then raise exception 'Selected-row scope was affected by the spelling filter'; end if;
   sample := public.vtv_bulk_create(jsonb_build_object('filters',starting_filters,'expectedDraftRevision','0','targets',null));
   selection_id := (sample->>'selectionId')::uuid;
   if (sample->>'count')::integer<>101 or jsonb_array_length(sample->'items')<>100

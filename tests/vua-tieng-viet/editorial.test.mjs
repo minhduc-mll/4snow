@@ -34,24 +34,31 @@ test("keyset cursors reject tampering and changed filters", async () => {
   await assert.rejects(() => decodeEditorialCursor("test-secret", "list:filters-a", `${token.slice(0, -1)}!`));
 });
 
-test("authenticated list cursors are bound to the selected filters", async () => {
+test("authenticated spelling search normalizes accents and binds cursors to the same filters", async () => {
   const { handlePreview } = await import("../../lib/vua-tieng-viet/preview-handler.ts");
   const { createHmac } = await import("node:crypto");
   const enc = (x) => Buffer.from(JSON.stringify(x)).toString("base64url");
   const unsigned = `${enc({ alg: "HS256", typ: "JWT" })}.${enc({ role: "admin", iat: 1000, exp: 1100 })}`;
   const token = `${unsigned}.${createHmac("sha256", "secret").update(unsigned).digest("base64url")}`;
-  const filters = { sourceId: null, level: 3, review: null, hasDefinition: null, collisionsOnly: false };
+  const filters = { sourceId: null, level: 3, review: null, hasDefinition: null, collisionsOnly: false, spelling: "nhẹ".normalize("NFD") };
   let calls = 0;
-  const config = { secret: "secret", origins: ["https://app.example"], now: () => 1001, consumeLimit: async () => 0, consumeReadLimit: async () => 0, editorialRead: async () => { calls++; return { items: [], nextPosition: { createdAt: "2026-01-01T00:00:00.000Z", id: entryId }, draftRevision: "0" }; } };
+  const position = { createdAt: "2026-01-01T00:00:00.000Z", id: entryId };
+  const config = { secret: "secret", origins: ["https://app.example"], now: () => 1001, consumeLimit: async () => 0, consumeReadLimit: async () => 0, editorialRead: async (request, after) => {
+    assert.equal(request.input.filters.spelling, "NHẸ");
+    assert.deepEqual(after, calls++ === 0 ? null : position);
+    return { items: [], nextPosition: position, draftRevision: "0" };
+  } };
   const send = (input) => handlePreview(new Request("https://example.invalid", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ operation: "list", requestId, input }) }), config);
   const first = await send({ filters, cursor: null, limit: 1 });
   const result = await first.json();
   assert.equal(first.status, 200);
   assert.equal(typeof result.data.nextCursor, "string");
-  const changed = await send({ filters: { ...filters, level: 5 }, cursor: result.data.nextCursor, limit: 1 });
+  const sameSpelling = await send({ filters: { ...filters, spelling: "NHẸ" }, cursor: result.data.nextCursor, limit: 1 });
+  assert.equal(sameSpelling.status, 200);
+  const changed = await send({ filters: { ...filters, spelling: "nhe" }, cursor: result.data.nextCursor, limit: 1 });
   assert.equal(changed.status, 400);
   assert.equal((await changed.json()).error.code, "INVALID_CURSOR");
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
 });
 
 test("editorial review denies unauthorized requests before privileged calls", async () => {

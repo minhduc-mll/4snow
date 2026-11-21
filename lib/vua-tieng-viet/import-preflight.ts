@@ -1,6 +1,6 @@
 import { canonicalJson, normalizeSpelling, validateDocument } from "./dictionary-contract";
 import { previewImport } from "./preview";
-import { parseStrictJson } from "./strict-json";
+import { parseStrictJson, StrictJsonError } from "./strict-json";
 
 const CHUNK_BYTES = 512 * 1024;
 const MAX_CHUNKS = 100;
@@ -9,9 +9,9 @@ const MAX_IMPORT_BYTES = MAX_CHUNKS * CHUNK_BYTES;
 const encoder = new TextEncoder();
 
 type ImportFile = Pick<File, "name" | "size" | "arrayBuffer">;
-type ImportChunk = { document: Record<string, unknown>; canonicalHash: string };
-type IssueCode = "file" | "metadata" | "source" | "entry" | "length" | "meaning" | "identity" | "collision" | "limit";
-type ImportIssue = { file: string; part: number | null; entry: number | null; code: IssueCode; message: string; blocking: boolean; missingParts?: number[] };
+type ImportChunk = { document: Record<string, unknown>; canonicalHash: string; file: string };
+type IssueCode = "file" | "json" | "metadata" | "source" | "entry" | "length" | "meaning" | "identity" | "collision" | "limit";
+type ImportIssue = { file: string; part: number | null; entry: number | null; code: IssueCode; message: string; blocking: boolean; missingParts?: number[]; position?: { line: number; column: number } };
 type PartSelection = { selected: number; expected: number; missing: number[] };
 export type ImportPreflight = {
   artifactId: string;
@@ -78,10 +78,20 @@ export async function preflightImport(files: readonly ImportFile[]): Promise<Imp
   }
   const parsed: ParsedFile[] = [];
   for (const file of files) {
+    let text: string | undefined;
     try {
-      parsed.push(parseFile(new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer()), file.name));
+      text = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
+      parsed.push(parseFile(text, file.name));
     } catch (error) {
-      result.issues.push({ file: file.name, part: null, entry: null, code: "file", message: error instanceof Error ? error.message : "Cannot read JSON", blocking: true });
+      const issue: ImportIssue = {
+        file: file.name, part: null, entry: null, code: error instanceof StrictJsonError ? "json" : text === undefined ? "file" : "metadata",
+        message: error instanceof Error ? error.message : "Cannot read JSON", blocking: true,
+      };
+      if (error instanceof StrictJsonError && text !== undefined) {
+        const lines = text.slice(0, error.offset).split(/\r\n|\n|\r/);
+        issue.position = { line: lines.length, column: (lines.at(-1)?.length ?? 0) + 1 };
+      }
+      result.issues.push(issue);
     }
   }
   const first = parsed[0];
@@ -172,11 +182,12 @@ export async function preflightImport(files: readonly ImportFile[]): Promise<Imp
   if (result.issues.some((issue) => issue.blocking)) return result;
   for (const [index, document] of documents.entries()) {
     const preview = await previewImport(JSON.stringify(document));
+    const file = explicitParts ? parsed[index]?.file ?? first.file : first.file;
     if (!preview.valid || !preview.canonicalHash) {
-      result.issues.push({ file: explicitParts ? parsed[index]?.file ?? first.file : first.file, part: index + 1, entry: null, code: "entry", message: preview.errors[0]?.message ?? "Cannot validate part", blocking: true });
+      result.issues.push({ file, part: index + 1, entry: null, code: "entry", message: preview.errors[0]?.message ?? "Cannot validate part", blocking: true });
       return result;
     }
-    result.chunks.push({ document, canonicalHash: preview.canonicalHash });
+    result.chunks.push({ document, canonicalHash: preview.canonicalHash, file });
   }
   return result;
 }

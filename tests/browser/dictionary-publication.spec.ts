@@ -5,7 +5,7 @@ import { playerReleaseRow } from "../vua-tieng-viet/player-fixture";
 
 const id = "30000000-0000-4000-8000-000000000003";
 test("administrator resolves preview errors, refreshes stale builds and retries committed publication", async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 812 });
+  await page.setViewportSize({ width: 320, height: 700 });
   await page.route("**/api/admin/login", route => route.fulfill({ json: { token: "test-token", expiresAt: Date.now() + 60000 } }));
   const releaseRow = playerReleaseRow();
   let previews = 0, publishes = 0, committed = 0;
@@ -56,8 +56,21 @@ test("administrator resolves preview errors, refreshes stale builds and retries 
   expect(publishes).toBe(0);
   await refresh.click();
   await expect(publish).toBeEnabled();
-  await expect(page.getByRole("region", { name: /Xem trước nội dung người chơi|Player content preview/i })).toContainText("Nghĩa đã duyệt hiển thị cho người chơi.");
-  await expect(card.getByText(/Thêm 1, bỏ 0|1 added, 0 removed/i).first()).toBeVisible();
+  await expect(card.getByText("Draft under review")).toBeVisible();
+  await expect(card.getByText("No public release yet.")).toBeVisible();
+  await expect(card.getByText("Answer changes · 4 added, 0 removed")).toBeVisible();
+  const samples = page.getByRole("region", { name: "Player content preview" });
+  await expect(samples).toBeHidden();
+  await page.getByText("Player content preview", { exact: true }).click();
+  const definition = samples.getByText("Nghĩa đã duyệt hiển thị cho người chơi.");
+  await expect(definition).toBeHidden();
+  await samples.getByText("9 letters (1)", { exact: true }).click();
+  await expect(definition).toBeVisible();
+  const credit = samples.getByText(/Public credit/);
+  await expect(credit).toBeHidden();
+  await samples.getByText("Attributions", { exact: true }).click();
+  await expect(credit).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   const savedBefore = await page.evaluate(() => Object.entries(localStorage));
   const testRound = page.getByRole("button", { name: /Chơi thử một ván|Play a preview round/i });
   await testRound.click();
@@ -69,12 +82,15 @@ test("administrator resolves preview errors, refreshes stale builds and retries 
   await expect(dialog.getByText(/Bạn đã tìm ra từ|You found the word/i)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
+  await expect(testRound).toBeFocused();
   expect(await page.evaluate(() => Object.entries(localStorage))).toEqual(savedBefore);
   expect(publishes).toBe(0);
   await publish.click();
+  await expect(dialog.getByText("Answer changes · 4 added, 0 removed")).toBeVisible();
   await page.getByRole("button", { name: /^(Xác nhận xuất bản|Confirm publication)$/i }).click();
   await expect(page.getByRole("alert").filter({ hasText: /đã cũ|stale/i })).toBeVisible();
   await expect(publish).toBeDisabled();
+  await expect(testRound).toBeDisabled();
   await refresh.click();
   await expect(publish).toBeEnabled();
   await publish.click();

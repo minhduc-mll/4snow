@@ -4,7 +4,7 @@ import { fixtureId } from "../vua-tieng-viet/player-fixture";
 
 async function backend(context: BrowserContext) {
   let revision = 0, attempts = 6, initialAbsentCount = 0, configurationId = fixtureId(91), builds = 0;
-  const control = { loseResponse: false, commits: 0, liveAttempts: 6, liveInitialAbsentCount: 0, liveConfigurationId: configurationId };
+  const control = { loseResponse: false, rejectConfiguration: false, commits: 0, liveAttempts: 6, liveInitialAbsentCount: 0, liveConfigurationId: configurationId };
   const receipts = new Map<string,object>();
   await context.route("**/api/admin/verify",route => route.fulfill({ json: { valid: true, expiresAt: Date.now() + 60000 } }));
   await context.route("https://test-supabase.invalid/functions/v1/vtv-dictionary",async route => {
@@ -23,6 +23,7 @@ async function backend(context: BrowserContext) {
       return route.fulfill({ json: { ...envelope,data: { buildId: fixtureId(300+builds),contentHash: "a".repeat(64),valid: true,errors: [],errorCount: 0,payloadBytes: 1024,changes: Object.fromEntries([3,5,7,9].map(n => [n,{ guesses: { added: 0, removed: 0 }, answers: { added: 0, removed: 0 } }])),coverage: Object.fromEntries([3,5,7,9].map(n => [n,{ guesses: 1,answers: 1 }])),draftRevision: String(revision),expectedCurrentReleaseId: fixtureId(90),configuration: { configurationId,attemptLimit: attempts,initialAbsentCount,normalizerVersion: "vi-nfc-v2" },sourceCount: 1,sources: [{ id: fixtureId(80), name: "Synthetic source", revision: "source-v1" }],attributionCount: 1,playerSamples: { "3": [],"5": [],"7": [],"9": [] },sampleAttributions: [] } } });
     }
     if (request.operation === "configuration") {
+      if (control.rejectConfiguration) return route.abort();
       attempts = request.input.attemptLimit; initialAbsentCount = request.input.initialAbsentCount ?? initialAbsentCount; revision++; configurationId = fixtureId(200+revision); control.commits++;
       const result = { draftRevision: String(revision),configuration: { configurationId,attemptLimit: attempts,initialAbsentCount,normalizerVersion: "vi-nfc-v2",levels: [3,5,7,9] } };
       receipts.set(request.idempotencyKey,result);
@@ -71,7 +72,9 @@ test("concurrent configuration and publication reject stale drafts without silen
   await expect(page.getByLabel("Số lượt đoán (1–12)")).toHaveValue("12");
   await other.getByLabel("Số lượt đoán (1–12)").fill("1"); await other.getByRole("button",{ name: "Lưu cấu hình nháp",exact: true }).click();
   await expect(other.getByRole("alert").filter({ hasText: /đã cũ/ })).toBeVisible(); expect(control.commits).toBe(1); expect(control.liveAttempts).toBe(6);
+  await expect(other.getByLabel("Số lượt đoán (1–12)")).toHaveValue("1");
   await other.getByRole("button",{ name: /Làm mới bản xem trước/ }).click();
+  await other.getByRole("button", { name: "Bỏ thay đổi", exact: true }).click();
   await expect(other.getByLabel("Số lượt đoán (1–12)")).toHaveValue("12");
   // This tab's preview becomes stale when another configuration is committed.
   await page.getByLabel("Số lượt đoán (1–12)").fill("6"); await page.getByRole("button",{ name: "Lưu cấu hình nháp",exact: true }).click();
@@ -79,4 +82,21 @@ test("concurrent configuration and publication reject stale drafts without silen
   await other.getByRole("button",{ name: /Xuất bản bản đã duyệt/ }).click();
   await other.getByRole("button", { name: "Xác nhận xuất bản", exact: true }).click();
   await expect(other.getByRole("alert").filter({ hasText: /đã cũ/ })).toBeVisible(); expect(control.liveAttempts).toBe(6);
+});
+
+test("discarding a failed configuration also removes its retry", async ({ page, context }) => {
+  const control = await backend(context);
+  await admin(page);
+  await page.getByLabel("Số lượt đoán (1–12)").fill("8");
+  control.rejectConfiguration = true;
+  await page.getByRole("button", { name: "Lưu cấu hình nháp", exact: true }).click();
+  const retry = page.getByRole("button", { name: /Thử lại an toàn/ });
+  await expect(retry).toBeVisible();
+  const steps = page.getByRole("navigation", { name: "Các bước quản lý từ điển" });
+  await steps.getByRole("link", { name: "Nhập", exact: true }).click();
+  await page.getByRole("button", { name: "Bỏ thay đổi", exact: true }).click();
+  await steps.getByRole("link", { name: "Xuất bản", exact: true }).click();
+  await expect(retry).toHaveCount(0);
+  await expect(page.getByLabel("Số lượt đoán (1–12)")).toHaveValue("6");
+  expect(control.commits).toBe(0);
 });

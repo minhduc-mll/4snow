@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
 import { canonicalJson, type ImportDocument } from "../../lib/vua-tieng-viet/dictionary-contract";
 
-const endpoint = "http://127.0.0.1:54321/functions/v1/vtv-dictionary";
-const runtime = Object.fromEntries(readFileSync("supabase/.temp/start-secrets/supabase_edge_runtime_4snow/env/docker.env", "utf8").split(/\r?\n/).filter((line) => line.includes("=")).map((line) => { const i = line.indexOf("="); return [line.slice(0, i), line.slice(i + 1)]; }));
+const endpoint = new URL("/functions/v1/vtv-dictionary", process.env.VTV_LOCAL_SUPABASE_URL ?? "http://127.0.0.1:54321").href;
+const runtime = Object.fromEntries(readFileSync(process.env.VTV_LOCAL_RUNTIME_ENV ?? "supabase/.temp/start-secrets/supabase_edge_runtime_4snow/env/docker.env", "utf8").split(/\r?\n/).filter((line) => line.includes("=")).map((line) => { const i = line.indexOf("="); return [line.slice(0, i), line.slice(i + 1)]; }));
 function rec(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 const filters = { sourceId: null, level: null, review: null, hasDefinition: null, collisionsOnly: false };
 async function login(page: Page) {
@@ -55,11 +55,13 @@ test("real source rights workflow records linked decisions and retries a committ
     cursor = result.nextCursor;
   }
   if (!entry || typeof entry.id !== "string" || typeof entry.sourceId !== "string") throw new Error("Missing fixture");
+  await page.locator("summary").filter({ hasText: /Bộ lọc khác|More filters/i }).click();
   await page.getByLabel(/Mã nguồn|Source ID/i).fill(entry.sourceId);
   const response = observed(page, "list");
   await page.getByRole("button", { name: /Áp dụng bộ lọc|Apply filters/i }).click();
   expect((await response).status()).toBe(200);
   await page.getByRole("button", { name: /tiếng Việt · 9/i }).click();
+  await page.locator("summary").filter({ hasText: /Duyệt quyền nguồn|Source rights review/i }).click();
   const panel = page.getByRole("region", { name: /Duyệt quyền nguồn|Source rights review/i });
   await expect(panel).toContainText(/đang chặn|blocked/i);
   let key: unknown;

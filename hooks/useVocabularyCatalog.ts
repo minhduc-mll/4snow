@@ -2,9 +2,9 @@
 
 import { useDeferredValue, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { parseVocabulary, VOCABULARY_URL, vocabularySearchKey } from "@/lib/vua-tieng-viet/public-vocabulary";
+import { parseVocabulary, searchVocabulary, VOCABULARY_URL, vocabularySearchKey } from "@/lib/vua-tieng-viet/public-vocabulary";
 
-const PAGE_SIZE = 60;
+const PAGE_SIZE = 40;
 
 export function useVocabularyCatalog() {
   const [search, setSearch] = useState("");
@@ -17,9 +17,10 @@ export function useVocabularyCatalog() {
       if (!response.ok) throw new Error("Vocabulary unavailable");
       return parseVocabulary(await response.text());
     },
+    retry: false,
     staleTime: Infinity,
   });
-  const results = useMemo(() => query ? data?.filter((word) => word.searchKey.includes(query)) : data, [data, query]);
+  const results = useMemo(() => data ? searchVocabulary(data, query) : undefined, [data, query]);
   const resultCount = results?.length ?? 0;
   const pageCount = Math.max(1, Math.ceil(resultCount / PAGE_SIZE));
   const pageIndex = Math.min(page, pageCount - 1);

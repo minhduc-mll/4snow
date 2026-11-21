@@ -29,12 +29,12 @@ export function DictionaryPreviewRound({ preview, onUnauthorized }: Props) {
   if (build.isPending) return <p role="status">{t("publication.busy")}</p>;
   if (build.isError) return <div className="grid gap-2">
     <p role="alert">{t("publication.previewUnavailable")}</p>
-    <Button variant="outline" onClick={() => void build.refetch()}>{t("editorial.retry")}</Button>
+    <Button className="min-h-11" variant="outline" onClick={() => void build.refetch()}>{t("editorial.retry")}</Button>
   </div>;
 
   return <div className="grid gap-4">
     <div className="flex flex-wrap gap-2">
-      {LEVELS.map(level => <Button key={level} type="button" variant={state?.level === level ? "primary" : "outline"} onClick={() => { composing.current = false; start(level); }}>
+      {LEVELS.map(level => <Button key={level} type="button" className="min-h-11" aria-pressed={state?.level === level} variant={state?.level === level ? "primary" : "outline"} onClick={() => { composing.current = false; start(level); }}>
         {t("publication.testLevel", { level })}
       </Button>)}
     </div>
@@ -55,13 +55,13 @@ export function DictionaryPreviewRound({ preview, onUnauthorized }: Props) {
         input.focus();
       }}>
         <label htmlFor={inputId}>{t("wordGame.input")}</label>
-        <div className="flex gap-2">
-          <Input key={state.id} id={inputId} ref={inputRef} maxLength={120} autoComplete="off" autoCapitalize="characters" spellCheck={false}
+        <div className="grid gap-2 sm:flex">
+          <Input key={state.id} id={inputId} ref={inputRef} className="min-h-11" maxLength={120} autoComplete="off" autoCapitalize="characters" spellCheck={false}
             onCompositionStart={() => { composing.current = true; }}
             onCompositionEnd={() => { composing.current = false; }}
             onKeyDown={event => { if (event.key === "Enter" && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault(); }}
           />
-          <Button type="submit">{t("publication.previewSubmit")}</Button>
+          <Button type="submit" className="min-h-11">{t("publication.previewSubmit")}</Button>
         </div>
       </form> : <div role="status" className="grid gap-1">
         <p className="font-semibold">{t(state.status === "won" ? "publication.previewWon" : "publication.previewLost")}</p>

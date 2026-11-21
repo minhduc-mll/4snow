@@ -85,6 +85,55 @@ test("one deliberate Enter submits after composition is committed without Enter"
   await expect(board(page).locator("[data-feedback]")).toHaveCount(3);
 });
 
+test("invalid characters identify the rejected cell and touch controls fit a 320px screen", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await dictionary(page);
+  await start(page, 3, "dictionary", "strict");
+  await input(page).fill("m");
+  await input(page).fill("m!");
+  await expect(input(page)).toHaveValue("m");
+  await expect(page.locator("#vtv-message")).toHaveText("Chữ “!” ở ô 2 không hợp lệ. Hãy sửa chữ này.");
+  await expect(board(page).getByRole("img", { name: "Ô 2: trống", exact: true }).first()).toHaveAttribute("data-rejected", "true");
+  await input(page).fill("mèox");
+  await expect(page.locator("#vtv-message")).toHaveText("Chữ “x” ở vị trí 4 vượt quá 3 ô. Hãy rút ngắn từ.");
+  const key = page.getByRole("button", { name: "Q", exact: true });
+  const accent = page.getByRole("button", { name: "Dấu cho A", exact: true });
+  const backspace = page.getByRole("button", { name: "Xóa chữ cuối", exact: true });
+  for (const control of [accent, backspace, submit(page)]) {
+    const bounds = await control.boundingBox();
+    expect(bounds?.width).toBeGreaterThanOrEqual(44);
+    expect(bounds?.height).toBeGreaterThanOrEqual(44);
+  }
+  expect((await key.boundingBox())?.width).toBeGreaterThanOrEqual(24);
+  await input(page).fill("mèo");
+  await expect(board(page).locator("[data-rejected]")).toHaveCount(0);
+  await submit(page).click();
+  await expect(page.getByRole("region", { name: "Kết quả ván chơi" })).toContainText("1 / 6 lượt");
+});
+
+test.describe("touch keyboard at 390px", () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: "reduce" });
+
+  test("native input and accent picker both edit the active guess", async ({ page }) => {
+    await dictionary(page);
+    await start(page);
+    const native = page.getByRole("button", { name: "Mở bàn phím điện thoại", exact: true });
+    await native.tap();
+    await expect(input(page)).toBeFocused();
+    await expect(input(page)).toHaveAttribute("inputmode", "text");
+    await input(page).fill("m");
+    await page.getByRole("button", { name: "Dấu cho E", exact: true }).tap();
+    await page.getByRole("button", { name: "Nhập chữ È", exact: true }).tap();
+    await expect(input(page)).toHaveValue("mÈ");
+    await page.getByRole("button", { name: "O", exact: true }).tap();
+    await page.getByRole("button", { name: "Xóa chữ cuối", exact: true }).tap();
+    await expect(input(page)).toHaveValue("mÈ");
+    await page.getByRole("button", { name: "O", exact: true }).tap();
+    await submit(page).tap();
+    await expect(page.getByRole("region", { name: "Kết quả ván chơi" })).toContainText("1 / 6 lượt");
+  });
+});
+
 for (const [level,limit] of [[3,1],[5,6],[7,12],[9,6]] satisfies [WordLevel,number][]) test(`level ${level} uses ${limit} configured rows and renders an inline win`,async ({ page }) => {
   const control = await dictionary(page,limit);
   if (level === 9) await page.setViewportSize({ width: 320, height: 900 });

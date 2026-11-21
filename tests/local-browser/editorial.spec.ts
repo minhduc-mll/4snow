@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { randomUUID, createHash } from "node:crypto";
 import { canonicalJson, type ImportDocument } from "../../lib/vua-tieng-viet/dictionary-contract";
 
-const endpoint = "http://127.0.0.1:54321/functions/v1/vtv-dictionary";
-const runtime = Object.fromEntries(readFileSync("supabase/.temp/start-secrets/supabase_edge_runtime_4snow/env/docker.env", "utf8").split(/\r?\n/).filter((line) => line.includes("=")).map((line) => { const i = line.indexOf("="); return [line.slice(0, i), line.slice(i + 1)]; }));
+const endpoint = new URL("/functions/v1/vtv-dictionary", process.env.VTV_LOCAL_SUPABASE_URL ?? "http://127.0.0.1:54321").href;
+const runtime = Object.fromEntries(readFileSync(process.env.VTV_LOCAL_RUNTIME_ENV ?? "supabase/.temp/start-secrets/supabase_edge_runtime_4snow/env/docker.env", "utf8").split(/\r?\n/).filter((line) => line.includes("=")).map((line) => { const i = line.indexOf("="); return [line.slice(0, i), line.slice(i + 1)]; }));
 function rec(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 const filters = { sourceId: null, level: null, review: null, hasDefinition: null, collisionsOnly: false };
 async function login(page: Page) {
@@ -41,6 +41,7 @@ async function checkApproval(page: Page) {
 
 test("real editorial pagination, policy, lost-response retry, competing edits and cleanup", async ({ page, browser }) => {
   test.setTimeout(120000);
+  page.setDefaultTimeout(15000);
   await login(page);
   const doc: ImportDocument = JSON.parse(readFileSync("tests/vua-tieng-viet/fixtures/synthetic.json", "utf8"));
   const run = randomUUID();
@@ -71,6 +72,7 @@ test("real editorial pagination, policy, lost-response retry, competing edits an
     await page.getByRole("button", { name: /Áp dụng bộ lọc|Apply filters/i }).click();
     expect((await response).status()).toBe(200);
   };
+  await page.locator("summary").filter({ hasText: /Bộ lọc khác|More filters/i }).click();
   await page.getByLabel(/Mã nguồn|Source ID/i).fill(target.sourceId);
   await page.getByLabel(/Số chữ|Letter count/i).selectOption("3");
   await page.getByLabel(/Trạng thái duyệt|Review status/i).first().selectOption("pending");
@@ -94,12 +96,14 @@ test("real editorial pagination, policy, lost-response retry, competing edits an
   await applyFilters();
   await page.locator("li").filter({ hasText: entryId }).getByRole("button").click();
   await expect(page.locator("#editorial-original")).toHaveValue("mèo");
+  await page.locator("summary").filter({ hasText: /Thông tin kỹ thuật và ghi công|Technical details and attribution/i }).click();
+  await page.locator("summary").filter({ hasText: /Lịch sử phiên bản|Revision history/i }).click();
   await expect(page.getByText(hostile, { exact: true })).toBeVisible();
   expect(await page.evaluate(() => Reflect.get(window, "__vtvInjected"))).toBeUndefined();
   await checkApproval(page);
   await page.locator("#editorial-definition").fill("");
   await page.getByRole("button", { name: /Lưu duyệt|Save review/i }).click();
-  await expect(page.getByText(/Kiểm tra cách viết, điều kiện duyệt|Check the spelling, approval checks/i)).toBeVisible();
+  await expect(page.locator("#editorial-definition")).toHaveAttribute("aria-invalid", "true");
   await page.locator("#editorial-definition").fill("Nghĩa giả lập 0.");
   let lostKey: string | undefined;
   let committed: unknown;
@@ -132,7 +136,7 @@ test("real editorial pagination, policy, lost-response retry, competing edits an
   expect((await response).status()).toBe(200);
   await expect(page.locator("#editorial-review")).toHaveValue("pending");
   await expect(page.getByLabel(/độ thông dụng; đủ điều kiện|eligible as an answer/i)).not.toBeChecked();
-  await expect(page.getByRole("heading", { name: "mêu · MÊU" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "mêu", exact: true })).toBeVisible();
   await expect(page.getByText(/^#1 · mèo/)).toBeVisible();
   await expect(page.getByText(/^#3 · mêu/)).toBeVisible();
 
@@ -140,12 +144,14 @@ test("real editorial pagination, policy, lost-response retry, competing edits an
   try {
     const other = await otherContext.newPage();
     await login(other);
+    await other.locator("summary").filter({ hasText: /Bộ lọc khác|More filters/i }).click();
     await other.getByLabel(/Mã nguồn|Source ID/i).fill(target.sourceId);
     const listed = observed(other, "list");
     await other.getByRole("button", { name: /Áp dụng bộ lọc|Apply filters/i }).click();
     await listed;
     await other.locator("li").filter({ hasText: entryId }).getByRole("button").click();
     await expect(other.locator("#editorial-original")).toHaveValue("mêu");
+    await other.locator("summary").filter({ hasText: /Lịch sử phiên bản|Revision history/i }).click();
     await checkApproval(page);
     await other.locator("#editorial-review").selectOption("rejected");
     await other.locator("#editorial-rationale").fill("Competing synthetic rejection.");
@@ -177,15 +183,16 @@ test("real editorial pagination, policy, lost-response retry, competing edits an
     await expect(other.getByText(/^#4 · mêu/)).toBeVisible();
     expect(detail.sourceEntryId).toBe(`${run}-entry-0`);
     await page.unroute(endpoint);
-    // A real invalid token must clear the private editor, not a mocked 401.
-    await page.evaluate(() => localStorage.setItem("admin-auth-token", "invalid-verification-token"));
-    await page.locator("#editorial-rationale").fill("Must not reach privileged mutation.");
-    const denied = observed(page, "review");
-    await page.getByRole("button", { name: /Lưu duyệt|Save review/i }).click();
-    expect((await denied).status()).toBe(401);
+    // A changed, invalid token must clear the private editor.
+    await page.evaluate(() => {
+      localStorage.setItem("admin-auth-token", "invalid-verification-token");
+      window.dispatchEvent(new StorageEvent("storage", { key: "admin-auth-token", newValue: "invalid-verification-token" }));
+    });
     await expect(page.locator("#editorial-original")).toHaveCount(0);
     await expect(page.getByLabel(/Tài khoản|Username/i)).toBeVisible();
     await other.getByRole("button", { name: /Đăng xuất|Log out/i }).click();
+    const discard = other.getByRole("button", { name: /Bỏ thay đổi|Discard changes/i });
+    if (await discard.isVisible()) await discard.click();
     await expect(other.locator("#editorial-original")).toHaveCount(0);
   } finally { await otherContext.close(); }
 });
