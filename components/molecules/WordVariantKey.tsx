@@ -8,13 +8,18 @@ import { useWordVariantPicker } from "@/hooks/useWordVariantPicker";
 import type { LetterFeedback } from "@/types/vua-tieng-viet";
 import styles from "@/components/organisms/vua-tieng-viet/word-game.module.css";
 
-type Props = { base: string; variants: readonly string[]; knowledge: Map<string,LetterFeedback>; disabled: boolean; onSelect: (letter: string) => void; focusInput: () => boolean };
-export function WordVariantKey({ base, variants, knowledge, disabled, onSelect, focusInput }: Props) {
+type Props = { base: string; variants: readonly string[]; knowledge: Map<string,LetterFeedback>; disabled: boolean; onKey: (letter: string, restoreFocus?: boolean) => void; focusInput: () => boolean };
+export function WordVariantKey({ base, variants, knowledge, disabled, onKey, focusInput }: Props) {
   const { t } = useAppI18n();
-  const picker = useWordVariantPicker(onSelect,focusInput);
+  const picker = useWordVariantPicker(onKey,focusInput);
   const name = t("wordGame.variants",{ letter: base });
+  const feedback = knowledge.get(base);
   return <Popover modal open={picker.open} onOpenChange={picker.changeOpen}>
-    <PopoverTrigger asChild><Button variant="outline" className={styles.expandKey} disabled={disabled} aria-label={name} whileTap={{ scale: 1 }}>{base}<ChevronUp size={14} aria-hidden="true" /></Button></PopoverTrigger>
+    <PopoverTrigger asChild>
+      <Button {...picker.triggerProps} variant="outline" className={styles.key} value={base} data-feedback={feedback} disabled={disabled} aria-label={`${base}${feedback ? `, ${t(`wordGame.${feedback}`)}` : ""}`} aria-describedby="vtv-accent-picker-hint" aria-keyshortcuts="ArrowUp Shift+Enter" whileTap={{ scale: 1 }}>
+        {base}<ChevronUp className={styles.accentIndicator} aria-hidden="true" />
+      </Button>
+    </PopoverTrigger>
     <PopoverContent className={styles.variantDialog} side="top" collisionPadding={12} aria-label={name} onCloseAutoFocus={picker.closeAutoFocus}>
       <p className={styles.variantTitle}>{name}</p>
       <div className={styles.variantGrid}>{variants.map(letter => {

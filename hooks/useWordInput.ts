@@ -50,7 +50,7 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
   const composing = React.useRef(false), suppressEnter = React.useRef(false), processing = React.useRef(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const actionRef = React.useRef<HTMLButtonElement>(null);
-  const nativeKeyboardButtonRef = React.useRef<HTMLButtonElement>(null);
+  const firstKeyRef = React.useRef<HTMLButtonElement>(null);
   const openerRef = React.useRef<HTMLButtonElement | null>(null);
   const reset = React.useCallback(() => { setDraft(null); setRejected(null); composing.current = false; suppressEnter.current = false; },[]);
   const roundId = state?.round.id, guessCount = state?.round.guesses.length;
@@ -61,14 +61,6 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
     if (usesTouchInput() || !element || element.disabled) return false;
     element.focus({ preventScroll: true });
     return true;
-  };
-  const openNativeKeyboard = () => {
-    const element = inputRef.current;
-    if (!element || element.disabled || dialogOpen) return;
-    // The OS can dismiss its keyboard while leaving the input focused.
-    if (document.activeElement === element) element.blur();
-    element.inputMode = "text";
-    element.focus({ preventScroll: true });
   };
   React.useEffect(() => {
     if (!roundId || busy || dialogOpen) return;
@@ -118,9 +110,6 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
     disabled,
     inputMode: touchInput ? "none" : undefined,
     tabIndex: touchInput ? -1 : undefined,
-    onBlur: event => {
-      if (usesTouchInput()) event.currentTarget.inputMode = "none";
-    },
     onChange: event => {
       if ("isComposing" in event.nativeEvent && event.nativeEvent.isComposing === true && !composing.current) compositionStart();
       edit(event.currentTarget.value);
@@ -156,12 +145,12 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
   const knowledge = React.useMemo(() => keyboardKnowledge(state?.round.guesses ?? [], state?.round.rules.accuracy, state?.round.initialAbsentLetters),[state?.round.guesses, state?.round.rules.accuracy, state?.round.initialAbsentLetters]);
   return {
     field, letters, rejected, draft, eligibility, submit, actionRef, reset, focusInput,
-    keyboard: { knowledge, disabled: disabled || draft !== null, onKey: virtualKey, focusInput, openNativeKeyboard, nativeKeyboardButtonRef },
+    keyboard: { knowledge, disabled: disabled || draft !== null, onKey: virtualKey, focusInput, firstKeyRef },
     rememberOpener: (element: HTMLButtonElement) => { openerRef.current = element; },
     restoreFocus: () => openerRef.current?.focus({ preventScroll: true }),
     restoreConflictFocus: () => {
       if (inputRef.current && !inputRef.current.disabled) {
-        if (usesTouchInput()) nativeKeyboardButtonRef.current?.focus({ preventScroll: true });
+        if (usesTouchInput()) firstKeyRef.current?.focus({ preventScroll: true });
         else focusInput();
       } else actionRef.current?.focus({ preventScroll: true });
     },

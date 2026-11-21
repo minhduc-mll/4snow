@@ -70,12 +70,11 @@
 .legend li { display: flex; align-items: center; gap: .35rem; }
 .legendSymbol { border-radius: .2rem; width: 1rem; height: 1rem; text-align: center; }
 .keyboard { display: grid; gap: .3rem; }
-.keyRow { display: flex; justify-content: center; gap: .25rem; }
-.keyColumn { flex: 1 1 0; min-width: 0; max-width: 3rem; display: flex; flex-direction: column; gap: .15rem; }
-.key { width: 100%; min-width: 0; min-height: 2.75rem; padding: .1rem; background: var(--vtv-raised); border-color: var(--vtv-line); color: var(--vtv-ink); position: relative; font-size: .875rem; }
-.variantRow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; }
-@media (min-width: 22.5rem) { .variantRow { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
-.expandKey { width: 100%; min-width: 0; min-height: 2.75rem; padding: 0; gap: 0; background: var(--vtv-surface); color: var(--vtv-primary); border-color: var(--vtv-line); font-weight: 700; }
+.keyRow { --key-gap: .25rem; --key-width: min(3rem, (100% - 9 * var(--key-gap)) / 10); display: flex; justify-content: center; gap: var(--key-gap); }
+.keyColumn { flex: 0 0 var(--key-width); min-width: 0; }
+.backspaceColumn { flex: 0 0 max(2.75rem, 1.5 * var(--key-width)); min-width: 0; }
+.key { width: 100%; min-width: 0; min-height: 2.75rem; padding: .1rem; background: var(--vtv-raised); border-color: var(--vtv-line); color: var(--vtv-ink); position: relative; font-size: .875rem; touch-action: manipulation; user-select: none; }
+.key .accentIndicator { position: absolute; top: .15rem; right: .15rem; width: .5rem; height: .5rem; }
 .variantDialog { width: min(20rem,var(--radix-popover-content-available-width),calc(100vw - 1.5rem)); max-height: min(22rem,var(--radix-popover-content-available-height)); overflow: auto; background: var(--vtv-surface); border-color: var(--vtv-line); }
 .variantTitle { color: var(--vtv-muted); font-weight: 600; margin-bottom: .75rem; }
 .variantGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(2.75rem, 1fr)); gap: .35rem; }
@@ -87,12 +86,8 @@
 .key:disabled { opacity: 1; }
 .key:disabled:not([data-feedback]) { opacity: .55; }
 .key:hover:not(:disabled) { outline: 1px solid var(--vtv-primary); }
-.keyboardActions { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; }
-.nativeKeyboard { display: none; min-height: 2.75rem; }
-.backspace { min-height: 2.75rem; color: var(--vtv-ink); background: var(--vtv-raised); }
 @media (hover: none) and (pointer: coarse) {
   .sharedInput { pointer-events: none; }
-  .nativeKeyboard { display: inline-flex; }
 }
 .keyboardHint { text-align: center; color: var(--vtv-muted); font-size: .75rem; margin-top: .35rem; }
 .roundActions { width: min(100%, 22rem); justify-self: center; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; }

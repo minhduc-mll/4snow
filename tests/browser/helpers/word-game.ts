@@ -1,6 +1,23 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { playerPayload, playerReleaseRow } from "../../vua-tieng-viet/player-fixture";
 import type { WordLevel } from "../../../types/vua-tieng-viet";
+
+export async function holdTouchKey(page: Page, key: Locator, picker: Locator) {
+  await key.scrollIntoViewIfNeeded();
+  const bounds = await key.boundingBox();
+  if (!bounds) throw new Error("Expected a visible letter key");
+  const session = await page.context().newCDPSession(page);
+  try {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }],
+    });
+    try { await expect(picker).toBeVisible(); }
+    finally { await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] }); }
+  } finally {
+    await session.detach();
+  }
+}
 
 export async function dictionary(page: Page, limit = 6) {
   const control: { row: ReturnType<typeof playerReleaseRow>; fail: boolean; absent: boolean; corrupt: boolean; pointers: number; onPointer?: () => void } = { row: playerReleaseRow(playerPayload(limit)), fail: false, absent: false, corrupt: false, pointers: 0 };

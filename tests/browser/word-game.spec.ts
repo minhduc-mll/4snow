@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { fixtureId, playerPayload, playerReleaseRow } from "../vua-tieng-viet/player-fixture";
 import type { WordLevel } from "../../types/vua-tieng-viet";
-import { dictionary, start, input, board, submit } from "./helpers/word-game";
+import { dictionary, start, input, board, submit, holdTouchKey } from "./helpers/word-game";
 
 test("help explains repeated-letter feedback on request", async ({ page }) => {
   await dictionary(page);
@@ -97,14 +97,19 @@ test("invalid characters identify the rejected cell and touch controls fit a 320
   await input(page).fill("mèox");
   await expect(page.locator("#vtv-message")).toHaveText("Chữ “x” ở vị trí 4 vượt quá 3 ô. Hãy rút ngắn từ.");
   const key = page.getByRole("button", { name: "Q", exact: true });
-  const accent = page.getByRole("button", { name: "Dấu cho A", exact: true });
+  const accent = page.getByRole("button", { name: "A", exact: true });
   const backspace = page.getByRole("button", { name: "Xóa chữ cuối", exact: true });
-  for (const control of [accent, backspace, submit(page)]) {
+  for (const control of [backspace, submit(page)]) {
     const bounds = await control.boundingBox();
     expect(bounds?.width).toBeGreaterThanOrEqual(44);
     expect(bounds?.height).toBeGreaterThanOrEqual(44);
   }
-  expect((await key.boundingBox())?.width).toBeGreaterThanOrEqual(24);
+  const keyWidth = (await key.boundingBox())?.width ?? 0;
+  expect(keyWidth).toBeGreaterThanOrEqual(24);
+  expect((await accent.boundingBox())?.width).toBeCloseTo(keyWidth,1);
+  const lastLetter = page.getByRole("button", { name: "M", exact: true });
+  expect((await lastLetter.boundingBox())?.width).toBeCloseTo(keyWidth,1);
+  expect((await lastLetter.boundingBox())?.y).toBe((await backspace.boundingBox())?.y);
   await input(page).fill("mèo");
   await expect(board(page).locator("[data-rejected]")).toHaveCount(0);
   await submit(page).click();
@@ -114,20 +119,17 @@ test("invalid characters identify the rejected cell and touch controls fit a 320
 test.describe("touch keyboard at 390px", () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: "reduce" });
 
-  test("native input and accent picker both edit the active guess", async ({ page }) => {
+  test("tapping a base and holding for an accent edit the same guess", async ({ page }) => {
     await dictionary(page);
     await start(page);
-    const native = page.getByRole("button", { name: "Mở bàn phím điện thoại", exact: true });
-    await native.tap();
-    await expect(input(page)).toBeFocused();
-    await expect(input(page)).toHaveAttribute("inputmode", "text");
-    await input(page).fill("m");
-    await page.getByRole("button", { name: "Dấu cho E", exact: true }).tap();
-    await page.getByRole("button", { name: "Nhập chữ È", exact: true }).tap();
-    await expect(input(page)).toHaveValue("mÈ");
+    await page.getByRole("button", { name: "M", exact: true }).tap();
+    const picker = page.getByRole("dialog", { name: "Dấu cho E" });
+    await holdTouchKey(page, page.getByRole("button", { name: "E", exact: true }), picker);
+    await picker.getByRole("button", { name: "Nhập chữ È", exact: true }).tap();
+    await expect(input(page)).toHaveValue("MÈ");
     await page.getByRole("button", { name: "O", exact: true }).tap();
     await page.getByRole("button", { name: "Xóa chữ cuối", exact: true }).tap();
-    await expect(input(page)).toHaveValue("mÈ");
+    await expect(input(page)).toHaveValue("MÈ");
     await page.getByRole("button", { name: "O", exact: true }).tap();
     await submit(page).tap();
     await expect(page.getByRole("region", { name: "Kết quả ván chơi" })).toContainText("1 / 6 lượt");
