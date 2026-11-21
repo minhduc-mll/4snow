@@ -70,6 +70,11 @@ begin
   select payload into snapshot from private.vtv_release_builds where id=(preview->>'buildId')::uuid;
   if snapshot::text like '%PRIVATE%' or snapshot::text like '%DO NOT EXPOSE%' then raise exception 'private payload leak'; end if;
   if snapshot->'levels'->'9'->'answers'->0->>'definitionVi'<>'Nghĩa đã duyệt cho kiểm thử.' then raise exception 'wrong player meaning'; end if;
+  if preview->'playerSamples'->'3'->0->>'openingClue' is distinct from 'Động vật nuôi'
+    or snapshot->'levels'->'3'->'answers'->0->>'openingClue' is distinct from 'Động vật nuôi'
+    or snapshot->'levels'->'9'->'answers'->0 ? 'openingClue' then raise exception 'incorrect opening clue preview or payload'; end if;
+  changed:=jsonb_set(snapshot,'{levels,3,answers,0,openingClue}','" "');
+  if not(private.vtv_release_errors(changed) @> '[{"code":"INVALID_ANSWER"}]') then raise exception 'blank opening clue accepted'; end if;
   changed:=jsonb_set(snapshot,'{levels,9,answers,0,definitionVi}','" "');
   if private.vtv_release_errors(changed)='[]'::jsonb then raise exception 'missing meaning accepted'; end if;
   changed:=jsonb_set(snapshot,'{levels,9,guesses}','[]');

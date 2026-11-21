@@ -118,6 +118,7 @@ export function DictionaryPublicationPanel({ onUnauthorized }: Props) {
                     const credits = preview.sampleAttributions.filter(attr => sample.attributionIds.includes(attr.id));
                     return <div className="grid gap-2 rounded-lg bg-muted/40 p-3" key={sample.id}>
                       <p className="font-medium">{sample.original}</p><p>{sample.definitionVi}</p>
+                      <p className="break-words">{t("wordGame.openingClue")} · {sample.openingClue ?? sample.definitionVi}</p>
                       {credits.length ? <details>
                         <summary className="min-h-11 cursor-pointer py-3 font-medium">{t("publication.attributions")}</summary>
                         <ul className="grid gap-3">

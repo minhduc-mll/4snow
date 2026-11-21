@@ -4,6 +4,7 @@ import * as React from "react";
 import type { InputProps } from "@/components/atoms/Input";
 import type { PlayableRound } from "@/types/vua-tieng-viet";
 import { commitInput, guessEligibility, keyboardKnowledge, submitGuess, type PlayerErrorCode } from "@/lib/vua-tieng-viet/player-engine";
+import { guessCells, lockedPositions } from "@/lib/vua-tieng-viet/round-hints";
 import { normalizeSpelling } from "@/lib/vua-tieng-viet/dictionary-contract";
 
 type Options = {
@@ -50,26 +51,18 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
   const composing = React.useRef(false), suppressEnter = React.useRef(false), processing = React.useRef(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const actionRef = React.useRef<HTMLButtonElement>(null);
-  const nativeKeyboardButtonRef = React.useRef<HTMLButtonElement>(null);
+  const firstKeyRef = React.useRef<HTMLButtonElement>(null);
   const openerRef = React.useRef<HTMLButtonElement | null>(null);
   const reset = React.useCallback(() => { setDraft(null); setRejected(null); composing.current = false; suppressEnter.current = false; },[]);
   const roundId = state?.round.id, guessCount = state?.round.guesses.length;
   const terminal = state?.round.status === "lost" || state?.round.status === "won";
   const focusedTransition = React.useRef<string | null>(null);
-  const focusInput = () => {
+  const focusInput = React.useCallback(() => {
     const element = inputRef.current;
     if (usesTouchInput() || !element || element.disabled) return false;
     element.focus({ preventScroll: true });
     return true;
-  };
-  const openNativeKeyboard = () => {
-    const element = inputRef.current;
-    if (!element || element.disabled || dialogOpen) return;
-    // The OS can dismiss its keyboard while leaving the input focused.
-    if (document.activeElement === element) element.blur();
-    element.inputMode = "text";
-    element.focus({ preventScroll: true });
-  };
+  }, []);
   React.useEffect(() => {
     if (!roundId || busy || dialogOpen) return;
     const transition = `${roundId}:${guessCount}`;
@@ -85,7 +78,15 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
     if (loading.current || processing.current || conflict.current || !current.current) return;
     if (composing.current) { setDraft(raw); return; }
     const result = commitInput(current.current,raw);
-    setRejected(result.error === "INVALID_INPUT" ? rejectedCharacter(raw, current.current.round.level) : null);
+    const { round } = current.current;
+    const locked = lockedPositions(round);
+    const rejectedInput = result.error === "INVALID_INPUT" ? rejectedCharacter(raw, round.level - locked.length) : null;
+    if (rejectedInput && locked.length) {
+      const editablePositions = Array.from({ length: round.level }, (_, position) => position + 1)
+        .filter(position => !locked.includes(position - 1));
+      rejectedInput.position = editablePositions[rejectedInput.position - 1] ?? round.level + 1;
+    }
+    setRejected(rejectedInput);
     const next = result.state === current.current ? result.state : { ...result.state, round: { ...result.state.round, updatedAt: new Date(Math.max(Date.now(),Date.parse(result.state.round.updatedAt))).toISOString() } };
     replace(next); setDraft(null); setError(result.error);
   };
@@ -118,9 +119,6 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
     disabled,
     inputMode: touchInput ? "none" : undefined,
     tabIndex: touchInput ? -1 : undefined,
-    onBlur: event => {
-      if (usesTouchInput()) event.currentTarget.inputMode = "none";
-    },
     onChange: event => {
       if ("isComposing" in event.nativeEvent && event.nativeEvent.isComposing === true && !composing.current) compositionStart();
       edit(event.currentTarget.value);
@@ -151,17 +149,18 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
     onKeyUp: event => { if (event.key === "Enter") suppressEnter.current = false; },
   };
   let letters: string[] = [];
-  try { letters = Array.from(normalizeSpelling(state?.round.input ?? "").normalized); } catch { /* Committed state is validated; composition is displayed separately. */ }
+  try { if (state) letters = guessCells(state); } catch { /* Committed state is validated; composition is displayed separately. */ }
   const eligibility = guessEligibility(state,draft !== null,busy || dialogOpen);
   const knowledge = React.useMemo(() => keyboardKnowledge(state?.round.guesses ?? [], state?.round.rules.accuracy, state?.round.initialAbsentLetters),[state?.round.guesses, state?.round.rules.accuracy, state?.round.initialAbsentLetters]);
+  const revealed = React.useMemo(() => new Set(state?.round.hints?.flatMap(hint => hint.kind === "reveal" ? [hint.letter] : [])), [state?.round.hints]);
   return {
     field, letters, rejected, draft, eligibility, submit, actionRef, reset, focusInput,
-    keyboard: { knowledge, disabled: disabled || draft !== null, onKey: virtualKey, focusInput, openNativeKeyboard, nativeKeyboardButtonRef },
+    keyboard: { knowledge, revealed, disabled: disabled || draft !== null, onKey: virtualKey, focusInput, firstKeyRef },
     rememberOpener: (element: HTMLButtonElement) => { openerRef.current = element; },
     restoreFocus: () => openerRef.current?.focus({ preventScroll: true }),
     restoreConflictFocus: () => {
       if (inputRef.current && !inputRef.current.disabled) {
-        if (usesTouchInput()) nativeKeyboardButtonRef.current?.focus({ preventScroll: true });
+        if (usesTouchInput()) firstKeyRef.current?.focus({ preventScroll: true });
         else focusInput();
       } else actionRef.current?.focus({ preventScroll: true });
     },

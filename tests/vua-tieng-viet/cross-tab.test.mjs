@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoundStorage, decodeRoundSave, encodeRoundSave, ROUND_SAVE_KEY } from "../../lib/vua-tieng-viet/round-save.ts";
 import { startRound, commitInput, submitGuess } from "../../lib/vua-tieng-viet/player-engine.ts";
+import { applyRoundHint, nextRoundHint } from "../../lib/vua-tieng-viet/round-hints.ts";
 import { playerPayload, fixtureId } from "./player-fixture.ts";
 const time = "2026-11-14T01:00:00.000Z";
 function round(id = 100) { return startRound({ payload: playerPayload(), payloadHash: "a".repeat(64), publishedAt: time },3,undefined,() => 0,() => ({ id: fixtureId(id), timestamp: time })); }
@@ -95,7 +96,8 @@ test("concurrent wins of the same round settle the streak only once", async () =
   const restored = d.tab();
   assert.equal(restored.read().state.round.status, "won");
   assert.deepEqual(restored.streak(), { current: 1, longest: 1 });
-  assert.equal(JSON.parse(d.values.get(ROUND_SAVE_KEY)).schemaVersion, 4);
+  assert.equal(JSON.parse(d.values.get(ROUND_SAVE_KEY)).schemaVersion, 5);
+  assert.equal(restored.hintCredits(), 1);
 });
 
 test("corrupt round metadata and legacy saves recover independently of streak counters", async () => {
@@ -126,4 +128,34 @@ test("replay settles a pending win atomically after a temporary storage failure"
   const restored = d.tab();
   assert.equal(restored.read().state.round.id, fixtureId(200));
   assert.deepEqual(restored.streak(), { current: 1, longest: 1 });
+  assert.equal(restored.hintCredits(), 1);
+});
+
+test("two tabs cannot spend the same hint credit twice, including explicit keep", async () => {
+  const d = device(), a = d.tab(), b = d.tab();
+  a.read();
+  const draft = commitInput(round(), "mèo").state;
+  await a.write(draft);
+  const won = submitGuess(draft, draft.round.revision, () => ({ id: fixtureId(101), timestamp: time })).state;
+  await a.write(won);
+  const next = round(200);
+  await a.write(next, true, won);
+  b.read();
+  assert.equal(b.hintCredits(), 1);
+  const revealed = applyRoundHint(next, nextRoundHint(next), time);
+  assert.deepEqual(await Promise.all([a.write(revealed), b.write(revealed)]), ["saved", "conflict"]);
+  assert.equal(a.hintCredits(), 0);
+  const saved = d.values.get(ROUND_SAVE_KEY);
+  assert.deepEqual(await b.keep(next), { kind: "paid-hints-conflict" });
+  assert.equal(d.values.get(ROUND_SAVE_KEY), saved);
+  const restored = b.read();
+  assert.equal(restored.kind, "restored");
+  assert.deepEqual(restored.state.round.hints, revealed.round.hints);
+  assert.equal(b.hintCredits(), 0);
+  assert.equal((await b.keep(revealed)).kind, "restored");
+  assert.equal(b.hintCredits(), 0);
+  assert.equal((await b.write(applyRoundHint(revealed, nextRoundHint(revealed), time))), "superseded");
+  const stored = b.read().state;
+  assert.equal(await b.write(applyRoundHint(stored, nextRoundHint(stored), time)), "unavailable");
+  assert.deepEqual(b.read().state.round.hints, revealed.round.hints);
 });

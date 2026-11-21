@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { fixtureId, playerPayload, playerReleaseRow } from "../vua-tieng-viet/player-fixture";
 import type { WordLevel } from "../../types/vua-tieng-viet";
-import { dictionary, start, input, board, submit } from "./helpers/word-game";
+import { dictionary, start, input, board, submit, holdTouchKey } from "./helpers/word-game";
 
 test("help explains repeated-letter feedback on request", async ({ page }) => {
   await dictionary(page);
@@ -57,14 +57,15 @@ test("published play preserves invalid guesses, defers IME, pins old rules and r
   await input(page).dispatchEvent("keyup",{ key: "Enter" });
   await expect(board(page).locator("[data-feedback]")).toHaveCount(3);
   await submit(page).click();
-  const result = page.getByRole("region",{ name: /Kết quả ván chơi|Round result/i });
+  const result = page.getByRole("dialog",{ name: /Kết quả ván chơi|Round result/i });
   await expect(result).toContainText("Chúc mừng!");
   await expect(result).toContainText("Nghĩa tiếng Việt đã duyệt cho mèo.");
   await expect(result).toContainText("Synthetic credit");
   await expect(result).toContainText(/2 \/ 6/);
   await expect(input(page)).toHaveCount(0);
+  await result.getByRole("button",{ name: "Xem lại ván", exact: true }).click();
   await expect(board(page).getByRole("listitem")).toHaveCount(6);
-  await page.getByRole("button",{ name: "Chơi lại", exact: true }).click();
+  await page.getByRole("button",{ name: "Tiếp tục chơi", exact: true }).click();
   await expect(input(page)).toBeEnabled();
   await expect(board(page).getByRole("listitem")).toHaveCount(1);
   await expect(page.getByRole("status")).toContainText(/chỉ có một đáp án|only one eligible answer/i);
@@ -81,7 +82,9 @@ test("one deliberate Enter submits after composition is committed without Enter"
   await input(page).dispatchEvent("compositionend",{ data: "mèo" });
   await expect(submit(page)).toBeEnabled();
   await input(page).press("Enter");
-  await expect(page.getByRole("region",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!");
+  const result = page.getByRole("dialog",{ name: /Kết quả ván chơi|Round result/i });
+  await expect(result).toContainText("Chúc mừng!");
+  await result.getByRole("button",{ name: "Xem lại ván", exact: true }).click();
   await expect(board(page).locator("[data-feedback]")).toHaveCount(3);
 });
 
@@ -97,44 +100,46 @@ test("invalid characters identify the rejected cell and touch controls fit a 320
   await input(page).fill("mèox");
   await expect(page.locator("#vtv-message")).toHaveText("Chữ “x” ở vị trí 4 vượt quá 3 ô. Hãy rút ngắn từ.");
   const key = page.getByRole("button", { name: "Q", exact: true });
-  const accent = page.getByRole("button", { name: "Dấu cho A", exact: true });
+  const accent = page.getByRole("button", { name: "A", exact: true });
   const backspace = page.getByRole("button", { name: "Xóa chữ cuối", exact: true });
-  for (const control of [accent, backspace, submit(page)]) {
+  for (const control of [backspace, submit(page)]) {
     const bounds = await control.boundingBox();
     expect(bounds?.width).toBeGreaterThanOrEqual(44);
     expect(bounds?.height).toBeGreaterThanOrEqual(44);
   }
-  expect((await key.boundingBox())?.width).toBeGreaterThanOrEqual(24);
+  const keyWidth = (await key.boundingBox())?.width ?? 0;
+  expect(keyWidth).toBeGreaterThanOrEqual(24);
+  expect((await accent.boundingBox())?.width).toBeCloseTo(keyWidth,1);
+  const lastLetter = page.getByRole("button", { name: "M", exact: true });
+  expect((await lastLetter.boundingBox())?.width).toBeCloseTo(keyWidth,1);
+  expect((await lastLetter.boundingBox())?.y).toBe((await backspace.boundingBox())?.y);
   await input(page).fill("mèo");
   await expect(board(page).locator("[data-rejected]")).toHaveCount(0);
   await submit(page).click();
-  await expect(page.getByRole("region", { name: "Kết quả ván chơi" })).toContainText("1 / 6 lượt");
+  await expect(page.getByRole("dialog",{ name: "Kết quả ván chơi" })).toContainText("1 / 6 lượt");
 });
 
 test.describe("touch keyboard at 390px", () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: "reduce" });
 
-  test("native input and accent picker both edit the active guess", async ({ page }) => {
+  test("tapping a base and holding for an accent edit the same guess", async ({ page }) => {
     await dictionary(page);
     await start(page);
-    const native = page.getByRole("button", { name: "Mở bàn phím điện thoại", exact: true });
-    await native.tap();
-    await expect(input(page)).toBeFocused();
-    await expect(input(page)).toHaveAttribute("inputmode", "text");
-    await input(page).fill("m");
-    await page.getByRole("button", { name: "Dấu cho E", exact: true }).tap();
-    await page.getByRole("button", { name: "Nhập chữ È", exact: true }).tap();
-    await expect(input(page)).toHaveValue("mÈ");
+    await page.getByRole("button", { name: "M", exact: true }).tap();
+    const picker = page.getByRole("dialog", { name: "Dấu cho E" });
+    await holdTouchKey(page, page.getByRole("button", { name: "E", exact: true }), picker);
+    await picker.getByRole("button", { name: "Nhập chữ È", exact: true }).tap();
+    await expect(input(page)).toHaveValue("MÈ");
     await page.getByRole("button", { name: "O", exact: true }).tap();
     await page.getByRole("button", { name: "Xóa chữ cuối", exact: true }).tap();
-    await expect(input(page)).toHaveValue("mÈ");
+    await expect(input(page)).toHaveValue("MÈ");
     await page.getByRole("button", { name: "O", exact: true }).tap();
     await submit(page).tap();
-    await expect(page.getByRole("region", { name: "Kết quả ván chơi" })).toContainText("1 / 6 lượt");
+    await expect(page.getByRole("dialog",{ name: "Kết quả ván chơi" })).toContainText("1 / 6 lượt");
   });
 });
 
-for (const [level,limit] of [[3,1],[5,6],[7,12],[9,6]] satisfies [WordLevel,number][]) test(`level ${level} uses ${limit} configured rows and renders an inline win`,async ({ page }) => {
+for (const [level,limit] of [[3,1],[5,6],[7,12],[9,6]] satisfies [WordLevel,number][]) test(`level ${level} uses ${limit} configured rows and opens the win dialog`,async ({ page }) => {
   const control = await dictionary(page,limit);
   if (level === 9) await page.setViewportSize({ width: 320, height: 900 });
   await start(page,level);
@@ -146,7 +151,7 @@ for (const [level,limit] of [[3,1],[5,6],[7,12],[9,6]] satisfies [WordLevel,numb
   }
   await input(page).fill(control.row.public_payload.levels[level].answers[0].original);
   await input(page).press("Enter");
-  await expect(page.getByRole("region",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!");
+  await expect(page.getByRole("dialog",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!");
   await expect(input(page)).toHaveCount(0);
 });
 
@@ -185,12 +190,14 @@ test("missing/malformed releases recover, loss locks the board and offline repla
   control.corrupt = false;
   await startButton.click(); await expect(input(page)).toBeEnabled();
   await input(page).fill("SÔI"); await submit(page).click();
-  const result = page.getByRole("region",{ name: /Kết quả ván chơi|Round result/i });
+  const result = page.getByRole("dialog",{ name: /Kết quả ván chơi|Round result/i });
   await expect(result).toContainText(/Đã hết lượt|Round complete/i);
   await expect(result).toContainText("mèo"); await expect(input(page)).toHaveCount(0);
   await context.setOffline(true);
   await page.getByRole("button",{ name: "Chơi lại", exact: true }).click();
   await expect(page.getByRole("status")).toContainText(/Cần kết nối mạng|online connection/i);
+  await expect(page.getByText("Đã hết lượt",{ exact: true })).toBeVisible();
+  await page.getByRole("button",{ name: "Xem kết quả", exact: true }).click();
   await expect(result).toBeVisible();
 });
 
@@ -219,10 +226,11 @@ test("rapid Enter accepts once and replay selects a different eligible answer",a
   await start(page);
   await input(page).fill("mèo");
   await input(page).evaluate(element => { for (let i=0;i<2;i++) element.dispatchEvent(new KeyboardEvent("keydown",{ key: "Enter", bubbles: true })); });
-  const result = page.getByRole("region",{ name: /Kết quả ván chơi|Round result/i });
+  const result = page.getByRole("dialog",{ name: /Kết quả ván chơi|Round result/i });
   await expect(result).toContainText(/1 \/ 6/);
+  await result.getByRole("button",{ name: "Xem lại ván", exact: true }).click();
   await expect(board(page).locator("[data-feedback]")).toHaveCount(3);
-  await page.getByRole("button",{ name: "Chơi lại", exact: true }).click();
+  await page.getByRole("button",{ name: "Tiếp tục chơi", exact: true }).click();
   await expect(input(page)).toBeEnabled();
   await input(page).fill("sôi"); await submit(page).click();
   await expect(result).toContainText("Nghĩa khác đã duyệt.");
@@ -244,7 +252,7 @@ test("Free mode applies atomically, shows text feedback and restores its histori
   await settings.click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button",{ name: "Tự do", exact: true }).click();
-  await dialog.getByRole("button",{ name: "Xem phản hồi bằng chữ" }).click();
+  await expect(dialog.getByRole("button",{ name: "Xem phản hồi bằng chữ" })).toHaveCount(0);
   await dialog.getByRole("button",{ name: "Tải ván mới", exact: true }).click();
 
   await expect(page.getByText(/3 chữ · Dễ · Tự do · /)).toBeVisible();
@@ -252,7 +260,7 @@ test("Free mode applies atomically, shows text feedback and restores its histori
   await input(page).fill("AAA");
   await submit(page).click();
   await expect(input(page)).toBeFocused();
-  await expect(board(page).getByText("1. A · Không có hoặc dư")).toBeVisible();
+  await expect(board(page).getByRole("img",{ name: "Ô 1: A, Không có hoặc dư" })).toBeVisible();
   await expect(board(page)).not.toContainText(/[✓↔×]/);
   await expect(page.getByRole("button",{ name: /^A,/ })).toBeEnabled();
   await input(page).pressSequentially("a");
@@ -301,7 +309,7 @@ test("expert answers and initial absent keys survive a reload", async ({ page })
   await expect(page.getByText(/3 chữ · Siêu khó ·/)).toBeVisible();
   await input(page).fill("sôi");
   await submit(page).click();
-  await expect(page.getByRole("region", { name: "Kết quả ván chơi" })).toContainText("Chúc mừng!");
+  await expect(page.getByRole("dialog",{ name: "Kết quả ván chơi" })).toContainText("Chúc mừng!");
 });
 
 test("help exposes source credit and keeps the answer entry link for the result",async ({ page }) => {
@@ -318,8 +326,25 @@ test("help exposes source credit and keeps the answer entry link for the result"
   await dialog.getByRole("button",{ name: "Đóng hướng dẫn", exact: true }).click();
   await input(page).fill("mèo");
   await submit(page).click();
-  const result = page.getByRole("region",{ name: "Kết quả ván chơi", exact: true });
+  const result = page.getByRole("dialog",{ name: "Kết quả ván chơi", exact: true });
   await expect(result).toContainText(source.sourceEntryId);
   expect(await result.locator("a[href]").evaluateAll(links => links.map(link => link.getAttribute("href")))).toContain(source.entryUrl);
-  await expect(result.getByRole("button",{ name: "Chơi lại", exact: true })).toBeFocused();
+  const review = result.getByRole("button",{ name: "Xem lại ván", exact: true });
+  await expect(review).toBeFocused();
+  await review.click();
+  await expect(result).toHaveCount(0);
+  const resultButton = page.getByRole("button",{ name: "Xem kết quả", exact: true });
+  await expect(resultButton).toBeFocused();
+  await expect(page.getByRole("button",{ name: "Tiếp tục chơi", exact: true })).toBeVisible();
+  await expect(page.getByRole("button",{ name: "Chơi lại", exact: true })).toHaveCount(0);
+  const keyboard = page.getByRole("region",{ name: "Bàn phím trên màn hình", exact: true });
+  await expect(keyboard.getByRole("button")).toHaveCount(27);
+  await expect(keyboard.getByRole("button",{ name: "Xóa chữ cuối", exact: true })).toBeDisabled();
+  for (const key of await keyboard.getByRole("button").all()) await expect(key).toBeDisabled();
+  await expect(submit(page)).toHaveCount(0);
+  await resultButton.click();
+  await expect(review).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(resultButton).toBeFocused();
+  await expect(page.getByText("Chuỗi hiện tại: 1",{ exact: true })).toBeVisible();
 });

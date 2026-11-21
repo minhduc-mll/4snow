@@ -1,6 +1,6 @@
 import { isInitialAbsentCount, isContentHash, isRecord, isRevision, isUuid } from "./publication-contract.ts";
 import { normalizeSpelling } from "./dictionary-contract.ts";
-export type PlayerSample = { id: string; original: string; normalized: string; level: number; definitionVi: string; attributionIds: string[] };
+export type PlayerSample = { id: string; original: string; normalized: string; level: number; definitionVi: string; openingClue?: string; attributionIds: string[] };
 export type SampleAttribution = { id: string; sourceName: string; attributionText: string; licenseName: string; licenseVersion: string | null; licenseUrl: string; entryUrl: string; historyUrl: string | null; modificationsNotice: string };
 type PublicationSource = { id: string; name: string; revision: string };
 type ChangeCount = { added: number; removed: number };
@@ -63,7 +63,7 @@ export function parsePublicationPreview(value: unknown): PublicationPreview {
     changes[level] = { guesses: parseChange(delta.guesses), answers: parseChange(delta.answers) };
     playerSamples[level] = samples.map((sample: unknown): PlayerSample => {
       if (!isRecord(sample) || !isUuid(sample.id) || typeof sample.original !== "string" || typeof sample.normalized !== "string" || typeof sample.level !== "number" || typeof sample.definitionVi !== "string" || !Array.isArray(sample.attributionIds) || !sample.attributionIds.every(isUuid)) throw new Error("INVALID_RESPONSE");
-      return { id: sample.id, original: sample.original, normalized: sample.normalized, level: sample.level, definitionVi: sample.definitionVi, attributionIds: sample.attributionIds };
+      return { id: sample.id, original: sample.original, normalized: sample.normalized, level: sample.level, definitionVi: sample.definitionVi, ...(typeof sample.openingClue === "string" ? { openingClue: sample.openingClue } : {}), attributionIds: sample.attributionIds };
     });
   }
   const sampleAttributions = value.sampleAttributions.map((attr: unknown): SampleAttribution => {
