@@ -2,6 +2,7 @@ import type { PlayableRound, RoundRules, WordRound } from "../../types/vua-tieng
 import { isRecord, isUuid } from "./publication-contract.ts";
 import { attribution, levelData } from "./public-release.ts";
 import { baseLetter, commitInput, submitGuess } from "./player-engine.ts";
+import { applyRoundHint, hintIdentity, MAX_HINT_CREDITS, nextRoundHint } from "./round-hints.ts";
 import { parseStrictJson } from "./strict-json.ts";
 
 export const ROUND_SAVE_KEY = "vtv:round:v1";
@@ -14,8 +15,8 @@ type RoundSnapshot = Pick<PlayableRound,"answer" | "membership" | "attributions"
   releaseId: string; configurationId: string; level: WordRound["level"]; attemptLimit: number;
 };
 export type RoundSave = {
-  schemaVersion: 2 | 3 | 4; normalizerVersion: "vi-nfc-v2"; savedAt: string;
-  revision: number; snapshot: RoundSnapshot; round: WordRound; streak?: StoredStreak;
+  schemaVersion: 2 | 3 | 4 | 5; normalizerVersion: "vi-nfc-v2"; savedAt: string;
+  revision: number; snapshot: RoundSnapshot; round: WordRound; streak?: StoredStreak; hintCredits?: number;
 };
 export type WinStreak = { current: number; longest: number };
 type StoredStreak = WinStreak & { countable: boolean };
@@ -42,6 +43,9 @@ function timestamp(value: unknown): value is string {
   return typeof value === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
 }
 function revision(value: unknown): value is number { return typeof value === "number" && Number.isSafeInteger(value) && value >= 0; }
+function readHintCredits(value: unknown): number | null {
+  return revision(value) && value <= MAX_HINT_CREDITS ? value : null;
+}
 function invalid(): never { throw new RoundSaveError("invalid"); }
 function bounded(text: string) {
   if (text.length > MAX_ROUND_SAVE_BYTES || new TextEncoder().encode(text).length > MAX_ROUND_SAVE_BYTES) invalid();
@@ -63,9 +67,13 @@ function readStreak(value: unknown): StoredStreak | null {
 /** Rebuild all derived gameplay values from the historical public inputs. */
 function decodeRound(value: Record<string, unknown>): PlayableRound {
   try {
-    if ((value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3 && value.schemaVersion !== 4) || value.normalizerVersion !== "vi-nfc-v2") throw new RoundSaveError("incompatible");
+    if ((value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3 && value.schemaVersion !== 4 && value.schemaVersion !== 5) || value.normalizerVersion !== "vi-nfc-v2") throw new RoundSaveError("incompatible");
     const keys = ["schemaVersion","normalizerVersion","savedAt","revision","snapshot","round"];
-    if (value.schemaVersion === 4) keys.push("streak");
+    if (value.schemaVersion === 4 || value.schemaVersion === 5) keys.push("streak");
+    if (value.schemaVersion === 5) {
+      keys.push("hintCredits");
+      if (readHintCredits(value.hintCredits) === null || !readStreak(value.streak)) invalid();
+    }
     if (!exact(value,keys) || !timestamp(value.savedAt) || !revision(value.revision) || !isRecord(value.snapshot) || !isRecord(value.round)) invalid();
     const snapshot = value.snapshot, round = value.round;
     if (!exact(snapshot,["releaseId","configurationId","level","attemptLimit","answer","membership","attributions"]) || !isUuid(snapshot.releaseId) || !isUuid(snapshot.configurationId) || !(snapshot.level === 3 || snapshot.level === 5 || snapshot.level === 7 || snapshot.level === 9) || typeof snapshot.attemptLimit !== "number" || !Number.isInteger(snapshot.attemptLimit) || snapshot.attemptLimit < 1 || snapshot.attemptLimit > 12 || !Array.isArray(snapshot.attributions) || !snapshot.attributions.length || snapshot.attributions.length > 80000) invalid();
@@ -79,7 +87,7 @@ function decodeRound(value: Record<string, unknown>): PlayableRound {
     if (value.schemaVersion !== 1) {
       roundKeys.push("rules");
       if (!isRecord(round.rules)) invalid();
-      const hasAccuracy = value.schemaVersion === 3 || (value.schemaVersion === 4 && Object.hasOwn(round.rules,"accuracy"));
+      const hasAccuracy = value.schemaVersion === 3 || ((value.schemaVersion === 4 || value.schemaVersion === 5) && Object.hasOwn(round.rules,"accuracy"));
       const hasDifficulty = Object.hasOwn(round.rules,"difficulty");
       if (!exact(round.rules,["guessMode", ...(hasAccuracy ? ["accuracy"] : []), ...(hasDifficulty ? ["difficulty"] : [])]) || (round.rules.guessMode !== "dictionary" && round.rules.guessMode !== "free")) invalid();
       const { guessMode, accuracy } = round.rules;
@@ -102,12 +110,31 @@ function decodeRound(value: Record<string, unknown>): PlayableRound {
         !clues.every((letter: unknown): letter is string => typeof letter === "string" && /^[A-Z]$/.test(letter) && !answerBase.includes(letter))) invalid();
       initialAbsentLetters = clues;
     }
+    let hints: unknown[] = [];
+    if (value.schemaVersion === 5 && Object.hasOwn(round,"hints")) {
+      roundKeys.push("hints");
+      if (!Array.isArray(round.hints) || round.hints.length < 1 || round.hints.length > MAX_HINT_CREDITS) invalid();
+      hints = round.hints;
+    }
     if (!exact(round,roundKeys) || !isUuid(round.id) || round.releaseId !== snapshot.releaseId || round.configVersion !== snapshot.configurationId || round.level !== snapshot.level || round.answerId !== answer.id || round.attemptLimit !== snapshot.attemptLimit || typeof round.input !== "string" || round.input.length > 120 || !Array.isArray(round.guesses) || round.guesses.length > snapshot.attemptLimit || !["playing","won","lost"].includes(String(round.status)) || !revision(round.revision) || value.revision !== round.revision || !timestamp(round.startedAt) || !timestamp(round.updatedAt) || round.updatedAt < round.startedAt || value.savedAt < round.updatedAt || !(round.endedAt === null || timestamp(round.endedAt))) invalid();
     let state: PlayableRound = { answer, membership: data.guesses, attributions, singleAnswerReplay: false, round: { id: round.id, releaseId: snapshot.releaseId, configVersion: snapshot.configurationId, level: snapshot.level, rules, answerId: answer.id, attemptLimit: snapshot.attemptLimit, ...(initialAbsentLetters ? { initialAbsentLetters } : {}), input: "", guesses: [], status: "playing", revision: 0, startedAt: round.startedAt, updatedAt: round.startedAt, endedAt: null } };
     const guessIds = new Set<string>();
     let previousTime = round.startedAt;
+    let hintIndex = 0;
+    const replayHints = () => {
+      let hint = hints[hintIndex];
+      while (isRecord(hint) && hint.row === state.round.guesses.length) {
+        const expected = nextRoundHint(state);
+        if (!expected || hint.kind !== expected.kind || (expected.kind === "reveal"
+          ? !exact(hint, ["kind", "row", "letter"]) || hint.letter !== expected.letter
+          : !exact(hint, ["kind", "row", "position"]) || hint.position !== expected.position)) invalid();
+        state = applyRoundHint(state, expected, previousTime);
+        hint = hints[++hintIndex];
+      }
+    };
     for (const guess of round.guesses) {
       if (!isRecord(guess) || !exact(guess,["id","input","normalized","feedback","submittedAt"]) || !isUuid(guess.id) || guessIds.has(guess.id) || typeof guess.input !== "string" || guess.input.length > 120 || typeof guess.normalized !== "string" || !Array.isArray(guess.feedback) || guess.feedback.length !== snapshot.level || !guess.feedback.every((item: unknown) => item === "correct" || item === "present" || item === "absent") || !timestamp(guess.submittedAt) || guess.submittedAt < previousTime || guess.submittedAt > round.updatedAt || state.round.status !== "playing") invalid();
+      replayHints();
       guessIds.add(guess.id); previousTime = guess.submittedAt;
       const input = commitInput(state,guess.input);
       if (input.error) invalid();
@@ -117,9 +144,10 @@ function decodeRound(value: Record<string, unknown>): PlayableRound {
       if (submitted.error || !accepted || accepted.normalized !== guess.normalized) invalid();
       state = submitted.state;
     }
-    if (round.revision < state.round.guesses.length * 2 + (round.input === "" ? 0 : 1) || round.endedAt !== state.round.endedAt || (state.round.status !== "playing" && (round.input !== "" || round.updatedAt !== round.endedAt))) invalid();
+    replayHints();
+    if (hintIndex !== hints.length || round.endedAt !== state.round.endedAt || (state.round.status !== "playing" && (round.input !== "" || round.updatedAt !== round.endedAt))) invalid();
     const editable = commitInput(state,round.input);
-    if (editable.error) invalid();
+    if (editable.error || round.revision < editable.state.round.revision) invalid();
     return { ...editable.state, round: { ...editable.state.round, revision: round.revision, updatedAt: round.updatedAt } };
   } catch (error) { throw error instanceof RoundSaveError ? error : new RoundSaveError("invalid"); }
 }
@@ -128,10 +156,11 @@ export function decodeRoundSave(text: string): PlayableRound {
   catch (error) { throw error instanceof RoundSaveError ? error : new RoundSaveError("invalid"); }
 }
 
-export function encodeRoundSave(state: PlayableRound, savedAt: string, streak?: StoredStreak): string {
+export function encodeRoundSave(state: PlayableRound, savedAt: string, streak?: StoredStreak, hintCredits?: number): string {
   try {
     const round = state.round;
-    const envelope: RoundSave = { schemaVersion: streak ? 4 : round.rules.accuracy ? 3 : 2, normalizerVersion: "vi-nfc-v2", savedAt, revision: round.revision, snapshot: { releaseId: round.releaseId, configurationId: round.configVersion, level: round.level, attemptLimit: round.attemptLimit, answer: state.answer, membership: state.membership, attributions: state.attributions }, round, streak };
+    const hasHints = hintCredits !== undefined || round.hints !== undefined;
+    const envelope: RoundSave = { schemaVersion: hasHints ? 5 : streak ? 4 : round.rules.accuracy ? 3 : 2, normalizerVersion: "vi-nfc-v2", savedAt, revision: round.revision, snapshot: { releaseId: round.releaseId, configurationId: round.configVersion, level: round.level, attemptLimit: round.attemptLimit, answer: state.answer, membership: state.membership, attributions: state.attributions }, round, streak: hasHints ? streak ?? EMPTY_STORED_STREAK : streak, hintCredits: hasHints ? hintCredits ?? 0 : undefined };
     const text = JSON.stringify(envelope);
     // State entered through a validated release or restore and validated transitions.
     // Avoid reparsing the entire membership on every committed keystroke.
@@ -144,18 +173,31 @@ type StoragePort = Pick<Storage,"getItem" | "setItem" | "removeItem">;
 export type RoundWriteResult = "saved" | "conflict" | "superseded" | "unavailable";
 export type RoundResolution = RoundRecovery | { kind: "superseded" };
 export type RoundStorageLock = <T>(operation: () => T) => Promise<T>;
-function readSnapshot(text: string | null): { state: PlayableRound | null; streak: StoredStreak; error?: RoundSaveError["code"] } {
-  if (text === null) return { state: null, streak: EMPTY_STORED_STREAK };
-  let streak = EMPTY_STORED_STREAK;
+function readSnapshot(text: string | null): { state: PlayableRound | null; streak: StoredStreak; hintCredits: number; error?: RoundSaveError["code"] } {
+  if (text === null) return { state: null, streak: EMPTY_STORED_STREAK, hintCredits: 0 };
+  let streak = EMPTY_STORED_STREAK, hintCredits = 0;
   try {
     const value = parseSave(text);
     // Legacy saves contain one snapshot, which cannot reconstruct prior streaks.
     streak = readStreak(value.streak) ?? EMPTY_STORED_STREAK;
-    return { state: decodeRound(value), streak };
+    if (value.schemaVersion === 5) hintCredits = readHintCredits(value.hintCredits) ?? 0;
+    return { state: decodeRound(value), streak, hintCredits };
   } catch (error) {
     // The counters can remain readable when the round snapshot is damaged.
-    return { state: null, streak, error: error instanceof RoundSaveError ? error.code : "invalid" };
+    return { state: null, streak, hintCredits, error: error instanceof RoundSaveError ? error.code : "invalid" };
   }
+}
+
+function newHintCost(next: PlayableRound, ...previous: Array<PlayableRound | null>): number {
+  const hints = next.round.hints;
+  if (!hints?.length) return 0;
+  const paid = new Set(previous.flatMap(state => state?.round.id === next.round.id
+    ? (state.round.hints ?? []).map(hintIdentity) : []));
+  return hints.filter(hint => !paid.has(hintIdentity(hint))).length;
+}
+
+function winsRound(previous: PlayableRound | null, next: PlayableRound): boolean {
+  return previous?.round.id === next.round.id && previous.round.status === "playing" && next.round.status === "won";
 }
 
 async function browserLock<T>(operation: () => T): Promise<T> {
@@ -167,7 +209,7 @@ export function createRoundStorage(access: () => StoragePort, lock: RoundStorage
   let baseline: string | null | undefined;
   let protectedSave = true, paused = false, generation = 0;
   let committed: PlayableRound | null = null;
-  let streak = EMPTY_STORED_STREAK;
+  let streak = EMPTY_STORED_STREAK, hintCredits = 0;
   const pause = () => { paused = true; generation++; };
   const read = (): RoundRecovery => {
     try {
@@ -176,6 +218,7 @@ export function createRoundStorage(access: () => StoragePort, lock: RoundStorage
       baseline = text;
       committed = snapshot.state;
       streak = snapshot.streak;
+      hintCredits = snapshot.hintCredits;
       protectedSave = snapshot.error !== undefined;
       if (snapshot.error) return { kind: snapshot.error };
       return committed ? { kind: "restored", state: committed } : { kind: "empty" };
@@ -184,16 +227,17 @@ export function createRoundStorage(access: () => StoragePort, lock: RoundStorage
       return { kind: "unavailable" };
     }
   };
-  const save = (state: PlayableRound, nextStreak: StoredStreak) => {
-    const text = encodeRoundSave(state,new Date(Math.max(Date.now(),Date.parse(state.round.updatedAt))).toISOString(),nextStreak);
+  const save = (state: PlayableRound, nextStreak: StoredStreak, nextCredits: number) => {
+    const text = encodeRoundSave(state,new Date(Math.max(Date.now(),Date.parse(state.round.updatedAt))).toISOString(),nextStreak,nextCredits);
     access().setItem(ROUND_SAVE_KEY,text);
-    baseline = text; committed = state; streak = nextStreak;
+    baseline = text; committed = state; streak = nextStreak; hintCredits = nextCredits;
   };
   const unchanged = () => access().getItem(ROUND_SAVE_KEY) === baseline;
   return {
     read,
     pause,
     streak: (): WinStreak => ({ current: streak.current, longest: streak.longest }),
+    hintCredits: () => hintCredits,
     observe(): "unchanged" | "conflict" | "unavailable" {
       try { if (unchanged()) return paused ? "conflict" : "unchanged"; pause(); return "conflict"; }
       catch { pause(); return "unavailable"; }
@@ -204,19 +248,23 @@ export function createRoundStorage(access: () => StoragePort, lock: RoundStorage
         return await lock((): RoundWriteResult => {
           if (token !== generation) return "superseded";
           if (paused) return "conflict";
-        if (protectedSave && (!replacing || typeof baseline !== "string")) return "unavailable";
+          if (protectedSave && (!replacing || typeof baseline !== "string")) return "unavailable";
           if (!unchanged()) { pause(); return "conflict"; }
           if (committed && (state.round.id === committed.round.id ? state.round.revision <= committed.round.revision : !replacing)) return "superseded";
           const same = committed?.round.id === state.round.id;
           const countable = !same || streak.countable;
+          const spent = newHintCost(state, committed);
+          if (spent > hintCredits) return "unavailable";
+          let won = countable && !protectedSave && winsRound(committed ?? localPrevious, state);
           let counts = countable && !protectedSave ? advanceStreak(streak, committed ?? localPrevious, state) : { ...streak, current: 0 };
           // A quota failure may have left the terminal result only in memory.
           // If the same save still owns the lock, settle it atomically with replacement.
           if (replacing && !protectedSave && localPrevious && localPrevious.round.status !== "playing" &&
               (!committed || (streak.countable && committed.round.id === localPrevious.round.id && committed.round.status === "playing" && committed.round.revision < localPrevious.round.revision))) {
             counts = settleStreak(streak, localPrevious.round.status);
+            won = localPrevious.round.status === "won";
           }
-          save(state, { ...counts, countable });
+          save(state, { ...counts, countable }, Math.min(hintCredits - spent + Number(won), MAX_HINT_CREDITS));
           protectedSave = false;
           return "saved";
         });
@@ -239,7 +287,7 @@ export function createRoundStorage(access: () => StoragePort, lock: RoundStorage
         return await lock((): RoundResolution => {
           if (token !== generation) return { kind: "superseded" };
           // Explicit keep-and-replace consents to replacing an unreadable foreign save too.
-          const { state: other, streak: savedStreak } = readSnapshot(access().getItem(ROUND_SAVE_KEY));
+          const { state: other, streak: savedStreak, hintCredits: savedCredits } = readSnapshot(access().getItem(ROUND_SAVE_KEY));
           const sameRound = other?.round.id === state.round.id ? other : null;
           const chosen = sameRound && sameRound.round.status !== "playing" ? sameRound : state;
           const revision = Math.max(chosen.round.revision,sameRound?.round.revision ?? 0) + 1;
@@ -248,7 +296,11 @@ export function createRoundStorage(access: () => StoragePort, lock: RoundStorage
           // Reopening a round replaced in another tab cannot award that round again.
           const countable = sameRound ? savedStreak.countable : other === null && committed?.round.id === state.round.id && streak.countable;
           const counts = !countable && sameRound ? { ...savedStreak, current: 0 } : advanceStreak(savedStreak, other, next);
-          save(next, { ...counts, longest: Math.max(counts.longest, streak.longest), countable });
+          const spent = newHintCost(next, committed, sameRound);
+          if (spent > savedCredits) return { kind: "unavailable" };
+          const won = countable && winsRound(sameRound, next);
+          save(next, { ...counts, longest: Math.max(counts.longest, streak.longest), countable },
+            Math.min(savedCredits - spent + Number(won), MAX_HINT_CREDITS));
           paused = false; protectedSave = false;
           return { kind: "restored", state: next };
         });
@@ -260,7 +312,7 @@ export function createRoundStorage(access: () => StoragePort, lock: RoundStorage
         return await lock((): RoundWriteResult => {
           if (token !== generation) return "superseded";
           if (paused || (baseline !== undefined && !unchanged())) { pause(); return "conflict"; }
-          access().removeItem(ROUND_SAVE_KEY); baseline = null; protectedSave = false; committed = null; streak = EMPTY_STORED_STREAK; generation++;
+          access().removeItem(ROUND_SAVE_KEY); baseline = null; protectedSave = false; committed = null; streak = EMPTY_STORED_STREAK; hintCredits = 0; generation++;
           return "saved";
         });
       } catch { return "unavailable"; }

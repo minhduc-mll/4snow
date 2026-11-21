@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, type MouseEvent } from "react";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft, BookOpen, Lightbulb } from "lucide-react";
 import { MotionConfig } from "framer-motion";
+import { Badge } from "@/components/atoms/Badge";
 import { Button } from "@/components/atoms/Button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/atoms/Dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/atoms/Popover";
@@ -75,6 +76,10 @@ export function WordGame() {
       { letter: input.rejected.letter, position: input.rejected.position, level: settings.level },
     )
     : model.error ? t(`wordGame.errors.${model.error}`)
+    : model.hintFeedback?.kind === "reveal"
+      ? t("wordGame.hints.revealStatus", { letter: model.hintFeedback.letter, count: model.hintCredits })
+    : model.hintFeedback?.kind === "lock"
+      ? t("wordGame.hints.lockStatus", { position: model.hintFeedback.position + 1, count: model.hintCredits })
     : model.damagedSave ? t(`wordGame.recovery.${model.recovery}`)
     : input.draft !== null ? t("wordGame.composing")
     : playing && model.restoredRoundId ? t("wordGame.recovery.resumed")
@@ -119,6 +124,11 @@ export function WordGame() {
       <p id="vtv-instructions" className={styles.srOnly}>{t("wordGame.instruction")}</p>
       {round ? <WordKeyboard {...input.keyboard} /> : null}
       {playing ? <div className={styles.roundActions}>
+        <Button variant="outline" size="icon" className={styles.hintButton} disabled={!model.canUseHint}
+          aria-label={t("wordGame.hints.use", { count: model.hintCredits })} onClick={event => model.spendHint(event.detail > 0)}>
+          <Lightbulb aria-hidden="true" />
+          <Badge aria-hidden="true" className={styles.hintBadge} initial={false}>{model.hintCredits}</Badge>
+        </Button>
         <Button disabled={!eligibility.canSubmit} onClick={input.submit} className={styles.submit} size="lg">{t("wordGame.submit")}</Button>
       </div> : null}
       {finished ? <div className={styles.resultActions}>

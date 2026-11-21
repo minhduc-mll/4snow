@@ -1,5 +1,6 @@
 import type { AccentAccuracy, GuessEligibility, GuessMode, LetterFeedback, PlayableRound, PublishedRelease, WordAnswer, WordGuess, WordLevel, WordDifficulty } from "../../types/vua-tieng-viet.ts";
 import { normalizeSpelling } from "./dictionary-contract.ts";
+import { guessCells, lockedPositions } from "./round-hints.ts";
 import { variantsFor } from "./letter-variants.ts";
 import { isInitialAbsentCount, isUuid } from "./publication-contract.ts";
 
@@ -143,7 +144,8 @@ export function guessEligibility(state: PlayableRound | null, composing = false,
   if (composing) return { canSubmit: false, reason: "composing" };
 
   try {
-    const { normalized, level } = normalizeSpelling(state.round.input);
+    const normalized = guessCells(state).join("");
+    const level = Array.from(normalized).length;
     if (level < state.round.level) return { canSubmit: false, reason: "incomplete" };
     if (level > state.round.level) return { canSubmit: false, reason: "invalid" };
     if (state.round.rules.guessMode === "dictionary") {
@@ -158,7 +160,7 @@ export function commitInput(state: PlayableRound, raw: string): Transition {
   try {
     if (raw.length > 120) throw new Error("Input too long");
     const spelling = normalizeSpelling(raw);
-    if (spelling.level > state.round.level) return { state, error: "INVALID_INPUT" };
+    if (spelling.level > state.round.level - lockedPositions(state.round).length) return { state, error: "INVALID_INPUT" };
     if (raw === state.round.input) return { state, error: null };
     return { state: { ...state, round: { ...state.round, input: raw, revision: state.round.revision + 1 } }, error: null };
   } catch { return { state, error: "INVALID_INPUT" }; }

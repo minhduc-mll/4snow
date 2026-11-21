@@ -10,18 +10,18 @@ import { KEYBOARD_ROWS } from "@/lib/vua-tieng-viet/player-engine";
 import { variantsFor } from "@/lib/vua-tieng-viet/letter-variants";
 import styles from "@/components/organisms/vua-tieng-viet/word-game.module.css";
 
-type Props = { knowledge: Map<string,LetterFeedback>; disabled: boolean; onKey: (letter: string, restoreFocus?: boolean) => void; focusInput: () => boolean; firstKeyRef: RefObject<HTMLButtonElement | null> };
-export function WordKeyboard({ knowledge, disabled, onKey, focusInput, firstKeyRef }: Props) {
+type Props = { knowledge: Map<string,LetterFeedback>; revealed: ReadonlySet<string>; disabled: boolean; onKey: (letter: string, restoreFocus?: boolean) => void; focusInput: () => boolean; firstKeyRef: RefObject<HTMLButtonElement | null> };
+export function WordKeyboard({ knowledge, revealed, disabled, onKey, focusInput, firstKeyRef }: Props) {
   const { t } = useAppI18n();
   return <section className={styles.keyboard} aria-label={t("wordGame.keyboard")}>
     {KEYBOARD_ROWS.map((row,rowIndex) => <div key={row} className={styles.keyRow}>
       {Array.from(row).map((letter,letterIndex) => {
-        const feedback = knowledge.get(letter);
+        const feedback = knowledge.get(letter), hinted = revealed.has(letter);
         const variants = variantsFor(letter);
         return <div key={letter} className={styles.keyColumn}>
           {variants.length > 1
-            ? <WordVariantKey base={letter} variants={variants} knowledge={knowledge} disabled={disabled} onKey={onKey} focusInput={focusInput} />
-            : <Button ref={rowIndex === 0 && letterIndex === 0 ? firstKeyRef : undefined} variant="outline" className={styles.key} data-feedback={feedback} disabled={disabled} aria-label={`${letter}${feedback ? `, ${t(`wordGame.${feedback}`)}` : ""}`} onClick={() => onKey(letter)} whileTap={{ scale: 1 }}>{letter}</Button>}
+            ? <WordVariantKey base={letter} variants={variants} knowledge={knowledge} revealed={revealed} disabled={disabled} onKey={onKey} focusInput={focusInput} />
+            : <Button ref={rowIndex === 0 && letterIndex === 0 ? firstKeyRef : undefined} variant="outline" className={styles.key} data-feedback={feedback} data-revealed={hinted || undefined} disabled={disabled} aria-label={`${letter}${feedback ? `, ${t(`wordGame.${feedback}`)}` : ""}${hinted ? `, ${t("wordGame.hints.revealed")}` : ""}`} onClick={() => onKey(letter)} whileTap={{ scale: 1 }}>{letter}</Button>}
         </div>;
       })}
       {rowIndex === KEYBOARD_ROWS.length - 1 ? <div className={styles.backspaceColumn}>
