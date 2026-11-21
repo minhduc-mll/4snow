@@ -57,12 +57,12 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
   const roundId = state?.round.id, guessCount = state?.round.guesses.length;
   const terminal = state?.round.status === "lost" || state?.round.status === "won";
   const focusedTransition = React.useRef<string | null>(null);
-  const focusInput = () => {
+  const focusInput = React.useCallback(() => {
     const element = inputRef.current;
     if (usesTouchInput() || !element || element.disabled) return false;
     element.focus({ preventScroll: true });
     return true;
-  };
+  }, []);
   React.useEffect(() => {
     if (!roundId || busy || dialogOpen) return;
     const transition = `${roundId}:${guessCount}`;

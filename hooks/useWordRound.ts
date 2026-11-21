@@ -8,7 +8,7 @@ import { useWordInput } from "@/hooks/useWordInput";
 import { usePublishedDictionary } from "@/hooks/usePublishedDictionary";
 import { advanceStreak, createRoundStorage, EMPTY_STREAK, ROUND_SAVE_KEY, type RoundRecovery } from "@/lib/vua-tieng-viet/round-save";
 
-import { DEFAULT_PLAYER_SETTINGS, readPlayerPreferences, writePlayerPreferences, OPENING_CLUE_PREFERENCE_KEY } from "@/lib/vua-tieng-viet/player-preferences";
+import { DEFAULT_PLAYER_SETTINGS, readOpeningCluePreference, readPlayerPreferences, writeOpeningCluePreference, writePlayerPreferences } from "@/lib/vua-tieng-viet/player-preferences";
 
 export function useWordRound() {
   const load = usePublishedDictionary();
@@ -20,12 +20,14 @@ export function useWordRound() {
   const [streak,setStreak] = React.useState(EMPTY_STREAK);
   const [hintCredits,setHintCredits] = React.useState(0);
   const [hintFeedback,setHintFeedback] = React.useState<RoundHint | null>(null);
+  const [hintPending,setHintPending] = React.useState(false);
+  const focusAfterHint = React.useRef(false);
   const [storageWarning,setStorageWarning] = React.useState(false);
   const [conflict,setConflict] = React.useState(false);
   const conflictRef = React.useRef(false), operation = React.useRef(0);
   const [resolutionBusy,setResolutionBusy] = React.useState(false);
   const resolving = React.useRef(false);
-  const [resolutionError,setResolutionError] = React.useState<RoundRecovery["kind"] | null>(null);
+  const [resolutionError,setResolutionError] = React.useState<RoundRecovery["kind"] | "paid-hints-conflict" | null>(null);
   const [preferences,setPreferences] = React.useState(DEFAULT_PLAYER_SETTINGS);
   const [setupSettings,setSetupSettings] = React.useState<RoundSettings | null>(null);
   const [settingsDraft,setSettingsDraft] = React.useState<RoundSettings | null>(null);
@@ -33,7 +35,7 @@ export function useWordRound() {
   const toggleOpeningClue = () => {
     const next = !showOpeningClue;
     setShowOpeningClue(next);
-    try { window.localStorage.setItem(OPENING_CLUE_PREFERENCE_KEY, String(next)); }
+    try { if (!writeOpeningCluePreference(window.localStorage, next)) setStorageWarning(true); }
     catch { setStorageWarning(true); }
   };
   const settings = state ? { level: state.round.level, guessMode: state.round.rules.guessMode, accuracy: state.round.rules.accuracy ?? preferences.accuracy, difficulty: state.round.rules.difficulty ?? "easy" } : setupSettings ?? preferences;
@@ -45,12 +47,20 @@ export function useWordRound() {
   const [resultOpen,setResultOpen] = React.useState(false);
   const controller = React.useRef<AbortController | null>(null);
   const active = React.useRef(true);
-  const input = useWordInput({ state, current, loading, conflict: conflictRef, busy: busy || recovery === "loading" || conflict, dialogOpen: settingsDraft !== null || helpOpen, restoredRoundId, replace, setError });
+  const controlsBusy = busy || hintPending || recovery === "loading" || conflict;
+  const input = useWordInput({ state, current, loading, conflict: conflictRef, busy: controlsBusy, dialogOpen: settingsDraft !== null || helpOpen, restoredRoundId, replace, setError });
   const resetInput = input.reset;
+  const focusInput = input.focusInput;
+  React.useEffect(() => {
+    if (controlsBusy || !focusAfterHint.current) return;
+    focusAfterHint.current = false;
+    focusInput();
+  }, [controlsBusy, focusInput]);
   const showConflict = React.useCallback(() => {
     storage.pause();
     conflictRef.current = true; operation.current++; controller.current?.abort();
-    loading.current = false; setBusy(false);
+    loading.current = false; setBusy(false); setHintPending(false);
+    focusAfterHint.current = false;
     setConflict(true); setSettingsDraft(null); setRetrySettings(null); setHelpOpen(false); setResultOpen(false); setHintFeedback(null); resetInput();
   },[storage,resetInput]);
   React.useEffect(() => { active.current = true; return () => { active.current = false; controller.current?.abort(); }; },[]);
@@ -61,7 +71,7 @@ export function useWordRound() {
     let showClue = true;
     try {
       storedPreferences = readPlayerPreferences(window.localStorage);
-      showClue = window.localStorage.getItem(OPENING_CLUE_PREFERENCE_KEY) !== "false";
+      showClue = readOpeningCluePreference(window.localStorage);
     } catch { /* Round recovery reports storage access problems. */ }
     queueMicrotask(() => {
       if (!active.current) return;
@@ -118,6 +128,7 @@ export function useWordRound() {
       recovery === "loading" || input.draft !== null || settingsDraft || helpOpen) return;
     const token = operation.current;
     loading.current = true;
+    setHintPending(true);
     try {
       const timestamp = new Date(Math.max(Date.now(), Date.parse(previous.round.updatedAt))).toISOString();
       const next = applyRoundHint(previous, hint, timestamp);
@@ -129,9 +140,12 @@ export function useWordRound() {
       current.current = next; setState(next);
       setRestoredRoundId(null); setHintFeedback(hint); setError(null); resetInput();
       syncProgress();
-      if (restoreInputFocus) input.focusInput();
+      focusAfterHint.current = restoreInputFocus;
     } finally {
-      if (token === operation.current) loading.current = false;
+      if (token === operation.current) {
+        loading.current = false;
+        if (active.current) setHintPending(false);
+      }
     }
   };
   const begin = async (nextSettings: RoundSettings) => {
@@ -211,10 +225,10 @@ export function useWordRound() {
     resolving.current = false;
   };
   return {
-    state, settings, streak, hintCredits, hintFeedback,
-    canUseHint: hintCredits > 0 && !busy && !conflict && input.draft === null && nextRoundHint(state) !== null,
+    state, settings, streak, hintCredits, hintFeedback, hintPending,
+    canUseHint: hintCredits > 0 && !controlsBusy && input.draft === null && nextRoundHint(state) !== null,
     spendHint: (restoreInputFocus: boolean) => void spendHint(restoreInputFocus),
-    busy: busy || recovery === "loading" || conflict, conflict, resolutionBusy,
+    busy: controlsBusy, conflict, resolutionBusy,
     resolutionError, resolveConflict, recovery, damagedSave, restoredRoundId, storageWarning, error,
     settingsDraft, setSettingsDraft, openSettings, applySettings, showOpeningClue, toggleOpeningClue,
     retry: retrySettings ? () => void begin(retrySettings) : null,

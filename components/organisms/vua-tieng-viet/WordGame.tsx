@@ -70,7 +70,8 @@ export function WordGame() {
     ? t("wordGame.errors.NOT_IN_DICTIONARY")
     : !eligibility.canSubmit && eligibility.reason === "incomplete"
       ? t("wordGame.requiredLength",{ level: settings.level }) : t("wordGame.typeHint");
-  const message = model.busy ? t("wordGame.loading")
+  const message = model.hintPending ? t("wordGame.hints.saving")
+    : model.busy ? t("wordGame.loading")
     : model.error === "INVALID_INPUT" && input.rejected ? t(
       input.rejected.kind === "length" ? "wordGame.rejectedLength" : "wordGame.rejectedInput",
       { letter: input.rejected.letter, position: input.rejected.position, level: settings.level },
@@ -94,7 +95,7 @@ export function WordGame() {
           <Link ref={vocabularyLink} href={PATH.vietnameseVocabulary} onNavigate={rememberVocabularyLink} className={styles.lookup}>
             <BookOpen size={16} aria-hidden="true" />{t("vocabularyCatalog.lookup")}
           </Link>
-          <Button variant="ghost" onClick={model.openHelp} className={styles.help}>{t("wordGame.help")}</Button>
+          <Button variant="ghost" onClick={model.openHelp} className={styles.help} disabled={model.hintPending}>{t("wordGame.help")}</Button>
           <Button variant="ghost" onClick={model.openSettings} className={styles.help} disabled={model.busy}>{t("wordGame.settings.title")}</Button>
         </div>
       </nav>
@@ -124,7 +125,7 @@ export function WordGame() {
       <p id="vtv-instructions" className={styles.srOnly}>{t("wordGame.instruction")}</p>
       {round ? <WordKeyboard {...input.keyboard} /> : null}
       {playing ? <div className={styles.roundActions}>
-        <Button variant="outline" size="icon" className={styles.hintButton} disabled={!model.canUseHint}
+        <Button variant="outline" size="icon" className={styles.hintButton} disabled={!model.canUseHint && !model.hintPending} aria-disabled={model.hintPending || undefined}
           aria-label={t("wordGame.hints.use", { count: model.hintCredits })} onClick={event => model.spendHint(event.detail > 0)}>
           <Lightbulb aria-hidden="true" />
           <Badge aria-hidden="true" className={styles.hintBadge} initial={false}>{model.hintCredits}</Badge>

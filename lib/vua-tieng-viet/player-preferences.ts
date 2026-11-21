@@ -1,7 +1,7 @@
 import type { RoundSettings } from "../../types/vua-tieng-viet.ts";
 import { isRecord } from "./publication-contract.ts";
 
-export const OPENING_CLUE_PREFERENCE_KEY = "vtv:opening-clue:v1";
+const OPENING_CLUE_PREFERENCE_KEY = "vtv:opening-clue:v1";
 export const PLAYER_PREFERENCES_KEY = "vtv:preferences:v1";
 export const DEFAULT_PLAYER_SETTINGS: RoundSettings = { level: 3, guessMode: "dictionary", accuracy: "optional", difficulty: "easy" };
 
@@ -30,6 +30,23 @@ export function writePlayerPreferences(storage: Pick<Storage, "setItem">, settin
   const value: PlayerPreferences = { schemaVersion: 3, preferredLevel: settings.level, guessMode: settings.guessMode, accuracy: settings.accuracy, difficulty: settings.difficulty };
   try {
     storage.setItem(PLAYER_PREFERENCES_KEY,JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function readOpeningCluePreference(storage: Pick<Storage, "getItem">): boolean {
+  try {
+    return storage.getItem(OPENING_CLUE_PREFERENCE_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+export function writeOpeningCluePreference(storage: Pick<Storage, "setItem">, visible: boolean): boolean {
+  try {
+    storage.setItem(OPENING_CLUE_PREFERENCE_KEY, String(visible));
     return true;
   } catch {
     return false;

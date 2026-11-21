@@ -20,7 +20,23 @@ test("wins bank up to three hints; accented reveals and row locks persist withou
   await input(page).fill("MEO");
   await submit(page).click();
   await input(page).fill("MX");
-  await hints(page, 3).click();
+  await page.evaluate(() => new Promise<void>(acquired => {
+    void navigator.locks.request("vtv:round:v1", () => new Promise<void>(release => {
+      window.addEventListener("release-test-hint-lock", () => release(), { once: true });
+      acquired();
+    }));
+  }));
+  const pendingHint = hints(page, 3);
+  try {
+    await pendingHint.click();
+    await expect(pendingHint).toBeDisabled();
+    await expect(input(page)).toBeDisabled();
+    await expect(submit(page)).toBeDisabled();
+    await expect(page.locator("#vtv-message")).toHaveText("Đang lưu gợi ý…");
+    await pendingHint.dispatchEvent("click");
+  } finally {
+    await page.evaluate(() => window.dispatchEvent(new Event("release-test-hint-lock")));
+  }
   await expect(hints(page, 2)).toBeEnabled();
   await expect(input(page)).toHaveValue("MX");
   const base = page.getByRole("button", { name: /^E,.*Có chữ có dấu được gợi ý/ });

@@ -76,12 +76,22 @@ test("review preserves idempotency and maps stale writes to a safe 409", async (
   const unsigned = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ role: "admin", iat: 1000, exp: 1100 })}`;
   const token = `${unsigned}.${createHmac("sha256", "secret").update(unsigned).digest("base64url")}`;
   let hashes = [];
-  const config = { secret: "secret", origins: ["https://app.example"], now: () => 1001, consumeLimit: async () => 0, consumeMutationLimit: async () => 0, editorialReview: async (_request, hash) => { hashes.push(hash); if (hashes.length > 2) throw new ImportOperationError("REVISION_CONFLICT"); return { revisionNumber: 2 }; } };
+  const config = { secret: "secret", origins: ["https://app.example"], now: () => 1001, consumeLimit: async () => 0, consumeMutationLimit: async () => 0, editorialReview: async (request, hash) => {
+    hashes.push(hash);
+    assert.equal(request.input.openingClue, "Ngôn ngữ");
+    if (hashes.length > 2) throw new ImportOperationError("REVISION_CONFLICT");
+    return { revisionNumber: 2, openingClue: request.input.openingClue };
+  } };
   const send = (value) => handlePreview(new Request("https://example.invalid", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(value) }), config);
-  assert.equal((await send(review)).status, 200);
-  assert.equal((await send({ ...review, requestId: "60000000-0000-4000-8000-000000000006" })).status, 200);
+  const withClue = { ...review, input: { ...review.input, openingClue: "  Ngôn ngữ  " } };
+  assert.equal((await send({ ...withClue, input: { ...withClue.input, openingClue: "x".repeat(301) } })).status, 400);
+  assert.equal(hashes.length, 0);
+  const accepted = await send(withClue);
+  assert.equal(accepted.status, 200);
+  assert.equal((await accepted.json()).data.openingClue, "Ngôn ngữ");
+  assert.equal((await send({ ...withClue, requestId: "60000000-0000-4000-8000-000000000006" })).status, 200);
   assert.equal(hashes[0], hashes[1]);
-  const conflict = await send(review);
+  const conflict = await send(withClue);
   assert.equal(conflict.status, 409);
   assert.equal((await conflict.json()).error.code, "REVISION_CONFLICT");
 });

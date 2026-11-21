@@ -62,10 +62,11 @@ test("administrator resolves preview errors, refreshes stale builds and retries 
   const samples = page.getByRole("region", { name: "Player content preview" });
   await expect(samples).toBeHidden();
   await page.getByText("Player content preview", { exact: true }).click();
-  const definition = samples.getByText("Nghĩa đã duyệt hiển thị cho người chơi.");
+  const definition = samples.getByText("Nghĩa đã duyệt hiển thị cho người chơi.", { exact: true });
   await expect(definition).toBeHidden();
   await samples.getByText("9 letters (1)", { exact: true }).click();
   await expect(definition).toBeVisible();
+  await expect(samples.getByText(/^Opening clue[\s·:]+Nghĩa đã duyệt hiển thị cho người chơi\.$/)).toBeVisible();
   const credit = samples.getByText(/Public credit/);
   await expect(credit).toBeHidden();
   await samples.getByText("Attributions", { exact: true }).click();

@@ -171,7 +171,7 @@ export function encodeRoundSave(state: PlayableRound, savedAt: string, streak?: 
 export type RoundRecovery = { kind: "empty" | "invalid" | "incompatible" | "unavailable" } | { kind: "restored"; state: PlayableRound };
 type StoragePort = Pick<Storage,"getItem" | "setItem" | "removeItem">;
 export type RoundWriteResult = "saved" | "conflict" | "superseded" | "unavailable";
-export type RoundResolution = RoundRecovery | { kind: "superseded" };
+export type RoundResolution = RoundRecovery | { kind: "superseded" | "paid-hints-conflict" };
 export type RoundStorageLock = <T>(operation: () => T) => Promise<T>;
 function readSnapshot(text: string | null): { state: PlayableRound | null; streak: StoredStreak; hintCredits: number; error?: RoundSaveError["code"] } {
   if (text === null) return { state: null, streak: EMPTY_STORED_STREAK, hintCredits: 0 };
@@ -198,6 +198,10 @@ function newHintCost(next: PlayableRound, ...previous: Array<PlayableRound | nul
 
 function winsRound(previous: PlayableRound | null, next: PlayableRound): boolean {
   return previous?.round.id === next.round.id && previous.round.status === "playing" && next.round.status === "won";
+}
+
+function settleHintCredits(available: number, spent: number, won: boolean): number {
+  return Math.min(available - spent + Number(won), MAX_HINT_CREDITS);
 }
 
 async function browserLock<T>(operation: () => T): Promise<T> {
@@ -264,7 +268,7 @@ export function createRoundStorage(access: () => StoragePort, lock: RoundStorage
             counts = settleStreak(streak, localPrevious.round.status);
             won = localPrevious.round.status === "won";
           }
-          save(state, { ...counts, countable }, Math.min(hintCredits - spent + Number(won), MAX_HINT_CREDITS));
+          save(state, { ...counts, countable }, settleHintCredits(hintCredits, spent, won));
           protectedSave = false;
           return "saved";
         });
@@ -290,6 +294,7 @@ export function createRoundStorage(access: () => StoragePort, lock: RoundStorage
           const { state: other, streak: savedStreak, hintCredits: savedCredits } = readSnapshot(access().getItem(ROUND_SAVE_KEY));
           const sameRound = other?.round.id === state.round.id ? other : null;
           const chosen = sameRound && sameRound.round.status !== "playing" ? sameRound : state;
+          if (sameRound && newHintCost(sameRound, chosen) > 0) return { kind: "paid-hints-conflict" };
           const revision = Math.max(chosen.round.revision,sameRound?.round.revision ?? 0) + 1;
           if (!Number.isSafeInteger(revision)) return { kind: "invalid" };
           const next = decodeRoundSave(encodeRoundSave({ ...chosen, round: { ...chosen.round, revision } },new Date(Math.max(Date.now(),Date.parse(chosen.round.updatedAt))).toISOString()));
@@ -300,7 +305,7 @@ export function createRoundStorage(access: () => StoragePort, lock: RoundStorage
           if (spent > savedCredits) return { kind: "unavailable" };
           const won = countable && winsRound(sameRound, next);
           save(next, { ...counts, longest: Math.max(counts.longest, streak.longest), countable },
-            Math.min(savedCredits - spent + Number(won), MAX_HINT_CREDITS));
+            settleHintCredits(savedCredits, spent, won));
           paused = false; protectedSave = false;
           return { kind: "restored", state: next };
         });

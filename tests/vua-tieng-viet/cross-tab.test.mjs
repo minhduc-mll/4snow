@@ -145,6 +145,13 @@ test("two tabs cannot spend the same hint credit twice, including explicit keep"
   const revealed = applyRoundHint(next, nextRoundHint(next), time);
   assert.deepEqual(await Promise.all([a.write(revealed), b.write(revealed)]), ["saved", "conflict"]);
   assert.equal(a.hintCredits(), 0);
+  const saved = d.values.get(ROUND_SAVE_KEY);
+  assert.deepEqual(await b.keep(next), { kind: "paid-hints-conflict" });
+  assert.equal(d.values.get(ROUND_SAVE_KEY), saved);
+  const restored = b.read();
+  assert.equal(restored.kind, "restored");
+  assert.deepEqual(restored.state.round.hints, revealed.round.hints);
+  assert.equal(b.hintCredits(), 0);
   assert.equal((await b.keep(revealed)).kind, "restored");
   assert.equal(b.hintCredits(), 0);
   assert.equal((await b.write(applyRoundHint(revealed, nextRoundHint(revealed), time))), "superseded");
