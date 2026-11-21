@@ -34,3 +34,15 @@ The highest number of consecutive rounds the player has ever won in a streak.
 
 **Abandoned round**:
 A started, unfinished round that the player discards or replaces with a different round.
+
+**Opening clue**:
+A clue shown from the start of a round when the player enables it. It uses the answer entry's reviewed topic or short description when available and its full definition otherwise. It consumes no hint credit.
+
+**Hint credit**:
+One use of a hint. A win earns one credit for subsequent rounds. The player can carry up to three credits, and each hint consumes one credit. Unused credits carry over after a loss or abandonment.
+
+**Revealed letter**:
+An answer letter shown on the keyboard by a hint, including its Vietnamese diacritics. Revealing a letter does not fill a position in the guess.
+
+**Locked position**:
+A position in the current guess filled with its correct letter by a hint after all answer letters are known. The player can edit the remaining positions. The lock applies to that guess only.
