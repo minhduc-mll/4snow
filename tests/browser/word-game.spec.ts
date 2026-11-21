@@ -246,7 +246,7 @@ test("Free mode applies atomically, shows text feedback and restores its histori
   await settings.click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button",{ name: "Tự do", exact: true }).click();
-  await dialog.getByRole("button",{ name: "Xem phản hồi bằng chữ" }).click();
+  await expect(dialog.getByRole("button",{ name: "Xem phản hồi bằng chữ" })).toHaveCount(0);
   await dialog.getByRole("button",{ name: "Tải ván mới", exact: true }).click();
 
   await expect(page.getByText(/3 chữ · Dễ · Tự do · /)).toBeVisible();
@@ -254,7 +254,7 @@ test("Free mode applies atomically, shows text feedback and restores its histori
   await input(page).fill("AAA");
   await submit(page).click();
   await expect(input(page)).toBeFocused();
-  await expect(board(page).getByText("1. A · Không có hoặc dư")).toBeVisible();
+  await expect(board(page).getByRole("img",{ name: "Ô 1: A, Không có hoặc dư" })).toBeVisible();
   await expect(board(page)).not.toContainText(/[✓↔×]/);
   await expect(page.getByRole("button",{ name: /^A,/ })).toBeEnabled();
   await input(page).pressSequentially("a");

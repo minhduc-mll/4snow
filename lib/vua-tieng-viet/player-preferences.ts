@@ -1,6 +1,7 @@
 import type { RoundSettings } from "../../types/vua-tieng-viet.ts";
 import { isRecord } from "./publication-contract.ts";
 
+export const OPENING_CLUE_PREFERENCE_KEY = "vtv:opening-clue:v1";
 export const PLAYER_PREFERENCES_KEY = "vtv:preferences:v1";
 export const DEFAULT_PLAYER_SETTINGS: RoundSettings = { level: 3, guessMode: "dictionary", accuracy: "optional", difficulty: "easy" };
 

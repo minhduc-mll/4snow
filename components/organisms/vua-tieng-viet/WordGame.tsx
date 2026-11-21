@@ -101,7 +101,8 @@ export function WordGame() {
           <span>{describeSettings(settings, Boolean(round && !round.rules.accuracy))}</span>
           {round ? <span aria-live="polite" aria-atomic="true">{t("wordGame.attempts",{ used: round.guesses.length, limit: round.attemptLimit })}</span> : null}
         </div>
-        {round ? <WordBoard round={round} level={round.level} letters={input.letters} field={input.field} showTextFeedback={model.showTextFeedback}
+        {playing && state && model.showOpeningClue ? <p className="break-words text-sm"><strong>{t("wordGame.openingClue")}</strong> · {state.answer.openingClue ?? state.answer.definitionVi}</p> : null}
+        {round ? <WordBoard round={round} level={round.level} letters={input.letters} field={input.field}
           rejectedPosition={model.error === "INVALID_INPUT" ? input.rejected?.position : undefined} /> : null}
         <div id="vtv-message" role="status" aria-atomic="true" className={styles.message}>{message}</div>
         {model.storageWarning ? <p role="alert" className={styles.instruction}>{t("wordGame.recovery.warning")}</p> : null}
@@ -164,7 +165,7 @@ export function WordGame() {
           </div>
           <p id="vtv-strict-help" className={styles.accuracyDetail}>{t("wordGame.settings.strictHelp")}</p>
         </fieldset>
-        <Button variant="outline" className={styles.levelButton} aria-pressed={model.showTextFeedback} onClick={() => model.setShowTextFeedback(value => !value)}>{t("wordGame.settings.textFeedback")}</Button>
+        <Button variant="outline" className={styles.levelButton} aria-pressed={model.showOpeningClue} onClick={model.toggleOpeningClue}>{t("wordGame.settings.showOpeningClue")}</Button>
         <LanguageControl inline />
         <p className={styles.settingsSummary}>{describeSettings(settingsDraft)}</p>
         <DialogFooter className={styles.settingsActions}>

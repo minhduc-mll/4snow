@@ -59,7 +59,6 @@
 .editing:focus-within { outline: 2px solid var(--vtv-primary); outline-offset: 3px; }
 .cell { position: relative; aspect-ratio: 1; display: grid; place-items: center; min-width: 0; border: 1px solid var(--vtv-line); border-radius: .5rem; background: var(--vtv-raised); color: var(--vtv-ink); font-size: clamp(.85rem,4vw,1.5rem); font-weight: 700; }
 .cell[data-rejected], .row[data-rejected] { outline: 2px dashed #a82828; outline-offset: -2px; }
-.textFeedback { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .15rem .75rem; padding: .2rem 0 .45rem; color: var(--vtv-muted); font-size: .75rem; }
 .sharedInput { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; caret-color: transparent; font-size: 1rem; cursor: text; }
 .message { min-height: 3rem; display: grid; place-items: center; text-align: center; font-size: .875rem; color: var(--vtv-muted); padding: 0 .25rem; }
 .submit, .primary { background: var(--vtv-primary); color: var(--vtv-primary-ink); font-weight: 650; min-height: 2.75rem; }

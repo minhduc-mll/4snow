@@ -7,7 +7,7 @@ import { useWordInput } from "@/hooks/useWordInput";
 import { usePublishedDictionary } from "@/hooks/usePublishedDictionary";
 import { advanceStreak, createRoundStorage, EMPTY_STREAK, ROUND_SAVE_KEY, type RoundRecovery } from "@/lib/vua-tieng-viet/round-save";
 
-import { DEFAULT_PLAYER_SETTINGS, readPlayerPreferences, writePlayerPreferences } from "@/lib/vua-tieng-viet/player-preferences";
+import { DEFAULT_PLAYER_SETTINGS, readPlayerPreferences, writePlayerPreferences, OPENING_CLUE_PREFERENCE_KEY } from "@/lib/vua-tieng-viet/player-preferences";
 
 export function useWordRound() {
   const load = usePublishedDictionary();
@@ -26,7 +26,13 @@ export function useWordRound() {
   const [preferences,setPreferences] = React.useState(DEFAULT_PLAYER_SETTINGS);
   const [setupSettings,setSetupSettings] = React.useState<RoundSettings | null>(null);
   const [settingsDraft,setSettingsDraft] = React.useState<RoundSettings | null>(null);
-  const [showTextFeedback,setShowTextFeedback] = React.useState(false);
+  const [showOpeningClue,setShowOpeningClue] = React.useState(true);
+  const toggleOpeningClue = () => {
+    const next = !showOpeningClue;
+    setShowOpeningClue(next);
+    try { window.localStorage.setItem(OPENING_CLUE_PREFERENCE_KEY, String(next)); }
+    catch { setStorageWarning(true); }
+  };
   const settings = state ? { level: state.round.level, guessMode: state.round.rules.guessMode, accuracy: state.round.rules.accuracy ?? preferences.accuracy, difficulty: state.round.rules.difficulty ?? "easy" } : setupSettings ?? preferences;
   const [busy,setBusy] = React.useState(false);
   const loading = React.useRef(false);
@@ -48,11 +54,16 @@ export function useWordRound() {
     // Read after hydration; no remote release is needed to resume historical inputs.
     const result = storage.read();
     let storedPreferences = DEFAULT_PLAYER_SETTINGS;
-    try { storedPreferences = readPlayerPreferences(window.localStorage); } catch { /* Round recovery reports storage access problems. */ }
+    let showClue = true;
+    try {
+      storedPreferences = readPlayerPreferences(window.localStorage);
+      showClue = window.localStorage.getItem(OPENING_CLUE_PREFERENCE_KEY) !== "false";
+    } catch { /* Round recovery reports storage access problems. */ }
     queueMicrotask(() => {
       if (!active.current) return;
       setRecovery(result.kind);
       setPreferences(storedPreferences);
+      setShowOpeningClue(showClue);
       setStreak(storage.streak());
       if (result.kind === "restored") {
         current.current = result.state;
@@ -172,7 +183,7 @@ export function useWordRound() {
   return {
     state, settings, streak, busy: busy || recovery === "loading" || conflict, conflict, resolutionBusy,
     resolutionError, resolveConflict, recovery, damagedSave, restoredRoundId, storageWarning, error,
-    settingsDraft, setSettingsDraft, openSettings, applySettings, showTextFeedback, setShowTextFeedback,
+    settingsDraft, setSettingsDraft, openSettings, applySettings, showOpeningClue, toggleOpeningClue,
     retry: retrySettings ? () => void begin(retrySettings) : null,
     input, helpOpen, setHelpOpen, start: () => void begin(settings),
     openHelp: (event: React.MouseEvent<HTMLButtonElement>) => {

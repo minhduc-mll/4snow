@@ -20,7 +20,7 @@ declare
   filters jsonb := '{"sourceId":null,"level":3,"review":null,"hasDefinition":null,"collisionsOnly":true}';
   listed jsonb;
   next_page jsonb;
-  input jsonb := '{"entryId":"30000000-0000-4000-8000-000000000001","expectedEntryRevision":1,"expectedDraftRevision":"0","original":"mèo","definitionVi":"Một con vật.","review":"approved","answerEligible":true,"category":"common","rationale":"Đã kiểm tra.","exclusionChecks":{"names":true,"abbreviations":true,"offensive":true,"malformed":true,"unverified":true}}';
+  input jsonb := '{"entryId":"30000000-0000-4000-8000-000000000001","expectedEntryRevision":1,"expectedDraftRevision":"0","original":"mèo","definitionVi":"Một con vật.","openingClue":"Động vật nuôi","review":"approved","answerEligible":true,"category":"common","rationale":"Đã kiểm tra.","exclusionChecks":{"names":true,"abbreviations":true,"offensive":true,"malformed":true,"unverified":true}}';
   result jsonb;
   repeated jsonb;
 begin
@@ -43,6 +43,7 @@ begin
   if jsonb_array_length(next_page->'items') <> 1 or next_page->'items'->0->>'id' = listed->'items'->0->>'id' then raise exception 'keyset page invalid'; end if;
   result := public.vtv_review_candidate('50000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000002',repeat('a',64),input,'MÈO',3);
   if result->>'review' <> 'approved' or result->>'answerEligible' <> 'true' or result->>'draftRevision' <> '1' then raise exception 'approval failed'; end if;
+  if public.vtv_candidate_detail('30000000-0000-4000-8000-000000000001')->'current'->>'openingClue' is distinct from 'Động vật nuôi' then raise exception 'opening clue missing from detail'; end if;
   repeated := public.vtv_review_candidate('50000000-0000-4000-8000-000000000003','50000000-0000-4000-8000-000000000002',repeat('a',64),input,'MÈO',3);
   if repeated <> result then raise exception 'retry changed receipt'; end if;
   begin
@@ -52,9 +53,11 @@ begin
   input := jsonb_set(input,'{expectedEntryRevision}','2'); input := jsonb_set(input,'{expectedDraftRevision}','"1"'); input := jsonb_set(input,'{original}','"mêu"');
   result := public.vtv_review_candidate('50000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000005',repeat('c',64),input,'MÊU',3);
   if result->>'review' <> 'pending' or result->>'answerEligible' <> 'false' then raise exception 'edit retained approval'; end if;
-  input := jsonb_set(input,'{expectedEntryRevision}','3'); input := jsonb_set(input,'{expectedDraftRevision}','"2"'); input := jsonb_set(input,'{review}','"rejected"'); input := jsonb_set(input,'{answerEligible}','false');
+  input := jsonb_set(input,'{expectedEntryRevision}','3'); input := jsonb_set(input,'{expectedDraftRevision}','"2"'); input := jsonb_set(input,'{openingClue}','null'); input := jsonb_set(input,'{review}','"rejected"'); input := jsonb_set(input,'{answerEligible}','false');
   result := public.vtv_review_candidate('50000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000006',repeat('d',64),input,'MÊU',3);
   if result->>'review' <> 'rejected' or result->>'answerEligible' <> 'false' then raise exception 'rejection failed'; end if;
+  if public.vtv_candidate_detail('30000000-0000-4000-8000-000000000001')->'current'->'openingClue' is distinct from 'null'::jsonb then raise exception 'opening clue not cleared'; end if;
+  if not exists(select 1 from jsonb_array_elements(public.vtv_candidate_history('30000000-0000-4000-8000-000000000001',null,null,50)->'items') r where r->>'revisionNumber'='2' and r->>'openingClue'='Động vật nuôi') then raise exception 'opening clue history missing'; end if;
   if jsonb_array_length(public.vtv_candidate_history('30000000-0000-4000-8000-000000000001',null,null,50)->'items') <> 4 then raise exception 'revision history missing'; end if;
 end $$;
 rollback;

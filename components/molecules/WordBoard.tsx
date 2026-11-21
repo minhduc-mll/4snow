@@ -6,9 +6,9 @@ import { useAppI18n } from "@/hooks/useAppI18n";
 import type { WordLevel, WordRound } from "@/types/vua-tieng-viet";
 import styles from "@/components/organisms/vua-tieng-viet/word-game.module.css";
 
-type Props = { round: WordRound | null; level: WordLevel; letters: string[]; field: InputProps; showTextFeedback?: boolean; rejectedPosition?: number };
+type Props = { round: WordRound | null; level: WordLevel; letters: string[]; field: InputProps; rejectedPosition?: number };
 type BoardStyle = CSSProperties & { "--vtv-columns": number; "--vtv-rows": number };
-export function WordBoard({ round, level, letters, field, showTextFeedback = false, rejectedPosition }: Props) {
+export function WordBoard({ round, level, letters, field, rejectedPosition }: Props) {
   const { t } = useAppI18n();
   const boardStyle: BoardStyle = { "--vtv-columns": level, "--vtv-rows": round?.attemptLimit ?? 6 };
   return <ol className={styles.board} style={boardStyle} aria-label={t("wordGame.board")}>
@@ -23,9 +23,6 @@ export function WordBoard({ round, level, letters, field, showTextFeedback = fal
             <span aria-hidden="true">{letter}</span>
           </span>;
         })}
-        {guess && showTextFeedback ? <p className={styles.textFeedback} aria-hidden="true">
-          {cells.map((letter,index) => <span key={index}>{index + 1}. {letter} · {t(`wordGame.${guess.feedback[index]}`)}</span>)}
-        </p> : null}
         {editing ? <Input {...field} id="vtv-word-input" className={styles.sharedInput} aria-label={t("wordGame.input")} aria-invalid={rejectedPosition !== undefined || undefined} aria-describedby="vtv-instructions vtv-message" autoComplete="off" autoCapitalize="characters" spellCheck={false} whileFocus={{ scale: 1 }} /> : null}
       </li>;
     })}

@@ -10,7 +10,7 @@ export type GuessEligibility =
   | { canSubmit: false; reason: "incomplete" | "composing" | "invalid" | "not-in-dictionary" | "unavailable" };
 export type LetterFeedback = "correct" | "present" | "absent";
 export type RoundStatus = "playing" | "won" | "lost";
-export type WordAnswer = { id: string; original: string; normalized: string; level: WordLevel; definitionVi: string; attributionIds: string[]; category?: AnswerCategory };
+export type WordAnswer = { id: string; original: string; normalized: string; level: WordLevel; definitionVi: string; openingClue?: string; attributionIds: string[]; category?: AnswerCategory };
 export type PublicAttribution = { id: string; sourceName: string; sourceEntryId: string; sourceSenseId: string | null; entryUrl: string; artifactUrl: string; artifactSha256: string; resourceRevision: string; artifactRevision: string; licenseName: string; licenseVersion: string | null; licenseUrl: string; attributionText: string; historyUrl: string | null; modificationsNotice: string };
 export type ReleaseLevel = { guesses: string[]; answers: WordAnswer[] };
 export type ReleasePayload = { schemaVersion: 1; normalizerVersion: "vi-nfc-v2"; releaseId: string; configurationId: string; attemptLimit: number; initialAbsentCount?: number; levels: Record<WordLevel, ReleaseLevel>; attributions: PublicAttribution[] };
