@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { board, dictionary, input, start, submit } from "./helpers/word-game";
+import { board, dictionary, holdTouchKey, input, start, submit } from "./helpers/word-game";
 
 test("setup leads to a compact game and a finished round can select a new length", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
@@ -10,11 +10,13 @@ test("setup leads to a compact game and a finished round can select a new length
   await expect(input(page)).toBeEnabled();
   await expect(page.getByRole("button", { name: /^5 chữ$/ })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(667);
-  await page.getByRole("button", { name: "Chơi ván mới", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Chơi ván mới", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Cài đặt", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("chuỗi hiện tại sẽ về 0");
   await page.getByRole("button", { name: "Hủy", exact: true }).click();
   await input(page).fill("mèo");
   await submit(page).click();
+  await page.getByRole("button", { name: "Xem lại ván", exact: true }).click();
   await page.getByRole("button", { name: "Cài đặt" }).click();
   await page.getByRole("button", { name: /^5 chữ$/ }).click();
   const dialog = page.getByRole("dialog", { name: "Cài đặt" });
@@ -40,24 +42,23 @@ test("setup leads to a compact game and a finished round can select a new length
 test.describe("touch input", () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 375, height: 667 } });
 
-  test("the device keyboard opens on demand and remains closed during board and game-key interactions", async ({ page }) => {
+  test("board and on-screen keys do not invoke the device keyboard", async ({ page }) => {
     await dictionary(page);
     await start(page);
     const field = input(page);
     const openKeyboard = page.getByRole("button", { name: "Mở bàn phím điện thoại" });
     const gameKeyboard = page.getByRole("region", { name: "Bàn phím trên màn hình" });
 
+    await expect(openKeyboard).toHaveCount(0);
     await expect(field).toHaveAttribute("inputmode", "none");
     await expect(field).not.toBeFocused();
     await board(page).getByRole("img").first().tap();
     await expect(field).not.toBeFocused();
 
-    await openKeyboard.tap();
-    await expect(field).toBeFocused();
-    await expect(field).toHaveAttribute("inputmode", "text");
-    await field.fill("SÔ");
-    await field.blur();
-    await expect(field).toHaveAttribute("inputmode", "none");
+    await gameKeyboard.getByRole("button", { name: "S", exact: true }).tap();
+    const oPicker = page.getByRole("dialog", { name: "Dấu cho O" });
+    await holdTouchKey(page, gameKeyboard.getByRole("button", { name: "O", exact: true }), oPicker);
+    await oPicker.getByRole("button", { name: "Nhập chữ Ô", exact: true }).tap();
 
     await gameKeyboard.getByRole("button", { name: "I", exact: true }).tap();
     await expect(field).toHaveValue("SÔI");
@@ -66,11 +67,9 @@ test.describe("touch input", () => {
     await expect(board(page).locator("[data-feedback]")).toHaveCount(3);
     await expect(field).not.toBeFocused();
 
-    await openKeyboard.tap();
-    await expect(field).toBeFocused();
-    await field.blur();
-    await gameKeyboard.getByRole("button", { name: "Dấu cho E" }).tap();
-    await page.getByRole("button", { name: "Nhập chữ È", exact: true }).tap();
+    const ePicker = page.getByRole("dialog", { name: "Dấu cho E" });
+    await holdTouchKey(page, gameKeyboard.getByRole("button", { name: "E", exact: true }), ePicker);
+    await ePicker.getByRole("button", { name: "Nhập chữ È", exact: true }).tap();
     await expect(field).toHaveValue("È");
     await expect(field).not.toBeFocused();
   });

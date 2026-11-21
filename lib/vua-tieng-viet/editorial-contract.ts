@@ -4,7 +4,7 @@ import { isRevision } from "./publication-contract.ts";
 export type ReviewStatus = "pending" | "approved" | "rejected" | "withdrawn";
 export type Category = "common" | "regional" | "technical" | "less-common" | "rare" | "excluded";
 export type ExclusionChecks = { names: boolean; abbreviations: boolean; offensive: boolean; malformed: boolean; unverified: boolean };
-export type ReviewInput = { entryId: string; expectedEntryRevision: number; expectedDraftRevision: string; original: string; definitionVi: string | null; review: ReviewStatus; answerEligible: boolean; category: Category; rationale: string; exclusionChecks: ExclusionChecks; meaningWarningAcknowledged?: true };
+export type ReviewInput = { entryId: string; expectedEntryRevision: number; expectedDraftRevision: string; original: string; definitionVi: string | null; openingClue?: string | null; review: ReviewStatus; answerEligible: boolean; category: Category; rationale: string; exclusionChecks: ExclusionChecks; meaningWarningAcknowledged?: true };
 export type Filters = { sourceId: string | null; level: 3 | 5 | 7 | 9 | null; review: ReviewStatus | null; hasDefinition: boolean | null; collisionsOnly: boolean; spelling?: string };
 export type CreateCandidateInput = { original: string; definitionVi: string | null; sourceId: string; entryUrl: string | null; sourceEntryId: string | null; sourceSenseId: string | null; allowAlternateMeaning: boolean; expectedDraftRevision: string };
 export type RightsDecision = "cleared" | "unresolved" | "rejected";
@@ -78,6 +78,9 @@ export function parseEditorialRequest(value: unknown): EditorialRequest {
   }
   if (value.operation === "review") {
     const fields = ["entryId", "expectedEntryRevision", "expectedDraftRevision", "original", "definitionVi", "review", "answerEligible", "category", "rationale", "exclusionChecks"];
+    if (Object.hasOwn(input, "openingClue")) fields.push("openingClue");
+    const openingClue = input.openingClue;
+    if (openingClue !== undefined && openingClue !== null && (!bounded(openingClue, 300) || !openingClue.trim())) throw new Error("Invalid opening clue");
     const acknowledged = input.meaningWarningAcknowledged === true;
     if (!keys(value, ["operation", "requestId", "idempotencyKey", "input"]) || !uuid(value.idempotencyKey) || !keys(input, acknowledged ? [...fields, "meaningWarningAcknowledged"] : fields) || !uuid(input.entryId) || typeof input.expectedEntryRevision !== "number" || !Number.isSafeInteger(input.expectedEntryRevision) || input.expectedEntryRevision < 1 || input.expectedEntryRevision > 2147483647 || typeof input.expectedDraftRevision !== "string" || !/^(0|[1-9][0-9]{0,18})$/.test(input.expectedDraftRevision) || BigInt(input.expectedDraftRevision) > BigInt("9223372036854775807") || !bounded(input.original, 120) || !input.original || !(input.definitionVi === null || (bounded(input.definitionVi, 2000) && input.definitionVi.trim().length > 0)) || !isReviewStatus(input.review) || typeof input.answerEligible !== "boolean" || !category(input.category) || !bounded(input.rationale, 2000) || !record(input.exclusionChecks) || !keys(input.exclusionChecks, ["names", "abbreviations", "offensive", "malformed", "unverified"])) throw new Error("Invalid review");
     const c = input.exclusionChecks;
@@ -87,7 +90,7 @@ export function parseEditorialRequest(value: unknown): EditorialRequest {
     if (input.review === "approved" && (!c.names || !c.abbreviations || !c.offensive || !c.malformed || !c.unverified || input.category === "excluded" || !input.rationale.trim())) throw new Error("Approval requires exclusion checks");
     if (input.answerEligible && (input.review !== "approved" || input.category === "excluded" || input.definitionVi === null || !input.rationale.trim())) throw new Error("Answer requires a reviewed meaning");
     if (input.answerEligible && input.definitionVi !== null && hasMeaningWarning(input.definitionVi) && !acknowledged) throw new Error("Answer needs explicit meaning review");
-    return { operation: "review", requestId: value.requestId, idempotencyKey: value.idempotencyKey, input: { entryId: input.entryId, expectedEntryRevision: input.expectedEntryRevision, expectedDraftRevision: input.expectedDraftRevision, original: input.original, definitionVi: input.definitionVi, review: input.review, answerEligible: input.answerEligible, category: input.category, rationale: input.rationale, ...(acknowledged ? { meaningWarningAcknowledged: true } : {}), exclusionChecks: { names: c.names, abbreviations: c.abbreviations, offensive: c.offensive, malformed: c.malformed, unverified: c.unverified } } };
+    return { operation: "review", requestId: value.requestId, idempotencyKey: value.idempotencyKey, input: { entryId: input.entryId, expectedEntryRevision: input.expectedEntryRevision, expectedDraftRevision: input.expectedDraftRevision, original: input.original, definitionVi: input.definitionVi, ...(openingClue !== undefined ? { openingClue: openingClue?.trim() ?? null } : {}), review: input.review, answerEligible: input.answerEligible, category: input.category, rationale: input.rationale, ...(acknowledged ? { meaningWarningAcknowledged: true } : {}), exclusionChecks: { names: c.names, abbreviations: c.abbreviations, offensive: c.offensive, malformed: c.malformed, unverified: c.unverified } } };
   }
   if (!keys(value, ["operation", "requestId", "input"])) throw new Error("Invalid request");
   if (value.operation === "detail") {

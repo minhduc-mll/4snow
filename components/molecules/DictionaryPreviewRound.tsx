@@ -40,6 +40,7 @@ export function DictionaryPreviewRound({ preview, onUnauthorized }: Props) {
     </div>
     {round && state ? <>
       <p role="status">{t("publication.previewAttempts", { used: state.guesses.length, limit: state.attemptLimit })}</p>
+      {state.status === "playing" ? <p className="break-words">{t("wordGame.openingClue")} · {round.answer.openingClue ?? round.answer.definitionVi}</p> : null}
       <ol className="grid gap-2">
         {state.guesses.map(guess => <li key={guess.id} className="flex flex-wrap gap-2 rounded-md border p-2">
           {Array.from(guess.normalized).map((letter, index) => <span className="rounded-sm bg-muted px-2 py-1 text-sm" key={index}>

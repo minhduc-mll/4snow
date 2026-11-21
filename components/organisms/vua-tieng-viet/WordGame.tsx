@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, type MouseEvent } from "react";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft, BookOpen, Lightbulb } from "lucide-react";
 import { MotionConfig } from "framer-motion";
+import { Badge } from "@/components/atoms/Badge";
 import { Button } from "@/components/atoms/Button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/atoms/Dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/atoms/Popover";
@@ -33,8 +34,13 @@ export function WordGame() {
   const { state, settings, settingsDraft, input } = model;
   const round = state?.round;
   const playing = round?.status === "playing";
+  const finished = round?.status === "won" || round?.status === "lost";
+  const nextRoundLabel = t(round?.status === "won" ? "wordGame.continue" : "wordGame.replay");
   const { actionRef, eligibility } = input;
   const vocabularyLink = useRef<HTMLAnchorElement>(null);
+  const resultTrigger = useRef<HTMLButtonElement>(null);
+  const reviewButton = useRef<HTMLButtonElement>(null);
+  const resultStatus = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
     try {
       if (sessionStorage.getItem(VOCABULARY_RETURN_FOCUS)) {
@@ -64,12 +70,17 @@ export function WordGame() {
     ? t("wordGame.errors.NOT_IN_DICTIONARY")
     : !eligibility.canSubmit && eligibility.reason === "incomplete"
       ? t("wordGame.requiredLength",{ level: settings.level }) : t("wordGame.typeHint");
-  const message = model.busy ? t("wordGame.loading")
+  const message = model.hintPending ? t("wordGame.hints.saving")
+    : model.busy ? t("wordGame.loading")
     : model.error === "INVALID_INPUT" && input.rejected ? t(
       input.rejected.kind === "length" ? "wordGame.rejectedLength" : "wordGame.rejectedInput",
       { letter: input.rejected.letter, position: input.rejected.position, level: settings.level },
     )
     : model.error ? t(`wordGame.errors.${model.error}`)
+    : model.hintFeedback?.kind === "reveal"
+      ? t("wordGame.hints.revealStatus", { letter: model.hintFeedback.letter, count: model.hintCredits })
+    : model.hintFeedback?.kind === "lock"
+      ? t("wordGame.hints.lockStatus", { position: model.hintFeedback.position + 1, count: model.hintCredits })
     : model.damagedSave ? t(`wordGame.recovery.${model.recovery}`)
     : input.draft !== null ? t("wordGame.composing")
     : playing && model.restoredRoundId ? t("wordGame.recovery.resumed")
@@ -84,7 +95,7 @@ export function WordGame() {
           <Link ref={vocabularyLink} href={PATH.vietnameseVocabulary} onNavigate={rememberVocabularyLink} className={styles.lookup}>
             <BookOpen size={16} aria-hidden="true" />{t("vocabularyCatalog.lookup")}
           </Link>
-          <Button variant="ghost" onClick={model.openHelp} className={styles.help}>{t("wordGame.help")}</Button>
+          <Button variant="ghost" onClick={model.openHelp} className={styles.help} disabled={model.hintPending}>{t("wordGame.help")}</Button>
           <Button variant="ghost" onClick={model.openSettings} className={styles.help} disabled={model.busy}>{t("wordGame.settings.title")}</Button>
         </div>
       </nav>
@@ -101,29 +112,59 @@ export function WordGame() {
           <span>{describeSettings(settings, Boolean(round && !round.rules.accuracy))}</span>
           {round ? <span aria-live="polite" aria-atomic="true">{t("wordGame.attempts",{ used: round.guesses.length, limit: round.attemptLimit })}</span> : null}
         </div>
-        {round ? <WordBoard round={round} level={round.level} letters={input.letters} field={input.field} showTextFeedback={model.showTextFeedback}
+        {playing && state && model.showOpeningClue ? <p className="break-words text-sm"><strong>{t("wordGame.openingClue")}</strong> · {state.answer.openingClue ?? state.answer.definitionVi}</p> : null}
+        {finished ? <p ref={resultStatus} tabIndex={-1} className={styles.reviewStatus}>{t(round.status === "won" ? "wordGame.reviewWon" : "wordGame.reviewLost")}</p> : null}
+        {round ? <WordBoard round={round} level={round.level} letters={input.letters} field={input.field}
           rejectedPosition={model.error === "INVALID_INPUT" ? input.rejected?.position : undefined} /> : null}
         <div id="vtv-message" role="status" aria-atomic="true" className={styles.message}>{message}</div>
         {model.storageWarning ? <p role="alert" className={styles.instruction}>{t("wordGame.recovery.warning")}</p> : null}
         {model.retry ? <Button variant="outline" onClick={model.retry} disabled={model.busy}>{t("wordGame.settings.retry")}</Button> : null}
-        {state && round && !playing ? <section className={styles.result} aria-label={t("wordGame.result")}>
-          <h2 id="vtv-result-title">{t(round.status === "won" ? "wordGame.won" : "wordGame.lost")}</h2>
-          <p id="vtv-result-answer" className={styles.answer}>{state.answer.original}</p><p>{state.answer.definitionVi}</p>
-          <p>{t("wordGame.attempts",{ used: round.guesses.length, limit: round.attemptLimit })}</p>
-          <Button ref={actionRef} aria-describedby="vtv-result-title vtv-result-answer" disabled={model.busy} onClick={model.start} className={styles.primary}>{t("wordGame.replay")}</Button>
-          <WordAttributions items={state.attributions} />
-        </section> : null}
-        {!round ? <Button ref={actionRef} disabled={model.busy} aria-describedby={model.damagedSave ? "vtv-recovery-impact" : undefined} onClick={model.start} className={styles.submit} size="lg">{t(model.damagedSave ? "wordGame.recovery.startNew" : "wordGame.start")}</Button> : null}
-        {model.damagedSave ? <p id="vtv-recovery-impact" className={styles.instruction}>{t("wordGame.recovery.impact")}</p> : null}
+        {!round && !model.damagedSave ? <Button ref={actionRef} disabled={model.busy} onClick={model.start} className={styles.submit} size="lg">{t("wordGame.start")}</Button> : null}
+        {model.damagedSave ? <p className={styles.instruction}>{t("wordGame.recovery.settingsAction")}</p> : null}
       </section>
       <p id="vtv-instructions" className={styles.srOnly}>{t("wordGame.instruction")}</p>
-      {playing ? <><WordKeyboard {...input.keyboard} /><div className={styles.roundActions}>
+      {round ? <WordKeyboard {...input.keyboard} /> : null}
+      {playing ? <div className={styles.roundActions}>
+        <Button variant="outline" size="icon" className={styles.hintButton} disabled={!model.canUseHint && !model.hintPending} aria-disabled={model.hintPending || undefined}
+          aria-label={t("wordGame.hints.use", { count: model.hintCredits })} onClick={event => model.spendHint(event.detail > 0)}>
+          <Lightbulb aria-hidden="true" />
+          <Badge aria-hidden="true" className={styles.hintBadge} initial={false}>{model.hintCredits}</Badge>
+        </Button>
         <Button disabled={!eligibility.canSubmit} onClick={input.submit} className={styles.submit} size="lg">{t("wordGame.submit")}</Button>
-        <Button variant="outline" onClick={model.openSettings} className={styles.restart} disabled={model.busy}>{t("wordGame.recovery.startNew")}</Button>
-      </div></> : null}
+      </div> : null}
+      {finished ? <div className={styles.resultActions}>
+        <Button ref={resultTrigger} variant="outline" disabled={model.busy} onClick={() => model.setResultOpen(true)}>{t("wordGame.viewResult")}</Button>
+        <Button ref={actionRef} disabled={model.busy} onClick={model.start} className={styles.primary}>{nextRoundLabel}</Button>
+      </div> : null}
       {!round ? <LanguageControl inline /> : null}
       <p aria-live="polite" className={round ? styles.srOnly : styles.instruction}>{t(`wordGame.recovery.${offlineShell}`)}</p>
     </div>
+    {state && finished ? <Dialog open={model.resultOpen} onOpenChange={model.setResultOpen}>
+      <DialogContent className={styles.dialog} showCloseButton={false} onOpenAutoFocus={event => {
+        event.preventDefault();
+        reviewButton.current?.focus();
+      }} onCloseAutoFocus={event => {
+        event.preventDefault();
+        if (model.conflict) return;
+        const target = resultTrigger.current?.disabled ? resultStatus.current : resultTrigger.current;
+        target?.focus({ preventScroll: true });
+      }}>
+        <DialogHeader>
+          <DialogTitle>{t("wordGame.result")}</DialogTitle>
+          <DialogDescription>{t(round.status === "won" ? "wordGame.won" : "wordGame.lost")}</DialogDescription>
+        </DialogHeader>
+        <div className={styles.result}>
+          <p className={styles.answer}>{state.answer.original}</p>
+          <p>{state.answer.definitionVi}</p>
+          <p>{t("wordGame.attempts",{ used: round.guesses.length, limit: round.attemptLimit })}</p>
+          <WordAttributions items={state.attributions} />
+        </div>
+        <DialogFooter className={styles.resultActions}>
+          <Button ref={reviewButton} variant="outline" onClick={() => model.setResultOpen(false)}>{t("wordGame.reviewRound")}</Button>
+          <Button disabled={model.busy} onClick={model.start} className={styles.primary}>{nextRoundLabel}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog> : null}
     <Dialog open={model.conflict}><DialogContent showCloseButton={false} className={styles.dialog} onEscapeKeyDown={event => event.preventDefault()} onInteractOutside={event => event.preventDefault()} onCloseAutoFocus={event => { event.preventDefault(); input.restoreConflictFocus(); }}>
       <DialogHeader><DialogTitle>{t("wordGame.conflict.title")}</DialogTitle><DialogDescription>{t("wordGame.conflict.description")}</DialogDescription></DialogHeader>
       {model.resolutionError ? <p role="alert">{t(`wordGame.conflict.errors.${model.resolutionError}`)}</p> : null}
@@ -142,7 +183,7 @@ export function WordGame() {
     </DialogContent></Dialog>
     <Dialog open={settingsDraft !== null} onOpenChange={open => { if (!open) model.setSettingsDraft(null); }}><DialogContent className={styles.dialog} onCloseAutoFocus={event => { event.preventDefault(); input.restoreFocus(); }}>
       <DialogHeader><DialogTitle>{t("wordGame.settings.title")}</DialogTitle>
-        <DialogDescription>{playing ? t("wordGame.confirmDescription") : t("wordGame.settings.description")}</DialogDescription>
+        <DialogDescription>{playing ? t("wordGame.confirmDescription") : model.damagedSave ? t("wordGame.recovery.impact") : t("wordGame.settings.description")}</DialogDescription>
       </DialogHeader>
       {settingsDraft ? <div className={styles.settingsGroups}>
         <fieldset className={styles.levels}><legend>{t("wordGame.level")}</legend><div className={styles.levelButtons}>
@@ -164,12 +205,12 @@ export function WordGame() {
           </div>
           <p id="vtv-strict-help" className={styles.accuracyDetail}>{t("wordGame.settings.strictHelp")}</p>
         </fieldset>
-        <Button variant="outline" className={styles.levelButton} aria-pressed={model.showTextFeedback} onClick={() => model.setShowTextFeedback(value => !value)}>{t("wordGame.settings.textFeedback")}</Button>
+        <Button variant="outline" className={styles.levelButton} aria-pressed={model.showOpeningClue} onClick={model.toggleOpeningClue}>{t("wordGame.settings.showOpeningClue")}</Button>
         <LanguageControl inline />
         <p className={styles.settingsSummary}>{describeSettings(settingsDraft)}</p>
         <DialogFooter className={styles.settingsActions}>
           <Button variant="outline" onClick={() => model.setSettingsDraft(null)}>{t("wordGame.settings.cancel")}</Button>
-          <Button className={styles.primary} onClick={model.applySettings}>{round ? t("wordGame.settings.applyRound") : t("wordGame.settings.apply")}</Button>
+          <Button className={styles.primary} onClick={model.applySettings}>{round || model.damagedSave ? t("wordGame.settings.applyRound") : t("wordGame.settings.apply")}</Button>
         </DialogFooter>
       </div> : null}
     </DialogContent></Dialog>

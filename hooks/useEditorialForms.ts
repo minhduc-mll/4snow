@@ -14,6 +14,7 @@ const emptyChecks: ExclusionChecks = { names: false, abbreviations: false, offen
 export function useEditorialReviewForm(detail: Detail, save: Editorial["save"]) {
   const [original, setOriginal] = React.useState(detail.current.original);
   const [definition, updateDefinition] = React.useState(detail.current.definitionVi ?? "");
+  const [openingClue, setOpeningClue] = React.useState(detail.current.openingClue ?? "");
   const [review, setReview] = React.useState<ReviewStatus>(detail.current.review);
   const [answer, setAnswer] = React.useState(detail.current.answerEligible);
   const [category, setCategory] = React.useState<Category>(detail.current.category ?? "common");
@@ -28,7 +29,7 @@ export function useEditorialReviewForm(detail: Detail, save: Editorial["save"]) 
     setWarningAcknowledged(false);
     updateDefinition(value);
   };
-  const input: ReviewInput = { entryId: detail.id, expectedEntryRevision: baseline.revisionNumber, expectedDraftRevision: detail.draftRevision, original, definitionVi: definition.trim() ? definition : null, review, answerEligible: answer, category, rationale, exclusionChecks: checks, ...(meaningWarning && answer && warningAcknowledged ? { meaningWarningAcknowledged: true } : {}) };
+  const input: ReviewInput = { entryId: detail.id, expectedEntryRevision: baseline.revisionNumber, expectedDraftRevision: detail.draftRevision, original, definitionVi: definition.trim() ? definition : null, openingClue: openingClue.trim() || null, review, answerEligible: answer, category, rationale, exclusionChecks: checks, ...(meaningWarning && answer && warningAcknowledged ? { meaningWarningAcknowledged: true } : {}) };
   const submit = async (): Promise<boolean> => {
     if (answerNeedsAcknowledgement || stale) return false;
     try {
@@ -52,13 +53,14 @@ export function useEditorialReviewForm(detail: Detail, save: Editorial["save"]) 
   const setCheck = (name: keyof ExclusionChecks, checked: boolean): void => setChecks((previous) => ({ ...previous, [name]: checked }));
   const current = detail.current;
   const savedChecks = baseline.exclusionChecks ?? emptyChecks;
-  const dirty = original !== baseline.original || definition !== (baseline.definitionVi ?? "") || review !== baseline.review
+  const dirty = original !== baseline.original || definition !== (baseline.definitionVi ?? "") || openingClue !== (baseline.openingClue ?? "") || review !== baseline.review
     || answer !== baseline.answerEligible || category !== (baseline.category ?? "common") || rationale !== (baseline.rationale ?? "")
     || checkKeys.some(key => checks[key] !== savedChecks[key]);
   const stale = dirty && baseline.revisionNumber !== current.revisionNumber;
   const reset = () => {
     setOriginal(current.original);
     updateDefinition(current.definitionVi ?? "");
+    setOpeningClue(current.openingClue ?? "");
     setReview(current.review);
     setAnswer(current.answerEligible);
     setCategory(current.category ?? "common");
@@ -74,7 +76,7 @@ export function useEditorialReviewForm(detail: Detail, save: Editorial["save"]) 
     try { invalidOriginal = ![3, 5, 7, 9].includes(normalizeSpelling(original).level); }
     catch { invalidOriginal = true; }
   }
-  return { original, setOriginal, definition, setDefinition, review, changeReview, answer, setAnswer, category, changeCategory, rationale, setRationale, checks, setCheck, invalid, invalidOriginal, dirty, stale, reset, meaningWarning, warningAcknowledged, setWarningAcknowledged, answerNeedsAcknowledgement, submit, retry: () => save(input, true) };
+  return { original, setOriginal, definition, setDefinition, openingClue, setOpeningClue, review, changeReview, answer, setAnswer, category, changeCategory, rationale, setRationale, checks, setCheck, invalid, invalidOriginal, dirty, stale, reset, meaningWarning, warningAcknowledged, setWarningAcknowledged, answerNeedsAcknowledgement, submit, retry: () => save(input, true) };
 }
 
 const checkKeys: (keyof ExclusionChecks)[] = ["names", "abbreviations", "offensive", "malformed", "unverified"];

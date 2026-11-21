@@ -12,6 +12,6 @@ test("native Windows Vietnamese IME smoke",async ({ page }) => {
   await input(page).focus();
   await expect.poll(async () => (await input(page).inputValue()).normalize("NFC").toLowerCase().replaceAll(" ",""),{ timeout: 240000 }).toBe("tiếngviệt");
   await expect(submit(page)).toBeEnabled();
-  await expect(page.getByRole("region",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!",{ timeout: 60000 });
+  await expect(page.getByRole("dialog",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!",{ timeout: 60000 });
   await page.screenshot({ path: "output/playwright/native-ime.png",fullPage: true });
 });

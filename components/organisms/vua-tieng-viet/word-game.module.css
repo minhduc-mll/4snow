@@ -59,7 +59,6 @@
 .editing:focus-within { outline: 2px solid var(--vtv-primary); outline-offset: 3px; }
 .cell { position: relative; aspect-ratio: 1; display: grid; place-items: center; min-width: 0; border: 1px solid var(--vtv-line); border-radius: .5rem; background: var(--vtv-raised); color: var(--vtv-ink); font-size: clamp(.85rem,4vw,1.5rem); font-weight: 700; }
 .cell[data-rejected], .row[data-rejected] { outline: 2px dashed #a82828; outline-offset: -2px; }
-.textFeedback { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .15rem .75rem; padding: .2rem 0 .45rem; color: var(--vtv-muted); font-size: .75rem; }
 .sharedInput { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; caret-color: transparent; font-size: 1rem; cursor: text; }
 .message { min-height: 3rem; display: grid; place-items: center; text-align: center; font-size: .875rem; color: var(--vtv-muted); padding: 0 .25rem; }
 .submit, .primary { background: var(--vtv-primary); color: var(--vtv-primary-ink); font-weight: 650; min-height: 2.75rem; }
@@ -70,12 +69,11 @@
 .legend li { display: flex; align-items: center; gap: .35rem; }
 .legendSymbol { border-radius: .2rem; width: 1rem; height: 1rem; text-align: center; }
 .keyboard { display: grid; gap: .3rem; }
-.keyRow { display: flex; justify-content: center; gap: .25rem; }
-.keyColumn { flex: 1 1 0; min-width: 0; max-width: 3rem; display: flex; flex-direction: column; gap: .15rem; }
-.key { width: 100%; min-width: 0; min-height: 2.75rem; padding: .1rem; background: var(--vtv-raised); border-color: var(--vtv-line); color: var(--vtv-ink); position: relative; font-size: .875rem; }
-.variantRow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; }
-@media (min-width: 22.5rem) { .variantRow { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
-.expandKey { width: 100%; min-width: 0; min-height: 2.75rem; padding: 0; gap: 0; background: var(--vtv-surface); color: var(--vtv-primary); border-color: var(--vtv-line); font-weight: 700; }
+.keyRow { --key-gap: .25rem; --key-width: min(3rem, (100% - 9 * var(--key-gap)) / 10); display: flex; justify-content: center; gap: var(--key-gap); }
+.keyColumn { flex: 0 0 var(--key-width); min-width: 0; }
+.backspaceColumn { flex: 0 0 max(2.75rem, 1.5 * var(--key-width)); min-width: 0; }
+.key { width: 100%; min-width: 0; min-height: 2.75rem; padding: .1rem; background: var(--vtv-raised); border-color: var(--vtv-line); color: var(--vtv-ink); position: relative; font-size: .875rem; touch-action: manipulation; user-select: none; }
+.key .accentIndicator { position: absolute; top: .15rem; right: .15rem; width: .5rem; height: .5rem; }
 .variantDialog { width: min(20rem,var(--radix-popover-content-available-width),calc(100vw - 1.5rem)); max-height: min(22rem,var(--radix-popover-content-available-height)); overflow: auto; background: var(--vtv-surface); border-color: var(--vtv-line); }
 .variantTitle { color: var(--vtv-muted); font-weight: 600; margin-bottom: .75rem; }
 .variantGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(2.75rem, 1fr)); gap: .35rem; }
@@ -87,18 +85,21 @@
 .key:disabled { opacity: 1; }
 .key:disabled:not([data-feedback]) { opacity: .55; }
 .key:hover:not(:disabled) { outline: 1px solid var(--vtv-primary); }
-.keyboardActions { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; }
-.nativeKeyboard { display: none; min-height: 2.75rem; }
-.backspace { min-height: 2.75rem; color: var(--vtv-ink); background: var(--vtv-raised); }
 @media (hover: none) and (pointer: coarse) {
   .sharedInput { pointer-events: none; }
-  .nativeKeyboard { display: inline-flex; }
 }
 .keyboardHint { text-align: center; color: var(--vtv-muted); font-size: .75rem; margin-top: .35rem; }
-.roundActions { width: min(100%, 22rem); justify-self: center; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; }
-.restart { color: var(--vtv-muted); min-height: 2.75rem; }
-.result { display: grid; gap: .75rem; padding: 1rem .5rem .5rem; border-top: 1px solid var(--vtv-line); text-align: center; }
-.result h2 { font-size: 1.1rem; font-weight: 650; }
+.roundActions { width: min(100%, 22rem); justify-self: center; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .5rem; }
+.hintButton { position: relative; min-width: 2.75rem; min-height: 2.75rem; }
+.hintBadge { position: absolute; top: -.2rem; right: -.2rem; min-width: 1rem; height: 1rem; padding: 0 .2rem; background: var(--vtv-present); color: var(--vtv-present-ink); font-size: .625rem; font-variant-numeric: tabular-nums; }
+.hintButton[aria-disabled=true] { cursor: wait; opacity: .5; }
+.hintButton:is(:disabled,[aria-disabled=true]) .hintBadge { background: var(--vtv-raised); color: var(--vtv-muted); }
+.hintIndicator { position: absolute; top: .16rem; left: .16rem; width: .45rem; height: .45rem; border-radius: 50%; background: var(--vtv-present); border: 1px solid var(--vtv-present-ink); }
+.lockedIndicator { position: absolute; right: .1rem; bottom: .1rem; width: .6rem; height: .6rem; }
+.resultActions { width: min(100%, 22rem); justify-self: center; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+.resultActions > button { min-height: 2.75rem; height: 100%; white-space: normal; }
+.reviewStatus { color: var(--vtv-ink); font-weight: 650; text-align: center; }
+.result { display: grid; gap: .75rem; text-align: center; }
 .answer { font-size: 1.75rem; font-weight: 700; color: var(--vtv-primary); }
 .attribution { display: grid; gap: .75rem; font-size: .75rem; color: var(--vtv-muted); text-align: left; line-height: 1.6; }
 .attribution h3 { font-weight: 650; }
@@ -119,6 +120,9 @@
 .dialog [data-feedback=correct] { background: var(--vtv-correct); }
 .dialog [data-feedback=present] { background: var(--vtv-present); color: var(--vtv-present-ink); }
 .dialog [data-feedback=absent] { background: var(--vtv-absent); }
+.shell [data-revealed], .variantDialog [data-revealed] { background: var(--vtv-present); color: var(--vtv-present-ink); }
+.shell [data-revealed][data-feedback=correct], .variantDialog [data-revealed][data-feedback=correct] { background: var(--vtv-correct); color: #fff; box-shadow: inset 0 0 0 2px var(--vtv-present); }
+.key[data-revealed]:disabled { opacity: 1; }
 @media (min-width: 40rem) { .shell:not(.activeShell) { padding-top: 1.5rem; } .shell:not(.activeShell) .playArea { padding: 1.5rem; } }
 @media (prefers-reduced-motion: reduce) { .shell *, .dialog *, .variantDialog * { animation: none !important; transition: none !important; } }
 

@@ -4,7 +4,7 @@ import { playerReleaseRow } from "../vua-tieng-viet/player-fixture";
 import type { Page, Locator } from "@playwright/test";
 
 const keyboard = (page: Page) => page.getByRole("region",{ name: /Bàn phím trên màn hình|On-screen keyboard/i });
-const expansion = (page: Page, letter: string) => page.getByRole("button",{ name: new RegExp(`Dấu cho ${letter}|Variants for ${letter}`), includeHidden: true });
+const expansion = (page: Page, letter: string) => keyboard(page).getByRole("button",{ name: new RegExp(`^${letter}($|,)`), includeHidden: true });
 const picker = (page: Page, letter: string) => page.getByRole("dialog",{ name: new RegExp(`Dấu cho ${letter}|Variants for ${letter}`) });
 async function paste(page: Page, text: string) {
   await input(page).evaluate((element,value) => { const data = new DataTransfer(); data.setData("text/plain",value); element.dispatchEvent(new ClipboardEvent("paste",{ clipboardData: data, bubbles: true, cancelable: true })); },text);
@@ -23,20 +23,22 @@ async function textContrast(locator: Locator) {
   });
 }
 
-test("ordinary keys and separate Vietnamese expansions preserve focus and cancellation",async ({ page }) => {
+test("one Vietnamese key taps for the base letter and holds for accents without inserting the base",async ({ page }) => {
   await dictionary(page); await start(page);
-  const keyboard = page.getByRole("region",{ name: /Bàn phím trên màn hình|On-screen keyboard/i });
-  await keyboard.getByRole("button",{ name: "E", exact: true }).click();
+  const expand = expansion(page,"E");
+  await expect(expand).toHaveCount(1);
+  await expand.click();
   await expect(input(page)).toHaveValue("E");
   await input(page).fill("");
-  const expand = page.getByRole("button",{ name: /Dấu cho E|Variants for E/i, includeHidden: true });
-  await expand.click();
-  await expect(expand).toHaveAttribute("aria-expanded","true");
-  const picker = page.getByRole("dialog",{ name: /Dấu cho E|Variants for E/i });
-  await picker.getByRole("button",{ name: /Nhập chữ Ế|Enter letter Ế/i }).click();
-  await expect(picker).toHaveCount(0); await expect(input(page)).toHaveValue("Ế"); await expect(input(page)).toBeFocused();
-  await expand.click(); await page.keyboard.press("Escape");
-  await expect(picker).toHaveCount(0); await expect(expand).toBeFocused(); await expect(input(page)).toHaveValue("Ế");
+  await expand.hover();
+  await page.mouse.down();
+  const dialog = picker(page,"E");
+  try { await expect(dialog).toBeVisible(); }
+  finally { await page.mouse.up(); }
+  await dialog.getByRole("button",{ name: /Nhập chữ Ế|Enter letter Ế/i }).click();
+  await expect(dialog).toHaveCount(0); await expect(input(page)).toHaveValue("Ế"); await expect(input(page)).toBeFocused();
+  await expand.press("ArrowUp"); await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0); await expect(expand).toBeFocused(); await expect(input(page)).toHaveValue("Ế");
 });
 
 test("every Vietnamese group exposes the full NFC alphabet and selection appends one letter",async ({ page }) => {
@@ -46,7 +48,7 @@ test("every Vietnamese group exposes the full NFC alphabet and selection appends
     ["O","OÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢ"], ["U","UÙÚỦŨỤƯỪỨỬỮỰ"], ["Y","YỲÝỶỸỴ"], ["D","DĐ"],
   ];
   for (const [base,letters] of groups) {
-    await input(page).fill("M"); await expansion(page,base).click();
+    await input(page).fill("M"); await expansion(page,base).press("ArrowUp");
     const dialog = picker(page,base), choices = dialog.getByRole("button",{ name: /Nhập chữ|Enter letter/i });
     await expect(choices).toHaveText(Array.from(letters));
     const chosen = Array.from(letters).at(-1);
@@ -59,17 +61,17 @@ test("every Vietnamese group exposes the full NFC alphabet and selection appends
 test("keyboard-only picker focus is contained; Escape and outside dismissal preserve input",async ({ page }) => {
   await dictionary(page); await start(page);
   const trigger = expansion(page,"E");
-  await trigger.focus(); await page.keyboard.press("Enter");
+  await trigger.focus(); await page.keyboard.press("Shift+Enter");
   const dialog = picker(page,"E");
   await expect(dialog.getByRole("button",{ name: /Nhập chữ E$|Enter letter E$/i })).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(dialog.getByRole("button",{ name: /Đóng lựa chọn dấu|Close letter choices/i })).toBeFocused();
   await page.keyboard.press("Tab"); await page.keyboard.press("Tab"); await page.keyboard.press("Enter");
   await expect(input(page)).toHaveValue("È"); await expect(input(page)).toBeFocused();
-  await trigger.click();
+  await trigger.press("ArrowUp");
   await page.mouse.click(2,2);
   await expect(dialog).toHaveCount(0); await expect(trigger).toBeFocused(); await expect(input(page)).toHaveValue("È");
-  await trigger.click(); await page.keyboard.press("Escape"); await expect(trigger).toBeFocused();
+  await trigger.press("ArrowUp"); await page.keyboard.press("Escape"); await expect(trigger).toBeFocused();
   await expect(input(page)).toHaveValue("È");
 });
 
@@ -83,12 +85,12 @@ test("absent letters remain usable and invalid pastes reject atomically",async (
   await input(page).press("Backspace");
   await paste(page,"èo!"); await expect(input(page)).toHaveValue("M");
   await expect(page.getByRole("status")).toContainText(/Chữ “!” ở ô 4|“!” in cell 4/i);
-  await expansion(page,"E").click();
+  await expansion(page,"E").press("ArrowUp");
   await expect(picker(page,"E").getByRole("button",{ name: /Nhập chữ Ê$|Enter letter Ê$/i })).toBeEnabled();
   await picker(page,"E").getByRole("button",{ name: /Nhập chữ È$|Enter letter È$/i }).click();
   await keyboard(page).getByRole("button",{ name: "O", exact: true }).click();
   await expect(input(page)).toHaveValue("MÈO"); await submit(page).click();
-  await expect(page.getByRole("region",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!");
+  await expect(page.getByRole("dialog",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!");
 });
 
 test("typing, paste and virtual keys share sequential correction and duplicate-event guards",async ({ page }) => {
@@ -130,7 +132,7 @@ test("provisional IME letters are not rejected; modifiers and unrelated dialogs 
   await page.keyboard.press("Enter"); await expect(board(page).locator("[data-feedback]")).toHaveCount(3);
   await expect(page.getByRole("button",{ name: "Cách chơi", exact: true })).toBeFocused();
   await input(page).focus(); await input(page).press("Enter");
-  await expect(page.getByRole("region",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!");
+  await expect(page.getByRole("dialog",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!");
 });
 
 test("known-present ordinary and variant keys keep readable feedback while hovered",async ({ page }) => {
@@ -140,7 +142,7 @@ test("known-present ordinary and variant keys keep readable feedback while hover
   const ordinary = keyboard(page).getByRole("button",{ name: /^M,/ });
   await expect(ordinary).toHaveCSS("transition-duration","0s");
   await ordinary.hover(); expect(await textContrast(ordinary)).toBeGreaterThanOrEqual(4.5);
-  await expansion(page,"E").click();
+  await expansion(page,"E").press("ArrowUp");
   const variant = picker(page,"E").getByRole("button",{ name: /Nhập chữ È,|Enter letter È,/i });
   await variant.hover(); expect(await textContrast(variant)).toBeGreaterThanOrEqual(4.5);
 });
@@ -148,7 +150,7 @@ test("known-present ordinary and variant keys keep readable feedback while hover
 for (const width of [320,375]) test(`nine-letter input and picker fit ${width}px with reduced motion and a short viewport`,async ({ page }) => {
   await page.setViewportSize({ width, height: 420 }); await page.emulateMedia({ reducedMotion: "reduce" });
   await dictionary(page); await start(page,9);
-  await expansion(page,"A").click();
+  await expansion(page,"A").press("ArrowUp");
   const dialog = picker(page,"A");
   await expect(dialog).toBeVisible();
   await page.screenshot({ path: `output/playwright/picker-${width}.png`,fullPage: false });
