@@ -27,10 +27,12 @@ test("Tra từ returns to the active or completed round without losing progress"
   await expect(lookup).toBeFocused();
   await input(page).fill("mèo");
   await submit(page).click();
-  await expect(page.getByRole("region", { name: "Kết quả ván chơi" })).toContainText("2 / 6 lượt");
+  await expect(page.getByRole("dialog",{ name: "Kết quả ván chơi" })).toContainText("2 / 6 lượt");
+  await page.getByRole("button", { name: "Xem lại ván" }).click();
   await lookup.click();
   await page.getByRole("link", { name: "Về Vua Tiếng Việt" }).click();
-  await expect(page.getByRole("region", { name: "Kết quả ván chơi" })).toContainText("2 / 6 lượt");
+  await expect(page.getByText("2 / 6 lượt", { exact: true })).toBeVisible();
+  await expect(page.getByText("Đã đoán đúng", { exact: true })).toBeVisible();
   await expect(page.getByText("Chuỗi hiện tại: 1", { exact: true })).toBeVisible();
   await expect(lookup).toBeFocused();
 });

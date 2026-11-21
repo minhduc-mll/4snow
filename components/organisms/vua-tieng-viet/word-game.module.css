@@ -89,10 +89,11 @@
   .sharedInput { pointer-events: none; }
 }
 .keyboardHint { text-align: center; color: var(--vtv-muted); font-size: .75rem; margin-top: .35rem; }
-.roundActions { width: min(100%, 22rem); justify-self: center; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; }
-.restart { color: var(--vtv-muted); min-height: 2.75rem; }
-.result { display: grid; gap: .75rem; padding: 1rem .5rem .5rem; border-top: 1px solid var(--vtv-line); text-align: center; }
-.result h2 { font-size: 1.1rem; font-weight: 650; }
+.roundActions { width: min(100%, 22rem); justify-self: center; display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; }
+.resultActions { width: min(100%, 22rem); justify-self: center; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+.resultActions > button { min-height: 2.75rem; height: 100%; white-space: normal; }
+.reviewStatus { color: var(--vtv-ink); font-weight: 650; text-align: center; }
+.result { display: grid; gap: .75rem; text-align: center; }
 .answer { font-size: 1.75rem; font-weight: 700; color: var(--vtv-primary); }
 .attribution { display: grid; gap: .75rem; font-size: .75rem; color: var(--vtv-muted); text-align: left; line-height: 1.6; }
 .attribution h3 { font-weight: 650; }

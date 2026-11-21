@@ -39,6 +39,7 @@ export function useWordRound() {
   const [error,setError] = React.useState<PlayerErrorCode | null>(null);
   const [retrySettings,setRetrySettings] = React.useState<RoundSettings | null>(null);
   const [helpOpen,setHelpOpen] = React.useState(false);
+  const [resultOpen,setResultOpen] = React.useState(false);
   const controller = React.useRef<AbortController | null>(null);
   const active = React.useRef(true);
   const input = useWordInput({ state, current, loading, conflict: conflictRef, busy: busy || recovery === "loading" || conflict, dialogOpen: settingsDraft !== null || helpOpen, restoredRoundId, replace, setError });
@@ -47,7 +48,7 @@ export function useWordRound() {
     storage.pause();
     conflictRef.current = true; operation.current++; controller.current?.abort();
     loading.current = false; setBusy(false);
-    setConflict(true); setSettingsDraft(null); setRetrySettings(null); setHelpOpen(false); resetInput();
+    setConflict(true); setSettingsDraft(null); setRetrySettings(null); setHelpOpen(false); setResultOpen(false); resetInput();
   },[storage,resetInput]);
   React.useEffect(() => { active.current = true; return () => { active.current = false; controller.current?.abort(); }; },[]);
   React.useEffect(() => {
@@ -93,6 +94,7 @@ export function useWordRound() {
     const previous = current.current;
     if (next === previous) return;
     current.current = next; setState(next);
+    if (previous?.round.status === "playing" && next.round.status !== "playing") setResultOpen(true);
     setRestoredRoundId(null);
     void storage.write(next,false,previous).then(result => {
       if (!active.current) return;
@@ -154,7 +156,7 @@ export function useWordRound() {
     if (!settingsDraft || loading.current || conflictRef.current) return;
     const next = settingsDraft;
     setSettingsDraft(null);
-    if (current.current) void begin(next);
+    if (current.current || damagedSave) void begin(next);
     else {
       setSetupSettings(next); setError(null); setRetrySettings(null);
       try {
@@ -185,7 +187,8 @@ export function useWordRound() {
     resolutionError, resolveConflict, recovery, damagedSave, restoredRoundId, storageWarning, error,
     settingsDraft, setSettingsDraft, openSettings, applySettings, showOpeningClue, toggleOpeningClue,
     retry: retrySettings ? () => void begin(retrySettings) : null,
-    input, helpOpen, setHelpOpen, start: () => void begin(settings),
+    input, helpOpen, setHelpOpen, resultOpen, setResultOpen,
+    start: () => { setResultOpen(false); void begin(settings); },
     openHelp: (event: React.MouseEvent<HTMLButtonElement>) => {
       input.rememberOpener(event.currentTarget);
       setHelpOpen(true);

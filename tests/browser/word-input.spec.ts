@@ -90,7 +90,7 @@ test("absent letters remain usable and invalid pastes reject atomically",async (
   await picker(page,"E").getByRole("button",{ name: /Nhập chữ È$|Enter letter È$/i }).click();
   await keyboard(page).getByRole("button",{ name: "O", exact: true }).click();
   await expect(input(page)).toHaveValue("MÈO"); await submit(page).click();
-  await expect(page.getByRole("region",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!");
+  await expect(page.getByRole("dialog",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!");
 });
 
 test("typing, paste and virtual keys share sequential correction and duplicate-event guards",async ({ page }) => {
@@ -132,7 +132,7 @@ test("provisional IME letters are not rejected; modifiers and unrelated dialogs 
   await page.keyboard.press("Enter"); await expect(board(page).locator("[data-feedback]")).toHaveCount(3);
   await expect(page.getByRole("button",{ name: "Cách chơi", exact: true })).toBeFocused();
   await input(page).focus(); await input(page).press("Enter");
-  await expect(page.getByRole("region",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!");
+  await expect(page.getByRole("dialog",{ name: /Kết quả ván chơi|Round result/i })).toContainText("Chúc mừng!");
 });
 
 test("known-present ordinary and variant keys keep readable feedback while hovered",async ({ page }) => {
