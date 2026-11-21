@@ -68,6 +68,17 @@ test("real import recovers committed lost responses and resumes two chunks after
   await page.getByLabel(/Mật khẩu|Password/i).fill(password);
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
 
+  await page.setViewportSize({ width: 390, height: 844 });
+  const fileInput = page.locator("#dictionary-preview-file");
+  const begin = page.getByRole("button", { name: /Bắt đầu hoặc tiếp tục|Start or resume/i });
+  await fileInput.setInputFiles({ name: "invalid.json", mimeType: "application/json", buffer: Buffer.from('{\n  "entries": [') });
+  await expect(page.getByText(/invalid\.json.*(?:Dòng 2|Line 2).*JSON/i)).toBeVisible();
+  await expect(begin).toBeDisabled();
+  await fileInput.setInputFiles({ name: "first.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(chunks[0])) });
+  await expect(page.getByText(/Còn thiếu 1 phần|Missing 1 parts/i)).toBeVisible();
+  await expect(begin).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
   await select();
   let pending = responseFor("import-start");
   await page.getByRole("button", { name: /Bắt đầu hoặc tiếp tục|Start or resume/i }).click();

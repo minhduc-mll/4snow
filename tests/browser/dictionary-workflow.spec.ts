@@ -15,6 +15,7 @@ test("dictionary steps support direct links, back and retained filters on a phon
   await page.getByRole("button", { name: /Đăng nhập|Sign in|Log in/i }).click();
   const nav = page.getByRole("navigation", { name: /Các bước quản lý từ điển|Dictionary workflow steps/i });
   await expect(nav.getByRole("link", { name: /Duyệt|Review/i })).toHaveAttribute("aria-current", "step");
+  await page.getByText("Bộ lọc khác", { exact: true }).click();
   const source = page.getByLabel(/Mã nguồn|Source ID/i);
   await source.fill("retained-filter");
   await nav.getByRole("link", { name: /Nhập|Import/i }).click();

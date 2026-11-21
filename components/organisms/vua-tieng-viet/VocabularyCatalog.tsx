@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { ArrowLeft, Download, Search } from "lucide-react";
 import { Button } from "@/components/atoms/Button";
 import { Input } from "@/components/atoms/Input";
@@ -15,6 +16,22 @@ export function VocabularyCatalog() {
   const { t, language } = useAppI18n();
   const model = useVocabularyCatalog();
   const number = new Intl.NumberFormat(language);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const resultsRef = useRef<HTMLHeadingElement>(null);
+  const changePage = (page: number) => {
+    model.setPage(page);
+    resultsRef.current?.focus();
+  };
+  const pagination = (position: "top" | "bottom") => (
+    <nav aria-label={t(`vocabularyCatalog.paginationLabels.${position}`)} className="flex flex-wrap items-center justify-between gap-2">
+      <Button type="button" variant="outline" className="min-h-11" disabled={model.pageIndex === 0} onClick={() => changePage(model.pageIndex - 1)}>{t("vocabularyCatalog.previous")}</Button>
+      <span className="text-sm tabular-nums text-muted-foreground">
+        {number.format(model.pageIndex + 1)} / {number.format(model.pageCount)}
+      </span>
+      <Button type="button" variant="outline" className="min-h-11" disabled={model.pageIndex + 1 === model.pageCount} onClick={() => changePage(model.pageIndex + 1)}>{t("vocabularyCatalog.next")}</Button>
+    </nav>
+  );
+  useEffect(() => { titleRef.current?.focus({ preventScroll: true }); }, []);
 
   return (
     <main className="mx-auto grid w-full max-w-5xl gap-8 px-4 py-8 sm:px-8 sm:py-12">
@@ -25,7 +42,7 @@ export function VocabularyCatalog() {
         </Link>
       </nav>
       <header className="grid gap-4 border-b pb-6">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{t("vocabularyCatalog.title")}</h1>
+        <h1 ref={titleRef} tabIndex={-1} className="text-3xl font-semibold tracking-tight sm:text-5xl">{t("vocabularyCatalog.title")}</h1>
         <p className="max-w-2xl text-muted-foreground">{t("vocabularyCatalog.description")}</p>
         <a href={VOCABULARY_URL} download className="inline-flex min-h-11 w-fit items-center gap-2 rounded-md border px-3 text-sm font-medium hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring">
           <Download size={16} aria-hidden="true" />
@@ -37,17 +54,23 @@ export function VocabularyCatalog() {
           <label htmlFor="vocabulary-search" className="text-sm font-medium">{t("vocabularyCatalog.search")}</label>
           <div className="relative max-w-xl">
             <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <Input id="vocabulary-search" className="h-11 pl-10" type="search" autoComplete="off" value={model.search}
+            <Input id="vocabulary-search" className="h-11 pl-10 text-base" type="search" autoComplete="off" value={model.search}
               onChange={(event) => model.changeSearch(event.target.value)} placeholder={t("vocabularyCatalog.placeholder")} />
           </div>
         </div>
-        <p role="status" className="text-sm text-muted-foreground">
+        <h2 ref={resultsRef} tabIndex={-1} className="scroll-mt-4 font-semibold focus-visible:outline-2 focus-visible:outline-ring">{t("vocabularyCatalog.results")}</h2>
+        <p role="status" aria-atomic="true" className="text-sm text-muted-foreground">
           {model.isPending ? t("vocabularyCatalog.loading") : model.isError ? t("vocabularyCatalog.error")
-            : t("vocabularyCatalog.resultCount", { total: number.format(model.resultCount) })}
+            : model.resultCount ? t("vocabularyCatalog.resultRange", {
+                first: number.format(model.offset + 1), last: number.format(model.offset + model.rows.length),
+                total: number.format(model.resultCount), page: number.format(model.pageIndex + 1),
+                pages: number.format(model.pageCount),
+              }) : t("vocabularyCatalog.empty")}
         </p>
-        {model.isError ? <Button type="button" variant="outline" className="w-fit" onClick={() => void model.refetch()}>{t("vocabularyCatalog.retry")}</Button> : null}
+        {model.isError ? <Button type="button" variant="outline" className="min-h-11 w-fit" onClick={() => void model.refetch()}>{t("vocabularyCatalog.retry")}</Button> : null}
         {model.rows.length ? (
           <>
+            {model.pageCount > 1 ? pagination("top") : null}
             <div className="overflow-hidden rounded-lg border">
               <table className="w-full table-fixed text-left text-sm">
                 <thead className="bg-muted text-foreground">
@@ -71,17 +94,9 @@ export function VocabularyCatalog() {
                 </tbody>
               </table>
             </div>
-            {model.pageCount > 1 ? (
-              <nav aria-label={t("vocabularyCatalog.pagination")} className="flex flex-wrap items-center justify-between gap-2">
-                <Button type="button" variant="outline" disabled={model.pageIndex === 0} onClick={() => model.setPage(model.pageIndex - 1)}>{t("vocabularyCatalog.previous")}</Button>
-                <span className="text-sm tabular-nums text-muted-foreground" aria-live="polite">
-                  {number.format(model.pageIndex + 1)} / {number.format(model.pageCount)}
-                </span>
-                <Button type="button" variant="outline" disabled={model.pageIndex + 1 === model.pageCount} onClick={() => model.setPage(model.pageIndex + 1)}>{t("vocabularyCatalog.next")}</Button>
-              </nav>
-            ) : null}
+            {model.pageCount > 1 ? pagination("bottom") : null}
           </>
-        ) : !model.isPending && !model.isError ? <p>{t("vocabularyCatalog.empty")}</p> : null}
+        ) : null}
       </section>
       <footer className="grid gap-3 border-t pt-6 text-sm">
         <h2 className="font-semibold">{t("vocabularyCatalog.credits")}</h2>

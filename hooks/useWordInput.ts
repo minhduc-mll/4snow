@@ -18,6 +18,20 @@ type Options = {
   setError: (error: PlayerErrorCode | null) => void;
 };
 
+type RejectedInput = { kind: "character" | "length"; position: number; letter: string };
+
+function rejectedCharacter(raw: string, level: number): RejectedInput | null {
+  let position = 0;
+  for (const letter of raw.slice(0, 121).normalize("NFC").match(/\P{Mark}\p{Mark}*|\p{Mark}+/gu) ?? []) {
+    if (letter === " ") continue;
+    position++;
+    try { normalizeSpelling(letter); }
+    catch { return { kind: "character", position, letter: letter.trim().slice(0, 12) || "␣" }; }
+    if (position > level) return { kind: "length", position, letter };
+  }
+  return null;
+}
+
 const touchInputQuery = "(hover: none) and (pointer: coarse)";
 const usesTouchInput = () => window.matchMedia(touchInputQuery).matches;
 const desktopServerSnapshot = () => false;
@@ -32,12 +46,13 @@ function subscribeToTouchInput(onChange: () => void) {
 export function useWordInput({ state, current, loading, conflict, busy, dialogOpen, restoredRoundId, replace, setError }: Options) {
   const touchInput = React.useSyncExternalStore(subscribeToTouchInput, usesTouchInput, desktopServerSnapshot);
   const [draft,setDraft] = React.useState<string | null>(null);
+  const [rejected, setRejected] = React.useState<RejectedInput | null>(null);
   const composing = React.useRef(false), suppressEnter = React.useRef(false), processing = React.useRef(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const actionRef = React.useRef<HTMLButtonElement>(null);
   const nativeKeyboardButtonRef = React.useRef<HTMLButtonElement>(null);
   const openerRef = React.useRef<HTMLButtonElement | null>(null);
-  const reset = React.useCallback(() => { setDraft(null); composing.current = false; suppressEnter.current = false; },[]);
+  const reset = React.useCallback(() => { setDraft(null); setRejected(null); composing.current = false; suppressEnter.current = false; },[]);
   const roundId = state?.round.id, guessCount = state?.round.guesses.length;
   const terminal = state?.round.status === "lost" || state?.round.status === "won";
   const focusedTransition = React.useRef<string | null>(null);
@@ -70,6 +85,7 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
     if (loading.current || processing.current || conflict.current || !current.current) return;
     if (composing.current) { setDraft(raw); return; }
     const result = commitInput(current.current,raw);
+    setRejected(result.error === "INVALID_INPUT" ? rejectedCharacter(raw, current.current.round.level) : null);
     const next = result.state === current.current ? result.state : { ...result.state, round: { ...result.state.round, updatedAt: new Date(Math.max(Date.now(),Date.parse(result.state.round.updatedAt))).toISOString() } };
     replace(next); setDraft(null); setError(result.error);
   };
@@ -78,6 +94,7 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
     focusInput();
     processing.current = true;
     try {
+      setRejected(null);
       const timestamp = new Date(Math.max(Date.now(),Date.parse(current.current.round.updatedAt))).toISOString();
       const result = submitGuess(current.current,current.current.round.revision,() => ({ id: crypto.randomUUID(), timestamp }));
       if (result.error === "INCOMPLETE") return;
@@ -138,7 +155,7 @@ export function useWordInput({ state, current, loading, conflict, busy, dialogOp
   const eligibility = guessEligibility(state,draft !== null,busy || dialogOpen);
   const knowledge = React.useMemo(() => keyboardKnowledge(state?.round.guesses ?? [], state?.round.rules.accuracy, state?.round.initialAbsentLetters),[state?.round.guesses, state?.round.rules.accuracy, state?.round.initialAbsentLetters]);
   return {
-    field, letters, draft, eligibility, submit, actionRef, reset, focusInput,
+    field, letters, rejected, draft, eligibility, submit, actionRef, reset, focusInput,
     keyboard: { knowledge, disabled: disabled || draft !== null, onKey: virtualKey, focusInput, openNativeKeyboard, nativeKeyboardButtonRef },
     rememberOpener: (element: HTMLButtonElement) => { openerRef.current = element; },
     restoreFocus: () => openerRef.current?.focus({ preventScroll: true }),

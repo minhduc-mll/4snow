@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { MouseEvent } from "react";
-import { ArrowLeft } from "lucide-react";
+import { useEffect, useRef, type MouseEvent } from "react";
+import { ArrowLeft, BookOpen } from "lucide-react";
 import { MotionConfig } from "framer-motion";
 import { Button } from "@/components/atoms/Button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/atoms/Dialog";
@@ -15,6 +15,7 @@ import { useWordRound } from "@/hooks/useWordRound";
 import { useWordOfflineShell } from "@/hooks/useWordOfflineShell";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { PATH } from "@/lib/paths";
+import { VOCABULARY_RETURN_FOCUS } from "@/lib/vua-tieng-viet/public-vocabulary";
 import type { AccentAccuracy, GuessMode, LetterFeedback, RoundSettings, WordDifficulty, WordLevel } from "@/types/vua-tieng-viet";
 import styles from "./word-game.module.css";
 
@@ -33,6 +34,19 @@ export function WordGame() {
   const round = state?.round;
   const playing = round?.status === "playing";
   const { actionRef, eligibility } = input;
+  const vocabularyLink = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(VOCABULARY_RETURN_FOCUS)) {
+        sessionStorage.removeItem(VOCABULARY_RETURN_FOCUS);
+        vocabularyLink.current?.focus({ preventScroll: true });
+      }
+    } catch { /* The link remains usable when storage is unavailable. */ }
+  }, []);
+  const rememberVocabularyLink = () => {
+    try { sessionStorage.setItem(VOCABULARY_RETURN_FOCUS, "1"); }
+    catch { /* Navigation remains available. */ }
+  };
   const describeSettings = ({ level, guessMode, accuracy, difficulty }: RoundSettings, legacy = false) => t("wordGame.settings.summary", {
     level,
     mode: t(`wordGame.settings.${guessMode}`),
@@ -51,6 +65,10 @@ export function WordGame() {
     : !eligibility.canSubmit && eligibility.reason === "incomplete"
       ? t("wordGame.requiredLength",{ level: settings.level }) : t("wordGame.typeHint");
   const message = model.busy ? t("wordGame.loading")
+    : model.error === "INVALID_INPUT" && input.rejected ? t(
+      input.rejected.kind === "length" ? "wordGame.rejectedLength" : "wordGame.rejectedInput",
+      { letter: input.rejected.letter, position: input.rejected.position, level: settings.level },
+    )
     : model.error ? t(`wordGame.errors.${model.error}`)
     : model.damagedSave ? t(`wordGame.recovery.${model.recovery}`)
     : input.draft !== null ? t("wordGame.composing")
@@ -63,17 +81,17 @@ export function WordGame() {
       <nav className={styles.topbar} aria-label={t("wordGame.navigation")}>
         <Link href={PATH.home} className={styles.home}><ArrowLeft size={16} aria-hidden="true" />{t("adminAuth.homeAction")}</Link>
         <div className={styles.topActions}>
+          <Link ref={vocabularyLink} href={PATH.vietnameseVocabulary} onNavigate={rememberVocabularyLink} className={styles.lookup}>
+            <BookOpen size={16} aria-hidden="true" />{t("vocabularyCatalog.lookup")}
+          </Link>
           <Button variant="ghost" onClick={model.openHelp} className={styles.help}>{t("wordGame.help")}</Button>
           <Button variant="ghost" onClick={model.openSettings} className={styles.help} disabled={model.busy}>{t("wordGame.settings.title")}</Button>
         </div>
       </nav>
-      {!round ? <header className={styles.header}>
-        <h1>Vua tiếng Việt</h1>
+      {round ? <h1 className={styles.srOnly}>Vua Tiếng Việt</h1> : <header className={styles.header}>
+        <h1>Vua Tiếng Việt</h1>
         <p>{t("wordGame.tagline")}</p>
-        <Link href={PATH.vietnameseVocabulary} className="mx-auto inline-flex min-h-11 items-center rounded-md text-sm font-medium underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring">
-          {t("vocabularyCatalog.title")}
-        </Link>
-      </header> : null}
+      </header>}
       <section className={styles.playArea} aria-label={t("wordGame.playArea")}>
         <div className={`${styles.boardMeta} ${styles.streakMeta}`} aria-live="polite" aria-atomic="true">
           <span>{t("wordGame.streak.current",{ count: model.streak.current })}</span>
@@ -83,7 +101,8 @@ export function WordGame() {
           <span>{describeSettings(settings, Boolean(round && !round.rules.accuracy))}</span>
           {round ? <span aria-live="polite" aria-atomic="true">{t("wordGame.attempts",{ used: round.guesses.length, limit: round.attemptLimit })}</span> : null}
         </div>
-        {round ? <WordBoard round={round} level={round.level} letters={input.letters} field={input.field} showTextFeedback={model.showTextFeedback} /> : null}
+        {round ? <WordBoard round={round} level={round.level} letters={input.letters} field={input.field} showTextFeedback={model.showTextFeedback}
+          rejectedPosition={model.error === "INVALID_INPUT" ? input.rejected?.position : undefined} /> : null}
         <div id="vtv-message" role="status" aria-atomic="true" className={styles.message}>{message}</div>
         {model.storageWarning ? <p role="alert" className={styles.instruction}>{t("wordGame.recovery.warning")}</p> : null}
         {model.retry ? <Button variant="outline" onClick={model.retry} disabled={model.busy}>{t("wordGame.settings.retry")}</Button> : null}
@@ -141,8 +160,9 @@ export function WordGame() {
         <fieldset className={styles.levels}>
           <legend>{t("wordGame.settings.accuracy")} <SettingsHelp label={t("wordGame.settings.accuracyHelpLabel")} text={t("wordGame.settings.accuracyHelp")} /></legend>
           <div className={`${styles.levelButtons} ${styles.modeButtons}`}>
-            {accuracies.map(accuracy => <Button key={accuracy} variant="outline" aria-pressed={settingsDraft.accuracy === accuracy} className={styles.levelButton} onClick={() => model.setSettingsDraft({ ...settingsDraft, accuracy })}>{t(`wordGame.settings.${accuracy}`)}</Button>)}
+            {accuracies.map(accuracy => <Button key={accuracy} variant="outline" aria-pressed={settingsDraft.accuracy === accuracy} aria-describedby={accuracy === "strict" ? "vtv-strict-help" : undefined} className={styles.levelButton} onClick={() => model.setSettingsDraft({ ...settingsDraft, accuracy })}>{t(`wordGame.settings.${accuracy}`)}</Button>)}
           </div>
+          <p id="vtv-strict-help" className={styles.accuracyDetail}>{t("wordGame.settings.strictHelp")}</p>
         </fieldset>
         <Button variant="outline" className={styles.levelButton} aria-pressed={model.showTextFeedback} onClick={() => model.setShowTextFeedback(value => !value)}>{t("wordGame.settings.textFeedback")}</Button>
         <LanguageControl inline />

@@ -157,15 +157,24 @@ export function useBulkEditorial(onUnauthorized: () => void, enabled: boolean) {
       persist({ selectionId: selection.selectionId, pending: null });
     } catch (error) { if (session === adminSessionGeneration()) setError(error instanceof Error ? error.message : "UNAVAILABLE"); }
   };
-  const apply = async (decision: BulkDecision) => {
-    if (!pageQuery.data || pageQuery.isFetching || pageQuery.isPlaceholderData || applyMutation.isPending) return;
+  const apply = async (decision: BulkDecision): Promise<boolean> => {
+    if (!pageQuery.data || pageQuery.isFetching || pageQuery.isPlaceholderData || applyMutation.isPending) return false;
     const session = adminSessionGeneration();
     setError(null);
     try {
       const { category, answerEligible, rationale, exclusionChecks } = decision;
       await applyMutation.mutateAsync({ selection: pageQuery.data, decision: { category, answerEligible, rationale, exclusionChecks } });
-    } catch (error) { if (session === adminSessionGeneration()) setError(error instanceof Error ? error.message : "UNAVAILABLE"); }
-    finally { if (session === adminSessionGeneration()) await client.invalidateQueries({ queryKey: ["vtv-private", "editorial"] }); }
+      return session === adminSessionGeneration();
+    } catch (error) {
+      if (session === adminSessionGeneration()) setError(error instanceof Error ? error.message : "UNAVAILABLE");
+      return false;
+    }
+    finally {
+      if (session === adminSessionGeneration()) await Promise.all([
+        client.invalidateQueries({ queryKey: ["vtv-private", "editorial"] }),
+        client.invalidateQueries({ queryKey: ["vtv-private", "publication", "draft"] }),
+      ]);
+    }
   };
   const clear = () => {
     persist(null);
@@ -177,5 +186,5 @@ export function useBulkEditorial(onUnauthorized: () => void, enabled: boolean) {
   const canPage = page !== null && !pageQuery.isFetching && !applyMutation.isPending && page.offset === offset;
   const canPrevious = canPage && page.offset > 0;
   const canNext = canPage && page.offset + BULK_BATCH_SIZE < page.count;
-  return { targets, toggle, includePage, clear, start, apply, page, canNext, canPrevious, waitingForQuota, next: () => { if (canNext) setOffset(page.offset + BULK_BATCH_SIZE); }, previous: () => { if (canPrevious) setOffset(page.offset - BULK_BATCH_SIZE); }, loading: createMutation.isPending || pageQuery.isFetching, saving: applyMutation.isPending, error: error ?? (pageQuery.isError ? "UNAVAILABLE" : null), storageError, resume };
+  return { targets, toggle, includePage, clear, start, apply, page, canNext, canPrevious, waitingForQuota, next: () => { if (canNext) setOffset(page.offset + BULK_BATCH_SIZE); }, previous: () => { if (canPrevious) setOffset(page.offset - BULK_BATCH_SIZE); }, loading: createMutation.isPending || pageQuery.isFetching, saving: applyMutation.isPending, error: error ?? (pageQuery.isError ? "UNAVAILABLE" : null), pageError: pageQuery.isError, retryPage: pageQuery.refetch, storageError, resume };
 }

@@ -1,16 +1,34 @@
 export const VOCABULARY_URL = "/tu-vung/tu-tieng-viet-tong-hop.tsv";
+export const VOCABULARY_RETURN_FOCUS = "vtv:vocabulary-return-focus";
 export const KAIKKI_SOURCE = "https://kaikki.org/viwiktionary/rawdata.html";
 export const HO_NGOC_DUC_SOURCE = "https://github.com/duyet/vietnamese-wordlist/tree/688b0953c8cdb21ee090ce80b83cefdb052fe2cd";
 
 export type VocabularyEntry = {
   spelling: string;
   searchKey: string;
+  foldedKey: string;
   wiktionary: boolean;
   hoNgocDuc: boolean;
 };
 
 export function vocabularySearchKey(value: string): string {
   return value.normalize("NFC").toLocaleLowerCase("vi");
+}
+
+function foldVocabularyKey(value: string): string {
+  return value.normalize("NFD").replace(/\p{Mark}/gu, "").replaceAll("đ", "d");
+}
+
+export function searchVocabulary(rows: VocabularyEntry[], query: string): VocabularyEntry[] {
+  if (!query) return rows;
+  const foldedQuery = foldVocabularyKey(query);
+  const exact: VocabularyEntry[] = [];
+  const folded: VocabularyEntry[] = [];
+  for (const entry of rows) {
+    if (entry.searchKey.includes(query)) exact.push(entry);
+    else if (foldedQuery && entry.foldedKey.includes(foldedQuery)) folded.push(entry);
+  }
+  return [...exact, ...folded];
 }
 
 export function parseVocabulary(tsv: string): VocabularyEntry[] {
@@ -24,7 +42,8 @@ export function parseVocabulary(tsv: string): VocabularyEntry[] {
     if (columns.length !== 3 || !encoded || !/^[01]$/.test(wiktionary) || !/^[01]$/.test(hoNgocDuc)
       || (wiktionary === "0" && hoNgocDuc === "0")) throw new Error("Invalid vocabulary row");
     const spelling = encoded.replace(/\\([\\t])/g, (_, escape: string) => escape === "t" ? "\t" : "\\");
-    return { spelling, searchKey: vocabularySearchKey(spelling), wiktionary: wiktionary === "1", hoNgocDuc: hoNgocDuc === "1" };
+    const searchKey = vocabularySearchKey(spelling);
+    return { spelling, searchKey, foldedKey: foldVocabularyKey(searchKey), wiktionary: wiktionary === "1", hoNgocDuc: hoNgocDuc === "1" };
   });
 }
 

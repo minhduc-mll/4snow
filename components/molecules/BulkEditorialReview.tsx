@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/atoms/Checkbox";
 import { bulkCategories, useBulkDecisionForm } from "@/hooks/useEditorialForms";
 import { Button } from "@/components/atoms/Button";
 import { useAppI18n } from "@/hooks/useAppI18n";
+import { useDictionaryDraft, useDictionaryNavigation } from "@/hooks/useDictionaryDraft";
 import type { useBulkEditorial } from "@/hooks/useBulkEditorial";
 import type { BulkDecision, BulkPage } from "@/lib/vua-tieng-viet/bulk-review-contract";
 import type { ExclusionChecks } from "@/lib/vua-tieng-viet/editorial-contract";
@@ -16,7 +17,8 @@ const checks: (keyof ExclusionChecks)[] = ["names", "abbreviations", "offensive"
 
 function BulkDecisionForm({ model, page, saved }: DecisionProps): React.ReactElement {
   const { t } = useAppI18n();
-  const { decision, canConfirm, changeCategory, setAnswerEligible, setRationale, setCheck } = useBulkDecisionForm(saved, model.error);
+  const { decision, canConfirm, changeCategory, setAnswerEligible, setRationale, setCheck, dirty, discard } = useBulkDecisionForm(saved, model.error);
+  useDictionaryDraft({ dirty, busy: model.saving, discard, save: () => canConfirm ? model.apply(decision) : Promise.resolve(false) });
   return <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); if (canConfirm && !model.loading && !model.saving) void model.apply(decision); }}>
     <fieldset disabled={!!saved || model.saving} className="grid gap-2">
       <legend className="font-medium">{t("bulk.decision")}</legend>
@@ -35,13 +37,15 @@ function BulkDecisionForm({ model, page, saved }: DecisionProps): React.ReactEle
 
 export function BulkEditorialReview({ model, openEntry }: Props): React.ReactElement {
   const { t } = useAppI18n();
+  const guard = useDictionaryNavigation();
   const page = model.page;
   return <section className="grid gap-3 rounded-lg border p-4" aria-label={t("bulk.title")}>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 className="font-semibold">{t("bulk.title")}</h3>
-      <Button variant="outline" onClick={model.clear} disabled={model.saving}>{t("bulk.clear")}</Button>
+      <Button variant="outline" onClick={() => guard(model.clear)} disabled={model.saving}>{t("bulk.clear")}</Button>
     </div>
     {model.error ? <p role="alert" className="text-destructive">{t(model.error === "REVISION_CONFLICT" || model.error === "IDEMPOTENCY_CONFLICT" ? "bulk.stale" : model.error === "RATE_LIMITED" ? "bulk.rate" : model.error === "VALIDATION_FAILED" ? "bulk.invalidScope" : "bulk.error")}</p> : null}
+    {model.pageError ? <Button variant="outline" disabled={model.loading} className="justify-self-start" onClick={() => void model.retryPage()}>{t("editorialWorkspace.retryPreview")}</Button> : null}
     {model.waitingForQuota ? <p role="status">{t("bulk.waitingForQuota")}</p> : null}
     {model.storageError ? <p role="status">{t("bulk.storageError")}</p> : null}
     {model.loading && !page ? <p role="status">{t("editorial.loading")}</p> : null}

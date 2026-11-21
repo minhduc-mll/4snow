@@ -38,32 +38,33 @@ export function useDictionaryPublication(onUnauthorized: () => void) {
     catch { throw new Error("UNAVAILABLE"); }
   } });
   const execute = async (request: PublicationMutationRequest) => {
-    if (!active.current) return;
+    if (!active.current) return false;
     const session = adminSessionGeneration();
     pending.current = request; setCanRetry(false); setLocalError(false);
     try {
       const result = await mutation.mutateAsync(request);
-      if (!active.current || session !== adminSessionGeneration()) return;
+      if (!active.current || session !== adminSessionGeneration()) return false;
       pending.current = null;
       if (result.operation === "publication-preview") {
+        client.removeQueries({ queryKey: [...ROOT, "published"] });
         client.setQueryData([...ROOT,"preview"],result.data);
         client.setQueryData<DraftConfiguration>([...ROOT,"configuration"],{ draftRevision: result.data.draftRevision, configuration: { configurationId: result.data.configuration.configurationId, attemptLimit: result.data.configuration.attemptLimit, initialAbsentCount: result.data.configuration.initialAbsentCount, normalizerVersion: "vi-nfc-v2", levels: [3,5,7,9] } });
       } else if (result.operation === "configuration") {
         client.setQueryData([...ROOT,"configuration"],result.data);
-        client.removeQueries({ queryKey: [...ROOT,"preview"] });
-        client.removeQueries({ queryKey: [...ROOT,"published"] });
       }
       else { client.setQueryData([...ROOT, "published"], result.data); client.removeQueries({ queryKey: [...ROOT, "preview"] }); client.removeQueries({ queryKey: [...ROOT,"configuration"] }); }
       await client.invalidateQueries({ queryKey: ["vtv-private", "editorial"] });
       await client.invalidateQueries({ queryKey: [...ROOT, "draft"] });
       if (result.operation === "publish") await client.invalidateQueries({ queryKey: ["vtv-public"] });
+      return true;
     } catch (error) {
-      if (!active.current || session !== adminSessionGeneration()) return;
+      if (!active.current || session !== adminSessionGeneration()) return false;
       if (error instanceof Error && (error.message === "UNAVAILABLE" || error.message === "RATE_LIMITED")) setCanRetry(true);
       else {
         pending.current = null;
-        if (error instanceof Error && error.message === "REVISION_CONFLICT") { client.removeQueries({ queryKey: [...ROOT, "preview"] }); client.removeQueries({ queryKey: [...ROOT,"configuration"] }); await client.invalidateQueries({ queryKey: [...ROOT, "draft"] }); }
+        if (error instanceof Error && error.message === "REVISION_CONFLICT") await client.invalidateQueries({ queryKey: [...ROOT, "draft"] });
       }
+      return false;
     }
   };
   const refresh = async () => {
@@ -73,7 +74,6 @@ export function useDictionaryPublication(onUnauthorized: () => void) {
     try {
       const fresh = await draft.refetch();
       if (!active.current || session !== adminSessionGeneration() || !fresh.data || fresh.isError) return;
-      client.removeQueries({ queryKey: [...ROOT, "published"] });
       await execute({ operation: "publication-preview", requestId: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), input: { expectedDraftRevision: fresh.data } });
     } catch { if (active.current) setLocalError(true); }
     finally { preparing.current = false; }
@@ -83,10 +83,21 @@ export function useDictionaryPublication(onUnauthorized: () => void) {
     try { void execute({ operation: "publish", requestId: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), input: { buildId: preview.data.buildId, expectedDraftRevision: preview.data.draftRevision, expectedCurrentReleaseId: confirmed.expectedCurrentReleaseId, contentHash: confirmed.contentHash } }); }
     catch { setLocalError(true); }
   };
-  const configure = (attemptLimit: number, initialAbsentCount: number) => {
-    if (!configuration.data || pending.current || mutation.isPending || preparing.current || draft.isFetching) return;
-    try { void execute({ operation: "configuration", requestId: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), input: { expectedDraftRevision: configuration.data.draftRevision, attemptLimit, initialAbsentCount } }); }
-    catch { setLocalError(true); }
+  const configure = async (attemptLimit: number, initialAbsentCount: number): Promise<boolean> => {
+    if (!configuration.data || mutation.isPending || preparing.current || draft.isFetching) return false;
+    const previous = pending.current;
+    if (previous) return previous.operation === "configuration" && previous.input.attemptLimit === attemptLimit && previous.input.initialAbsentCount === initialAbsentCount
+      ? execute(previous)
+      : false;
+    try { return execute({ operation: "configuration", requestId: crypto.randomUUID(), idempotencyKey: crypto.randomUUID(), input: { expectedDraftRevision: configuration.data.draftRevision, attemptLimit, initialAbsentCount } }); }
+    catch { setLocalError(true); return false; }
   };
-  return { configuration: configuration.data, configure, preview: preview.data, published: published.data, refresh, publish, retry: () => { if (pending.current && !mutation.isPending) void execute(pending.current); }, canRetry, busy: mutation.isPending || draft.isFetching, error: localError || mutation.isError || draft.isError, stale: stalePreview || mutation.error?.message === "REVISION_CONFLICT" };
+  const discardConfiguration = () => {
+    if (pending.current?.operation !== "configuration" || mutation.isPending) return;
+    pending.current = null;
+    setCanRetry(false);
+    mutation.reset();
+    void draft.refetch();
+  };
+  return { configuration: configuration.data, configure, discardConfiguration, preview: preview.data, published: published.data, refresh, publish, retry: () => { if (pending.current && !mutation.isPending) void execute(pending.current); }, canRetry, busy: mutation.isPending || draft.isFetching, error: localError || mutation.isError || draft.isError, stale: stalePreview || mutation.error?.message === "REVISION_CONFLICT" };
 }

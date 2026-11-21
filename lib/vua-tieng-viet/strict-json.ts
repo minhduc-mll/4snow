@@ -1,7 +1,16 @@
-﻿/** Parse JSON while rejecting duplicate object keys, including escaped equivalents. */
+export class StrictJsonError extends Error {
+  readonly offset: number;
+
+  constructor(offset: number) {
+    super("Invalid JSON or duplicate object key");
+    this.offset = offset;
+  }
+}
+
+/** Parse JSON while rejecting duplicate object keys, including escaped equivalents. */
 export function parseStrictJson(text: string, maxRootInputBytes?: number, maxDocumentBytes?: number, maxOrdinaryBytes?: number): unknown {
+  let offset = 0;
   try {
-    let offset = 0;
     let operation: unknown;
     const whitespace = (): void => { while (/[\t\n\r ]/.test(text[offset] ?? "") && offset < text.length) offset++; };
     const stringToken = (): string => {
@@ -59,6 +68,7 @@ export function parseStrictJson(text: string, maxRootInputBytes?: number, maxDoc
     return value;
   } catch (error) {
     if (error instanceof RangeError) throw error;
-    throw new Error("Invalid JSON or duplicate object key");
+    const parserOffset = error instanceof SyntaxError ? /\bposition (\d+)\b/.exec(error.message)?.[1] : undefined;
+    throw new StrictJsonError(parserOffset === undefined ? offset : Number(parserOffset));
   }
 }

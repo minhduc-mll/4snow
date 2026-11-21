@@ -15,7 +15,9 @@ type ImportAction = Pick<ImportStartMutation, "operation" | "input"> | Pick<Impo
 
 type StartResponse = { importId: string; expectedChunks: number; status: "staging" | "finalized" | "failed"; draftRevision: string; receipts: Receipt[] };
 type FinalizeResponse = { status: "finalized"; draftRevision: string; createdCount: number; noOpCount: number };
+type ImportFailure = { code: string; chunkIndex?: number; entryIndex?: number };
 const SESSION_KEY = ["vtv-private", "import-session"];
+const IMPORT_REASONS = ["ARTIFACT_MISMATCH", "CHUNK_HASH_MISMATCH", "IMPORT_NOT_STAGING", "ARTIFACT_LIMIT", "MISSING_CHUNKS", "SOURCE_METADATA_MISMATCH", "DUPLICATE_IDENTITY", "SOURCE_REFERENCE", "CANDIDATE_CONTENT_MISMATCH"];
 
 function record(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
 function receipt(value: unknown): Receipt {
@@ -32,14 +34,18 @@ function finalizeResponse(value: Record<string, unknown>): FinalizeResponse {
 }
 
 
-function importError(error: unknown): string {
-  if (!(error instanceof PrivateRequestError)) return error instanceof Error ? error.message : "UNAVAILABLE";
-  if (error.kind !== "IMPORT_CONFLICT" || !record(error.details)) return error.kind;
+function importError(error: unknown): ImportFailure {
+  if (!(error instanceof PrivateRequestError)) {
+    return { code: error instanceof Error && IMPORT_REASONS.includes(error.message) ? error.message : "UNAVAILABLE" };
+  }
+  if (error.kind !== "IMPORT_CONFLICT" || !record(error.details)) return { code: error.kind };
   const { reason, location } = error.details;
-  const allowed = ["ARTIFACT_MISMATCH", "CHUNK_HASH_MISMATCH", "IMPORT_NOT_STAGING", "ARTIFACT_LIMIT", "MISSING_CHUNKS", "SOURCE_METADATA_MISMATCH", "DUPLICATE_IDENTITY", "SOURCE_REFERENCE", "CANDIDATE_CONTENT_MISMATCH"];
-  if (typeof reason !== "string" || !allowed.includes(reason)) return error.kind;
-  const part = record(location) && typeof location.chunkIndex === "number" ? ` (part ${location.chunkIndex + 1}${typeof location.entryIndex === "number" ? `, entry ${location.entryIndex + 1}` : ""})` : "";
-  return `${reason}${part}`;
+  if (typeof reason !== "string" || !IMPORT_REASONS.includes(reason)) return { code: error.kind };
+  return {
+    code: reason,
+    chunkIndex: record(location) && typeof location.chunkIndex === "number" ? location.chunkIndex : undefined,
+    entryIndex: record(location) && typeof location.entryIndex === "number" ? location.entryIndex : undefined,
+  };
 }
 
 function applyKey(hash: string): string {
@@ -66,7 +72,7 @@ export function useDictionaryImport(onUnauthorized: () => void) {
   React.useEffect(() => () => { controller.current?.abort(); }, []);
 
   const mutation = useMutation({
-    mutationKey: ["vtv-private", "import"], retry: false, gcTime: 0,
+    mutationKey: ["vtv-private", "import"], retry: false, gcTime: 0, networkMode: "always",
     mutationFn: async ({ preflight, signal }: { preflight: ImportPreflight; signal: AbortSignal }) => {
       const generation = adminSessionGeneration();
       const assertSession = () => {
@@ -99,14 +105,10 @@ export function useDictionaryImport(onUnauthorized: () => void) {
         if (receipts.has(item.chunkIndex) || chunks[item.chunkIndex]?.canonicalHash !== item.canonicalHash) throw new Error("CHUNK_HASH_MISMATCH");
         receipts.set(item.chunkIndex, item);
       }
+      if (start.status === "finalized" && receipts.size !== chunks.length) throw new Error("MISSING_CHUNKS");
       const session: ImportSession = { ...start, artifactId, artifactRevision, createdCount: null, noOpCount: null };
       queryClient.setQueryData(SESSION_KEY, session);
-      if (start.status === "finalized") {
-        if (receipts.size !== chunks.length) throw new Error("MISSING_CHUNKS");
-        rememberImportFiles(null);
-        void queryClient.invalidateQueries({ queryKey: ["vtv-private", "editorial"] });
-        return;
-      }
+      if (start.status === "finalized") return;
       if (start.status !== "staging") throw new Error("IMPORT_NOT_STAGING");
       for (const [index, chunk] of chunks.entries()) {
         if (receipts.has(index)) continue;
@@ -117,8 +119,11 @@ export function useDictionaryImport(onUnauthorized: () => void) {
       }
       const finalized = finalizeResponse(await request({ operation: "import-finalize", input: { importId: start.importId, expectedDraftRevision: start.draftRevision } }));
       queryClient.setQueryData<ImportSession>(SESSION_KEY, { ...session, ...finalized, receipts: [...receipts.values()] });
+    },
+    onSuccess: () => {
       rememberImportFiles(null);
       void queryClient.invalidateQueries({ queryKey: ["vtv-private", "editorial"] });
+      void queryClient.invalidateQueries({ queryKey: ["vtv-private", "publication", "draft"] });
     },
   });
   const { mutate, reset } = mutation;
@@ -133,5 +138,5 @@ export function useDictionaryImport(onUnauthorized: () => void) {
     queryClient.removeQueries({ queryKey: SESSION_KEY, exact: true });
     queryClient.setQueryData(SESSION_KEY, null);
   };
-  return { session: sessionQuery.data ?? null, loading: mutation.isPending, errorCode: mutation.error ? importError(mutation.error) : null, waitingForQuota, run, clear };
+  return { session: sessionQuery.data ?? null, loading: mutation.isPending, failure: mutation.error ? importError(mutation.error) : null, waitingForQuota, run, clear };
 }

@@ -15,6 +15,7 @@ for (const mode of ["dictionary","free"] as const) test(`a prepared player shell
   page.on("request",request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documentNavigations++; });
   await page.reload();
   await expect(input(page)).toHaveValue("mè");
+  await expect(page.getByText(mode === "free" ? "1 / 6 lượt" : "0 / 6 lượt", { exact: true })).toBeVisible();
   await page.getByRole("button",{ name: "Cài đặt", exact: true }).click();
   const settings = page.getByRole("dialog");
   await settings.getByRole("combobox").selectOption("en");
@@ -24,9 +25,19 @@ for (const mode of ["dictionary","free"] as const) test(`a prepared player shell
   await expect(input(page)).toHaveValue("mè");
   await input(page).fill("mèo"); await submit(page).click();
   await expect(page.getByText("Chúc mừng! Bạn đã tìm ra đáp án.")).toBeVisible();
+  await expect(page.getByText("Chuỗi hiện tại: 1", { exact: true })).toBeVisible();
   await page.getByRole("button",{ name: "Chơi lại", exact: true }).click();
   await expect(page.locator("#vtv-message")).toContainText(/Cần kết nối mạng/);
   expect(documentNavigations).toBe(1);
+  await page.reload();
+  await expect(page.getByText("Chúc mừng! Bạn đã tìm ra đáp án.")).toBeVisible();
+  await expect(page.getByText("Chuỗi hiện tại: 1", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Chơi lại", exact: true }).click();
+  await expect(page.locator("#vtv-message")).toContainText(/Cần kết nối mạng/);
+  await context.setOffline(false);
+  await page.getByRole("button", { name: "Thử lại tải ván mới", exact: true }).click();
+  await expect(input(page)).toBeEnabled();
+  await expect(page.getByText("Chuỗi hiện tại: 1", { exact: true })).toBeVisible();
 });
 
 test("offline dictionary recovery restores historical membership, raw input and results; replay still needs online validation", async ({ page }) => {

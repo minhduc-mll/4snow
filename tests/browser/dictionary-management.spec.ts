@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { isRecord } from "../../lib/vua-tieng-viet/publication-contract";
+import { parseEditorialRequest } from "../../lib/vua-tieng-viet/editorial-contract";
 
 const sourceId = "10000000-0000-4000-8000-000000000001";
 const existingId = "30000000-0000-4000-8000-000000000001";
@@ -18,6 +19,103 @@ const existing = {
   level: 3, definitionVi: "Một con vật.", review: "pending", answerEligible: false,
   category: null, rationale: null, exclusionChecks: null,
 };
+
+for (const width of [1440, 390, 320]) {
+  test(`search, retry and guard candidate edits at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : width === 390 ? 844 : 700 });
+    await page.route("**/api/admin/login", route => route.fulfill({ json: { token: "test-token", expiresAt: Date.now() + 60000 } }));
+    let queryAttempts = 0;
+    let saves = 0;
+    let draftRevision = 1;
+    let current = { ...existing, original: "nhẹ", normalized: "NHẸ", definitionVi: "Định nghĩa từ nhẹ. ".repeat(90).trim() };
+    await page.route("https://test-supabase.invalid/functions/v1/vtv-dictionary", async route => {
+      const body: unknown = route.request().postDataJSON();
+      const request = parseEditorialRequest(body);
+      const reply = (data: unknown) => route.fulfill({ json: { ok: true, requestId: request.requestId, data } });
+      if (request.operation === "list") {
+        const spelling = request.input.filters.spelling;
+        if (spelling === "NHẸ" && ++queryAttempts === 1) return route.fulfill({ status: 503 });
+        if (spelling) expect(spelling === "NHẸ" || spelling === "ZZZZQQQQ").toBe(true);
+        return reply({ items: !spelling || spelling === "NHẸ" ? [{ ...current, id: existingId, sourceId, collision: false }] : [], nextCursor: null, draftRevision: String(draftRevision) });
+      }
+      if (request.operation === "detail") return reply({
+        id: existingId, sourceId, rightsReview: null, entryUrl: "https://example.invalid/entry",
+        attributionPreview: { ...rights, id: existingId, sourceName: source.name, sourceEntryId: existingId, sourceSenseId: null,
+          entryUrl: "https://example.invalid/entry", artifactUrl: source.artifactUrl, artifactSha256: source.artifactSha256,
+          resourceRevision: source.resourceRevision, artifactRevision: "fixture" },
+        sourceEntryId: "i".repeat(150), sourceSenseId: source.artifactSha256, sourceNotes: null, source, current,
+        draftRevision: String(draftRevision), history: { items: [current], nextCursor: null },
+      });
+      if (request.operation === "collision") return reply({ items: [], selectedRevisionId: null, answerRevisionId: null, unresolved: false, eligibleCount: 0, nextCursor: null, draftRevision: String(draftRevision) });
+      if (request.operation === "review") {
+        if (++saves === 1) return route.fulfill({ status: 503 });
+        draftRevision++;
+        current = { ...current, revisionNumber: current.revisionNumber + 1, definitionVi: request.input.definitionVi ?? "" };
+        return reply({ entryId: existingId, revisionId: current.id, revisionNumber: current.revisionNumber, review: current.review, answerEligible: false, draftRevision: String(draftRevision) });
+      }
+      throw new Error(`Unexpected editorial operation ${request.operation}`);
+    });
+
+    await page.goto("/admin#dictionary/review");
+    await page.getByLabel("Tài khoản").fill("admin");
+    await page.getByLabel("Mật khẩu").fill("password");
+    await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
+    const search = page.getByRole("searchbox", { name: "Tìm theo chính tả" });
+    await search.fill("nhe\u0323");
+    await search.press("Enter");
+    await expect(page.getByRole("alert").filter({ hasText: "Không thể tải mục từ" })).toBeVisible();
+    await page.getByRole("button", { name: "Thử lại an toàn" }).click();
+    const row = page.getByRole("button", { name: /nhẹ · 3 · Chờ duyệt/ });
+    await expect(row).toBeVisible();
+    expect(queryAttempts).toBe(2);
+    await expect(page.getByText("Đang hiển thị 1 mục trên trang này")).toBeVisible();
+    await search.fill("zzzzqqqq");
+    await page.getByRole("button", { name: "Áp dụng bộ lọc" }).click();
+    await expect(page.getByText("Không có mục từ phù hợp.")).toBeVisible();
+    await page.getByRole("button", { name: "Xóa bộ lọc" }).click();
+    await expect(search).toHaveValue("");
+    await row.click();
+    const detail = page.getByRole("heading", { name: "nhẹ", exact: true });
+    const review = page.getByRole("region", { name: "Duyệt mục từ", exact: true });
+    const definition = review.getByRole("textbox", { name: "Nghĩa tiếng Việt" });
+    await expect(detail).toBeFocused();
+    const save = review.getByRole("button", { name: "Lưu duyệt" });
+    await expect(save).toBeInViewport();
+    await page.getByText("Thông tin kỹ thuật và ghi công", { exact: true }).click();
+    await expect(page.getByText(`SHA-256: ${source.artifactSha256}`)).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    expect(await page.getByText(`SHA-256: ${source.artifactSha256}`).evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+
+    await definition.fill("Thay đổi chưa lưu.");
+    const leave = width < 1024
+      ? page.getByRole("button", { name: "Quay lại danh sách" })
+      : page.getByRole("link", { name: /1\. Nhập|Nhập/ });
+    if (width < 1024) await page.goBack();
+    else await leave.click();
+    const warning = page.getByRole("dialog", { name: "Thay đổi chưa lưu" });
+    await warning.getByRole("button", { name: "Tiếp tục sửa" }).click();
+    await expect(definition).toHaveValue("Thay đổi chưa lưu.");
+    await leave.click();
+    await warning.getByRole("button", { name: "Bỏ thay đổi" }).click();
+    if (width < 1024) {
+      await expect(row).toBeFocused();
+      await row.click();
+    } else {
+      await page.getByRole("link", { name: /Duyệt/ }).click();
+    }
+    await expect(definition).toHaveValue(current.definitionVi);
+    await definition.fill("Nghĩa đã lưu.");
+    await leave.click();
+    await warning.getByRole("button", { name: "Lưu", exact: true }).click();
+    await expect(warning.getByRole("alert")).toBeVisible();
+    await warning.getByRole("button", { name: "Tiếp tục sửa" }).click();
+    await expect(definition).toHaveValue("Nghĩa đã lưu.");
+    await leave.click();
+    await warning.getByRole("button", { name: "Lưu", exact: true }).click();
+    await expect(warning).toBeHidden();
+    expect(saves).toBe(2);
+  });
+}
 
 test("admin checks an alternate meaning, adds it, and manages its lifecycle", async ({ page }) => {
   await page.route("**/api/admin/login", route => route.fulfill({ json: { token: "test-token", expiresAt: Date.now() + 60000 } }));
@@ -120,6 +218,7 @@ test("admin checks an alternate meaning, adds it, and manages its lifecycle", as
   await page.getByRole("button", { name: "Khôi phục về chờ duyệt" }).click();
   await expect(addedRow.getByRole("button", { name: /mèo · 3 · Chờ duyệt/ })).toBeVisible();
   await expect(review).toHaveCount(1);
+  await page.getByText("Lịch sử phiên bản", { exact: true }).click();
   await expect(page.getByText(/#2 · mèo · Đã gỡ/)).toBeVisible();
   await expect(page.getByText(/#3 · mèo · Chờ duyệt/)).toBeVisible();
 });
