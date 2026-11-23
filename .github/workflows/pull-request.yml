@@ -104,7 +104,7 @@ jobs:
           from pathlib import Path
           import tomllib
 
-          source = Path("supabase/config.toml").read_text(encoding="utf-8")
+          source = Path("supabase/config.toml").read_text(encoding="utf-8-sig")
           for project, api_port in (("dictionary-verification", 56321), ("quiz-verification", 55321)):
               config = tomllib.loads(source)
               config["project_id"] = project
