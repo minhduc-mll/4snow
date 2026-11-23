@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test tests/vua-tieng-viet/*.test.mjs && vitest run",
+    "test": "node --test tests/ci/*.test.mjs tests/vua-tieng-viet/*.test.mjs && vitest run",
     "test:browser": "playwright test",
     "supabase:local:cors": "node scripts/vua-tieng-viet/local-gateway-cors.mjs",
     "test:vtv:local:http": "node tests/vua-tieng-viet/local-supabase.integration.mjs",
