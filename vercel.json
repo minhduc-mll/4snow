@@ -4,7 +4,7 @@
     "deploymentEnabled": {
       "**": false,
       "master": true,
-      "release/staging": true
+      "staging": true
     }
   }
 }
