@@ -4,6 +4,8 @@
 
 For backend setup and maintenance, see the [Supabase developer guide](docs/supabase.md). It covers local Docker services, reduced-container options, environment variables, migrations, hosted deployment, and recovery.
 
+For GitHub branch protection, Vercel Preview, Dictionary staging QA, and release or rollback, see the [CI and staging runbook](docs/ci-cd-staging.md).
+
 For local Quiz backend setup, see the [trusted Quiz contract](docs/features/quiz-trusted-submissions.md). Dictionary disposable-stack setup and checks are recorded in the [Supabase developer guide](docs/supabase.md).
 
 ## Architecture
