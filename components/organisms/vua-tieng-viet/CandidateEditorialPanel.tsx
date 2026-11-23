@@ -10,19 +10,19 @@ import { Input } from "@/components/atoms/Input";
 import { BulkEditorialReview } from "@/components/molecules/BulkEditorialReview";
 import { useBulkEditorial } from "@/hooks/useBulkEditorial";
 import { AnswerCollisionReview } from "@/components/molecules/AnswerCollisionReview";
+import { ReviewEditor } from "@/components/molecules/EditorialReviewForm";
 import { CandidateCreationForm } from "@/components/molecules/CandidateCreationForm";
 import { useAppI18n } from "@/hooks/useAppI18n";
 import { useCandidateEditorial, useRightsReviewForm } from "@/hooks/useCandidateEditorial";
-import { useEditorialFilters, useEditorialReviewForm } from "@/hooks/useEditorialForms";
+import { reviewCheckNames } from "@/hooks/useEditorialReviewForm";
+import { useEditorialFilters } from "@/hooks/useEditorialForms";
 import { useDictionaryDraft, useDictionaryNavigation } from "@/hooks/useDictionaryDraft";
 import { useEditorialDetailNavigation } from "@/hooks/useEditorialDetailNavigation";
-import type { ExclusionChecks } from "@/lib/vua-tieng-viet/editorial-contract";
 import { safeHttps } from "@/lib/vua-tieng-viet/safe-link";
 
 type Props = { onUnauthorized: () => void };
 type Editorial = ReturnType<typeof useCandidateEditorial>;
 type Detail = NonNullable<Editorial["detail"]>;
-const checkNames: (keyof ExclusionChecks)[] = ["names", "abbreviations", "offensive", "malformed", "unverified"];
 const selectClass = "w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground";
 const disclosureClass = "min-h-11 cursor-pointer py-2 font-medium focus-visible:outline-2 focus-visible:outline-primary";
 const actionsClass = "sticky top-0 z-10 flex flex-wrap gap-2 border-b bg-card/95 py-2 backdrop-blur";
@@ -97,43 +97,6 @@ function RightsEditor({ detail, model }: { detail: Detail; model: Editorial }): 
     {form.stale ? <p role="alert" className="text-destructive">{t("editorialWorkspace.staleEditor")}</p> : null}
     <div className="grid gap-2 rounded-lg border p-3"><h4 className="font-semibold">{t("rights.preview")}</h4><p>{preview.sourceName} · {preview.sourceEntryId} · {preview.sourceSenseId}</p><p>{preview.resourceRevision} · {preview.artifactRevision} · {preview.artifactSha256}</p><p>{preview.licenseName} {preview.licenseVersion}</p><p>{preview.attributionText}</p><p>{preview.modificationsNotice}</p><div className="flex flex-wrap gap-4">{links.map(({ label, url }) => { const href = safeHttps(url); return href ? <a key={label} className="text-primary underline" href={href} target="_blank" rel="noopener noreferrer">{label}</a> : null; })}</div></div>
   </section>;
-}
-
-function ReviewEditor({ detail, save, saving, locked, canRetry, discardReview }: { detail: Detail; save: Editorial["save"]; saving: boolean; locked: boolean; canRetry: boolean; discardReview: Editorial["discardReview"] }): React.ReactElement {
-  const { t } = useAppI18n();
-  const form = useEditorialReviewForm(detail, save);
-  const discard = () => { discardReview(); form.reset(); };
-  useDictionaryDraft({ dirty: form.dirty, busy: saving, save: canRetry ? form.retry : form.submit, discard });
-  const missingMeaning = form.invalid && form.answer && !form.definition.trim();
-  const invalidReview = form.invalid && form.review === "approved" && (!form.rationale.trim() || form.category === "excluded" || !Object.values(form.checks).every(Boolean));
-  return (
-    <section className={`grid min-w-0 gap-3 rounded-lg border p-4 ${stickyFieldClass}`} aria-label={t("editorial.edit")}>
-      <h3 className="font-semibold">{t("editorial.edit")}</h3>
-      <div className={actionsClass}><Button className="min-h-11" disabled={saving || locked || canRetry || form.answerNeedsAcknowledgement || form.stale} onClick={() => void form.submit()}>{t("editorial.save")}</Button><Button className="min-h-11" variant="outline" disabled={saving || !form.dirty} onClick={discard}>{t("wordManagement.cancel")}</Button>{canRetry ? <Button className="min-h-11" disabled={saving} onClick={() => void form.retry()}>{t("editorial.retry")}</Button> : null}</div>
-      <p className="text-sm text-muted-foreground">{t("editorial.editHint")}</p>
-      <fieldset disabled={saving || locked || canRetry} className="grid min-w-0 gap-3">
-      <label htmlFor="editorial-original">{t("editorial.original")}</label><Input id="editorial-original" aria-invalid={form.invalidOriginal} aria-describedby={form.invalidOriginal ? "editorial-original-error" : undefined} value={form.original} maxLength={120} onChange={(event) => form.setOriginal(event.target.value)} />
-      {form.invalidOriginal ? <p role="alert" id="editorial-original-error" className="text-destructive">{t("wordManagement.invalidSpelling")}</p> : null}
-      <label htmlFor="editorial-definition">{t("editorial.definition")}</label><textarea id="editorial-definition" aria-invalid={missingMeaning} aria-describedby={missingMeaning ? "editorial-definition-error" : undefined} className={selectClass} maxLength={2000} value={form.definition} onChange={(event) => form.setDefinition(event.target.value)} />
-      <label htmlFor="editorial-opening-clue">{t("editorial.openingClue")}</label>
-      <Input id="editorial-opening-clue" maxLength={300} value={form.openingClue} onChange={event => form.setOpeningClue(event.target.value)} aria-describedby="editorial-opening-clue-preview" />
-      <p id="editorial-opening-clue-preview" className="break-words text-sm text-muted-foreground">{t("editorial.openingCluePreview")} · {form.openingClue.trim() || form.definition.trim() || t("editorial.noDefinition")}</p>
-      {missingMeaning ? <p role="alert" id="editorial-definition-error" className="text-destructive">{t("editorialWorkspace.fieldRequired")}</p> : null}
-      <label htmlFor="editorial-review">{t("editorial.review")}</label><select id="editorial-review" className={selectClass} value={form.review} onChange={(event) => form.changeReview(event.target.value)}><option value="pending">{t("editorial.pending")}</option><option value="approved">{t("editorial.approved")}</option><option value="rejected">{t("editorial.rejected")}</option></select>
-      <label htmlFor="editorial-category">{t("editorial.category")}</label><select id="editorial-category" className={selectClass} value={form.category} onChange={(event) => form.changeCategory(event.target.value)}><option value="common">{t("editorial.common")}</option><option value="regional">{t("editorial.regional")}</option><option value="technical">{t("editorial.technical")}</option><option value="less-common">{t("editorial.lessCommon")}</option><option value="rare">{t("editorial.rare")}</option><option value="excluded">{t("editorial.excluded")}</option></select>
-      <label className="flex items-center gap-2"><Checkbox checked={form.answer} disabled={form.review !== "approved"} onChange={(event) => form.setAnswer(event.target.checked)} />{t("editorial.answerEligible")}</label>
-      <fieldset className="grid gap-2"><legend className="font-medium">{t("editorial.checks")}</legend>{checkNames.map((name) => <label className="flex items-center gap-2" key={name}><Checkbox checked={form.checks[name]} onChange={(event) => form.setCheck(name, event.target.checked)} />{t(`editorial.check_${name}`)}</label>)}</fieldset>
-      <label htmlFor="editorial-rationale">{t("editorial.rationale")}</label><textarea id="editorial-rationale" className={selectClass} maxLength={2000} value={form.rationale} onChange={(event) => form.setRationale(event.target.value)} />
-      {invalidReview ? <p role="alert" className="text-destructive">{t("editorialWorkspace.reviewRequirements")}</p> : null}
-      </fieldset>
-      {form.meaningWarning ? <p role="status">{t("bulk.meaning-warning")}</p> : null}
-      {form.meaningWarning && form.answer ? <label className="flex items-center gap-2">
-        <Checkbox checked={form.warningAcknowledged} disabled={saving || locked || canRetry} onChange={(event) => form.setWarningAcknowledged(event.target.checked)} />
-        {t("bulk.confirmMeaningWarning")}
-      </label> : null}
-      {form.stale ? <p role="alert" className="text-destructive">{t("editorialWorkspace.staleEditor")}</p> : null}
-    </section>
-  );
 }
 
 export function CandidateEditorialPanel({ onUnauthorized }: Props): React.ReactElement {
@@ -278,7 +241,7 @@ function CandidateDetail({ model, bulkSaving, guard }: { model: Editorial; bulkS
           </details>
           <EntryLifecycle key={`lifecycle:${model.detail.current.id}`} detail={model.detail} model={{ ...model, saving: model.saving || bulkSaving }} guard={guard} />
           <details className="min-w-0 rounded-lg border px-3"><summary className={disclosureClass}>{t("editorial.history")}</summary>
-            <ul className="grid gap-2">{model.history?.items.map((item) => <li key={item.id} className="rounded-lg border p-2 text-sm"><p>#{item.revisionNumber} · {item.original} · {t(`editorial.${item.review}`)} · {item.createdAt} · {item.actorRole}</p>{item.bulkBatchId ? <p className="break-all">{t("bulk.batch", { id: item.bulkBatchId })}</p> : null}<p>{item.definitionVi}</p>{item.openingClue ? <p>{t("wordGame.openingClue")} · {item.openingClue}</p> : null}<p>{item.rationale}</p><p>{item.category} · {item.answerEligible ? t("editorial.answerEligible") : ""}</p>{item.exclusionChecks ? <p>{checkNames.map((name) => `${t(`editorial.check_${name}`)}: ${item.exclusionChecks?.[name] ? t("editorial.yes") : t("editorial.no")}`).join(" · ")}</p> : null}</li>)}</ul>
+            <ul className="grid gap-2">{model.history?.items.map((item) => <li key={item.id} className="rounded-lg border p-2 text-sm"><p>#{item.revisionNumber} · {item.original} · {t(`editorial.${item.review}`)} · {item.createdAt} · {item.actorRole}</p>{item.bulkBatchId ? <p className="break-all">{t("bulk.batch", { id: item.bulkBatchId })}</p> : null}<p>{item.definitionVi}</p>{item.openingClue ? <p>{t("wordGame.openingClue")} · {item.openingClue}</p> : null}<p>{item.rationale}</p><p>{item.category} · {item.answerEligible ? t("editorial.answerEligible") : ""}</p>{item.exclusionChecks ? <p>{reviewCheckNames.map((name) => `${t(`editorial.check_${name}`)}: ${item.exclusionChecks?.[name] ? t("editorial.yes") : t("editorial.no")}`).join(" · ")}</p> : null}</li>)}</ul>
             {model.historyError ? <Badge variant="danger">{t("editorial.error")}</Badge> : null}
             <div className="flex gap-2"><Button variant="outline" onClick={() => model.setHistoryCursor(null)}>{t("editorial.first")}</Button><Button variant="outline" disabled={!model.history?.nextCursor} onClick={() => model.setHistoryCursor(model.history?.nextCursor ?? null)}>{t("editorial.next")}</Button></div>
           </details>
