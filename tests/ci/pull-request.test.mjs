@@ -105,13 +105,15 @@ test("a technical merge of the advanced target does not add target commits or ch
   assert.equal(result.output, "backend=false\n");
 });
 
-test("the repository's master branch can sync staging, while fork branches use conventional names", (t) => {
-  const { check, commit, git } = createRepository(t);
-  const base = { ref: "release/staging", sha: git("rev-parse", "HEAD"), repo: { id: 1 } };
-  const sha = commit("fix(quiz): correct scoring");
-  const ownMaster = check({ base, head: { ref: "master", sha, repo: { id: 1 } } });
-  assert.equal(ownMaster.status, 0, ownMaster.stderr);
-  const forkMaster = check({ base, head: { ref: "master", sha, repo: { id: 2 } } });
-  assert.equal(forkMaster.status, 1);
-  assert.match(forkMaster.stderr, /Source branch "master"/);
-});
+for (const [source, target] of [["master", "staging"], ["staging", "master"]]) {
+  test(`the repository can merge ${source} into ${target}, while forks use conventional names`, (t) => {
+    const { check, commit, git } = createRepository(t);
+    const base = { ref: target, sha: git("rev-parse", "HEAD"), repo: { id: 1 } };
+    const sha = commit("fix(quiz): correct scoring");
+    const sameRepository = check({ base, head: { ref: source, sha, repo: { id: 1 } } });
+    assert.equal(sameRepository.status, 0, sameRepository.stderr);
+    const fork = check({ base, head: { ref: source, sha, repo: { id: 2 } } });
+    assert.equal(fork.status, 1);
+    assert.ok(fork.stderr.includes(`Source branch "${source}"`));
+  });
+}

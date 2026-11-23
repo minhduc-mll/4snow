@@ -38,9 +38,11 @@ try {
   appendFileSync(process.env.GITHUB_OUTPUT, `backend=${backendChanges.length > 0}\n`);
 
   const issues = [];
-  const stagingSync = source === "master" && pr.base.ref === "release/staging" &&
-    typeof pr.base.repo?.id === "number" && pr.base.repo.id === pr.head.repo?.id;
-  if (!branchPattern.test(source) && !stagingSync) {
+  const sameRepository = typeof pr.base.repo?.id === "number" && pr.base.repo.id === pr.head.repo?.id;
+  const environmentPromotion = source === "staging" && pr.base.ref === "master";
+  const environmentSync = source === "master" && pr.base.ref === "staging";
+  const environmentBranch = sameRepository && (environmentPromotion || environmentSync);
+  if (!branchPattern.test(source) && !environmentBranch) {
     issues.push(`Source branch ${JSON.stringify(source)} must follow Conventional Branch 1.1.0.`);
   }
   const subjectHint = "must use type(scope): description, with an optional ! before the colon.";
