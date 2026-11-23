@@ -82,34 +82,49 @@ jobs:
           printf 'ADMIN_JWT_SECRET=%s\nVTV_ALLOWED_ORIGINS=http://127.0.0.1:3000\n' \
             "$(openssl rand -hex 32)" > supabase/functions/.env
           supabase start >/dev/null
-          for suite in preview-limit import editorial rights-review collisions publication configuration bulk management; do
+          for suite in preview-limit import editorial rights-review collisions bulk management; do
             echo "Checking $suite.sql"
             docker exec -i supabase_db_4snow psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f - < "tests/supabase/$suite.sql"
           done
+          node tests/vua-tieng-viet/publication-sql.integration.mjs
+          node tests/vua-tieng-viet/configuration-sql.integration.mjs
           npm run supabase:local:cors
           npm run test:vtv:local:http
           node tests/vua-tieng-viet/rights-local.integration.mjs
+      - name: Prepare isolated Dictionary and Quiz stacks
+        run: |
+          for project in dictionary-verification quiz-verification; do
+            workdir="output/$project"
+            mkdir -p "$workdir/supabase"
+            cp -R supabase/migrations supabase/functions "$workdir/supabase/"
+            cp -R lib "$workdir/"
+          done
+          python3 - <<'PYTHON'
+          import json
+          from pathlib import Path
+          import tomllib
+
+          source = Path("supabase/config.toml").read_text(encoding="utf-8")
+          for project, api_port in (("dictionary-verification", 56321), ("quiz-verification", 55321)):
+              config = tomllib.loads(source)
+              config["project_id"] = project
+              config.setdefault("api", {})["port"] = api_port
+              config.setdefault("db", {})["port"] = api_port + 1
+              (Path("output") / project / "supabase/config.jsonc").write_text(json.dumps(config), encoding="utf-8")
+          PYTHON
+      - name: Check Dictionary publication and bulk HTTP
+        run: |
+          workdir=output/dictionary-verification
+          trap 'supabase stop --workdir "$workdir" --no-backup' EXIT
+          supabase start --workdir "$workdir" >/dev/null
+          node tests/vua-tieng-viet/publication-http.integration.mjs
+          node tests/vua-tieng-viet/bulk-http.integration.mjs
       - name: Check Quiz SQL, HTTP and Realtime
         env:
           SUPABASE_CLI: supabase
         run: |
           workdir=output/quiz-verification
-          mkdir -p "$workdir/supabase"
-          cp -R supabase/migrations supabase/functions "$workdir/supabase/"
-          cp -R lib "$workdir/"
-          python3 - "$workdir" <<'PYTHON'
-          import json
-          from pathlib import Path
-          import sys
-          import tomllib
-
-          config = tomllib.loads(Path("supabase/config.toml").read_text(encoding="utf-8"))
-          config["project_id"] = "quiz-verification"
-          config.setdefault("api", {})["port"] = 55321
-          config.setdefault("db", {})["port"] = 55322
-          (Path(sys.argv[1]) / "supabase/config.jsonc").write_text(json.dumps(config), encoding="utf-8")
-          PYTHON
-          trap 'supabase stop --workdir output/quiz-verification --no-backup' EXIT
+          trap 'supabase stop --workdir "$workdir" --no-backup' EXIT
           supabase start --workdir "$workdir" >/dev/null
           node tests/quiz/local-integrity.integration.mjs
 

@@ -6,8 +6,10 @@ const subjectPattern = /^[a-z][a-z0-9-]*\([^\s()]+\)!?: \S(?:[^\r\n]*\S)?$/i;
 const backendPaths = [
   "supabase/",
   "app/api/admin/",
+  "hooks/usePublishedDictionary.ts",
   "lib/admin-auth.ts",
   "lib/quiz/",
+  "lib/supabase.ts",
   "lib/vua-tieng-viet/",
   "scripts/vua-tieng-viet/",
   "tests/supabase/",

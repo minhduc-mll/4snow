@@ -66,6 +66,19 @@ test("a backend file removed by the PR still requires backend checks", (t) => {
   assert.equal(result.output, "backend=true\n");
 });
 
+for (const path of ["hooks/usePublishedDictionary.ts", "lib/supabase.ts"]) {
+  test(`editing ${path} requires backend checks`, (t) => {
+    const { check, commit, cwd, git } = createRepository(t);
+    mkdirSync(join(cwd, path.split("/")[0]));
+    writeFileSync(join(cwd, path), "export {};\n");
+    git("add", path);
+    commit("fix(supabase): update the browser client");
+    const result = check();
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.output, "backend=true\n");
+  });
+}
+
 test("metadata diagnostics identify the wrong source branch, title and new commit", (t) => {
   const { check, commit, git } = createRepository(t);
   const sha = commit("Rework the gate");
